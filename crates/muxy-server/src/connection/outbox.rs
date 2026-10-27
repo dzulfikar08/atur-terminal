@@ -10,7 +10,7 @@ use muxy_protocol::{
 
 use crate::{AttachmentId, ServerError, SessionCommand, SessionHandle};
 
-use super::merge::merge;
+use super::merge::{merge, weight};
 
 struct Attachment {
     handle: SessionHandle,
@@ -52,6 +52,46 @@ struct Watches {
     remote_access: bool,
 }
 
+const WINDOW_FRAMES: usize = 8;
+const WINDOW_BYTES: usize = 256 * 1024;
+
+#[derive(Default)]
+struct Window {
+    in_flight: VecDeque<(u64, usize)>,
+    bytes: usize,
+}
+
+impl Window {
+    fn admits(&self, weight: usize) -> bool {
+        self.in_flight.is_empty()
+            || (self.in_flight.len() < WINDOW_FRAMES && self.bytes + weight <= WINDOW_BYTES)
+    }
+
+    fn send(&mut self, seq: u64, weight: usize) {
+        self.in_flight.push_back((seq, weight));
+        self.bytes += weight;
+    }
+
+    fn ack(&mut self, seq: u64) -> bool {
+        if self
+            .in_flight
+            .back()
+            .is_none_or(|&(newest, _)| seq > newest)
+        {
+            return false;
+        }
+        let mut released = false;
+        while let Some(&(oldest, weight)) = self.in_flight.front()
+            && oldest <= seq
+        {
+            self.in_flight.pop_front();
+            self.bytes -= weight;
+            released = true;
+        }
+        released
+    }
+}
+
 #[derive(Default)]
 struct State {
     client: muxy_protocol::SessionClient,
@@ -69,8 +109,7 @@ struct State {
     control: VecDeque<Message>,
     pending: HashMap<ChannelId, ScreenFrame>,
     metadata: HashMap<ChannelId, Vec<MetadataEvent>>,
-    credit: HashMap<ChannelId, bool>,
-    sent: HashMap<ChannelId, u64>,
+    window: HashMap<ChannelId, Window>,
     attachments: HashMap<ChannelId, Attachment>,
     closed: bool,
 }
@@ -332,7 +371,7 @@ impl Outbox {
                 resizes: VecDeque::new(),
             },
         );
-        state.credit.insert(channel, true);
+        state.window.insert(channel, Window::default());
         state.created.remove(&session);
         state.refresh_positions();
         Ok(())
@@ -458,7 +497,7 @@ impl Outbox {
 
     pub(super) fn push_frame(&self, channel: ChannelId, frame: ScreenFrame) -> bool {
         let mut state = self.lock();
-        if !state.credit.contains_key(&channel) || state.closed {
+        if !state.window.contains_key(&channel) || state.closed {
             return false;
         }
         match state.pending.entry(channel) {
@@ -473,7 +512,7 @@ impl Outbox {
 
     pub(super) fn push_metadata(&self, channel: ChannelId, event: MetadataEvent) -> bool {
         let mut state = self.lock();
-        if !state.credit.contains_key(&channel) || state.closed {
+        if !state.window.contains_key(&channel) || state.closed {
             return false;
         }
         let pending = state.metadata.entry(channel).or_default();
@@ -491,10 +530,9 @@ impl Outbox {
 
     pub(super) fn ack(&self, channel: ChannelId, seq: u64) {
         let mut state = self.lock();
-        if state.sent.get(&channel) == Some(&seq)
-            && let Some(credit) = state.credit.get_mut(&channel)
+        if let Some(window) = state.window.get_mut(&channel)
+            && window.ack(seq)
         {
-            *credit = true;
             self.ready.notify_one();
         }
     }
@@ -519,14 +557,19 @@ impl Outbox {
             }
             let channel = state
                 .pending
-                .keys()
-                .find(|channel| state.credit.get(channel) == Some(&true))
-                .copied();
+                .iter()
+                .find(|(channel, frame)| {
+                    state
+                        .window
+                        .get(channel)
+                        .is_some_and(|window| window.admits(weight(frame)))
+                })
+                .map(|(channel, _)| *channel);
             if let Some(channel) = channel
                 && let Some(frame) = state.pending.remove(&channel)
+                && let Some(window) = state.window.get_mut(&channel)
             {
-                state.credit.insert(channel, false);
-                state.sent.insert(channel, frame.seq);
+                window.send(frame.seq, weight(&frame));
                 return Some((channel, Message::Frame(frame)));
             }
             state = self
@@ -599,15 +642,13 @@ impl State {
         self.pending.clear();
         self.progress.clear();
         self.metadata.clear();
-        self.credit.clear();
-        self.sent.clear();
+        self.window.clear();
     }
 
     fn retire(&mut self, channel: ChannelId, error: &ServerError) {
         self.pending.remove(&channel);
         self.metadata.remove(&channel);
-        self.credit.remove(&channel);
-        self.sent.remove(&channel);
+        self.window.remove(&channel);
         if let Some(attachment) = self.attachments.remove(&channel) {
             let _ = attachment
                 .handle
@@ -683,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn title_updates_coalesce_and_resubscribe_without_screen_credit() {
+    fn title_updates_coalesce_and_resubscribe_without_screen_window() {
         let outbox = Outbox::new(Arc::default());
         let session = SessionId::from(std::num::NonZeroU64::MIN);
         let message = |title: String| Message::SessionMetadata {
@@ -766,12 +807,12 @@ mod tests {
     }
 
     #[test]
-    fn control_first_independent_credit_and_merged_pending_frames() {
+    fn control_first_and_independent_windows_per_channel() {
         let outbox = Outbox::new(Arc::default());
-        outbox
-            .lock()
-            .credit
-            .extend([(ChannelId(1), true), (ChannelId(2), true)]);
+        outbox.lock().window.extend([
+            (ChannelId(1), Window::default()),
+            (ChannelId(2), Window::default()),
+        ]);
         outbox.push_frame(ChannelId(1), frame(1, 0));
         outbox.push_control(Message::HelloReply {
             versions: muxy_protocol::SUPPORTED.to_vec(),
@@ -786,33 +827,133 @@ mod tests {
             outbox.next(),
             Some((ChannelId(1), Message::Frame(frame(1, 0))))
         );
-        outbox.push_frame(ChannelId(1), frame(2, 1));
-        outbox.push_frame(ChannelId(1), frame(4, 2));
         outbox.push_frame(ChannelId(2), frame(1, 0));
         assert_eq!(
             outbox.next(),
             Some((ChannelId(2), Message::Frame(frame(1, 0))))
         );
-        outbox.ack(ChannelId(1), 0);
-        outbox.ack(ChannelId(1), 5);
-        assert!(!outbox.lock().credit[&ChannelId(1)]);
-        assert_eq!(outbox.lock().pending.len(), 1);
-        outbox.ack(ChannelId(1), 1);
-        let mut merged = frame(4, 1);
+    }
+
+    fn open_channel(outbox: &Outbox, channel: ChannelId) {
+        outbox.lock().window.insert(channel, Window::default());
+    }
+
+    fn send_frame(outbox: &Outbox, channel: ChannelId, seq: u64) {
+        outbox.push_frame(channel, frame(seq, 0));
+        assert_eq!(
+            outbox.next(),
+            Some((channel, Message::Frame(frame(seq, 0))))
+        );
+    }
+
+    fn in_flight(outbox: &Outbox, channel: ChannelId) -> Vec<u64> {
+        outbox.lock().window[&channel]
+            .in_flight
+            .iter()
+            .map(|&(seq, _)| seq)
+            .collect()
+    }
+
+    #[test]
+    fn window_holds_frames_in_flight_then_merges_and_cumulative_ack_releases_the_oldest() {
+        let outbox = Outbox::new(Arc::default());
+        let channel = ChannelId(1);
+        open_channel(&outbox, channel);
+        for seq in 1..=WINDOW_FRAMES as u64 {
+            send_frame(&outbox, channel, seq);
+        }
+        outbox.push_frame(channel, frame(9, 1));
+        outbox.push_frame(channel, frame(10, 2));
+        let full = outbox.lock();
+        assert_eq!(full.window[&channel].in_flight.len(), WINDOW_FRAMES);
+        assert!(!full.window[&channel].admits(weight(&full.pending[&channel])));
+        assert_eq!(full.pending.len(), 1);
+        drop(full);
+        outbox.ack(channel, 3);
+        assert_eq!(in_flight(&outbox, channel), vec![4, 5, 6, 7, 8]);
+        let mut merged = frame(10, 1);
         merged.rows.push(Row {
             index: 2,
             runs: vec![],
         });
-        assert_eq!(outbox.next(), Some((ChannelId(1), Message::Frame(merged))));
-        outbox.ack(ChannelId(1), 1);
-        assert!(!outbox.lock().credit[&ChannelId(1)]);
+        assert_eq!(outbox.next(), Some((channel, Message::Frame(merged))));
+        assert_eq!(in_flight(&outbox, channel), vec![4, 5, 6, 7, 8, 10]);
+        outbox.ack(channel, 10);
+        assert!(in_flight(&outbox, channel).is_empty());
+        assert_eq!(outbox.lock().window[&channel].bytes, 0);
     }
 
     #[test]
-    fn metadata_coalesces_without_frame_credit_and_is_retired_with_its_channel() {
+    fn acking_every_frame_in_order_behaves_like_the_original_client() {
         let outbox = Outbox::new(Arc::default());
         let channel = ChannelId(1);
-        outbox.lock().credit.insert(channel, false);
+        open_channel(&outbox, channel);
+        for seq in [1, 2, 5, 6, 9] {
+            send_frame(&outbox, channel, seq);
+            assert_eq!(in_flight(&outbox, channel), vec![seq]);
+            outbox.ack(channel, seq);
+            assert!(in_flight(&outbox, channel).is_empty());
+        }
+    }
+
+    #[test]
+    fn stale_repeated_and_unsent_acks_release_nothing() {
+        let outbox = Outbox::new(Arc::default());
+        let channel = ChannelId(1);
+        open_channel(&outbox, channel);
+        send_frame(&outbox, channel, 3);
+        send_frame(&outbox, channel, 4);
+        outbox.ack(channel, 0);
+        outbox.ack(channel, 2);
+        outbox.ack(channel, 5);
+        outbox.ack(ChannelId(9), 4);
+        assert_eq!(in_flight(&outbox, channel), vec![3, 4]);
+        outbox.ack(channel, 3);
+        outbox.ack(channel, 3);
+        assert_eq!(in_flight(&outbox, channel), vec![4]);
+    }
+
+    #[test]
+    fn byte_bound_stops_heavy_frames_but_never_starves_an_oversized_one() {
+        let outbox = Outbox::new(Arc::default());
+        let channel = ChannelId(1);
+        open_channel(&outbox, channel);
+        let heavy = |seq: u64, bytes: usize| {
+            let mut heavy = frame(seq, 0);
+            heavy.rows[0].runs.push(muxy_protocol::Run {
+                text: "x".repeat(bytes),
+                width: 1,
+                style: muxy_protocol::Style::default(),
+            });
+            heavy
+        };
+        outbox.push_frame(channel, heavy(1, WINDOW_BYTES * 2));
+        assert!(matches!(
+            outbox.next(),
+            Some((_, Message::Frame(sent))) if sent.seq == 1
+        ));
+        outbox.push_frame(channel, frame(2, 0));
+        {
+            let state = outbox.lock();
+            assert!(!state.window[&channel].admits(weight(&state.pending[&channel])));
+        }
+        outbox.ack(channel, 1);
+        assert_eq!(outbox.next(), Some((channel, Message::Frame(frame(2, 0)))));
+        outbox.push_frame(channel, heavy(3, WINDOW_BYTES / 2));
+        assert!(matches!(
+            outbox.next(),
+            Some((_, Message::Frame(sent))) if sent.seq == 3
+        ));
+        outbox.push_frame(channel, heavy(4, WINDOW_BYTES / 2));
+        let state = outbox.lock();
+        assert!(!state.window[&channel].admits(weight(&state.pending[&channel])));
+    }
+
+    #[test]
+    fn metadata_coalesces_without_frame_window_and_is_retired_with_its_channel() {
+        let outbox = Outbox::new(Arc::default());
+        let channel = ChannelId(1);
+        open_channel(&outbox, channel);
         for index in 0..1000 {
             outbox.push_metadata(channel, MetadataEvent::Title(index.to_string()));
             outbox.push_metadata(channel, MetadataEvent::Bell);
@@ -846,7 +987,7 @@ mod tests {
     fn clipboard_metadata_keeps_only_the_latest_write_and_is_retired() {
         let outbox = Outbox::new(Arc::default());
         let channel = ChannelId(1);
-        outbox.lock().credit.insert(channel, false);
+        open_channel(&outbox, channel);
         outbox.push_metadata(channel, MetadataEvent::ClipboardWrite("first".into()));
         outbox.push_metadata(channel, MetadataEvent::ClipboardWrite("last".into()));
         assert_eq!(outbox.lock().metadata[&channel].len(), 1);
@@ -869,7 +1010,11 @@ mod tests {
     fn closing_wakes_writer_and_discards_pending_but_drains_control()
     -> Result<(), Box<dyn std::error::Error>> {
         let outbox = Arc::new(Outbox::new(Arc::default()));
-        outbox.lock().credit.insert(ChannelId(1), false);
+        let mut saturated = Window::default();
+        for seq in 0..WINDOW_FRAMES as u64 {
+            saturated.send(seq, 0);
+        }
+        outbox.lock().window.insert(ChannelId(1), saturated);
         outbox.push_frame(ChannelId(1), frame(1, 0));
         let (sender, receiver) = mpsc::channel();
         let waiting = Arc::clone(&outbox);

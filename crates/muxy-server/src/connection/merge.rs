@@ -19,6 +19,32 @@ pub(super) fn merge(older: &mut ScreenFrame, newer: ScreenFrame) {
     }
 }
 
+const ROW_OVERHEAD: usize = 8;
+const RUN_OVERHEAD: usize = 16;
+const FRAME_OVERHEAD: usize = 64;
+
+pub(super) fn weight(frame: &ScreenFrame) -> usize {
+    let rows: usize = frame
+        .rows
+        .iter()
+        .map(|row| {
+            ROW_OVERHEAD
+                + row
+                    .runs
+                    .iter()
+                    .map(|run| RUN_OVERHEAD + run.text.len())
+                    .sum::<usize>()
+        })
+        .sum();
+    let images: usize = frame
+        .graphics
+        .iter()
+        .flat_map(|graphics| &graphics.images)
+        .map(|image| image.rgba.len())
+        .sum();
+    FRAME_OVERHEAD + rows + images
+}
+
 #[cfg(test)]
 mod tests {
     use muxy_protocol::{Cursor, Modes, Row};

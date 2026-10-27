@@ -18,7 +18,7 @@ are in git history.
 | D5 | CBOR messages, postcard rows | Messages can grow, rows stay compact |
 | D6 | zstd streaming compression, planned | Halves interactive traffic |
 | D7 | Any byte stream is a transport | Unix socket locally, SSH to other computers, TLS for phones |
-| D8 | One merged frame in flight | Slow apps never pile up |
+| D8 | A small window of frames in flight | Slow apps never pile up, long links stay busy |
 | D9 | The app draws rows directly | Redraws only on change |
 | D10 | portable-pty for PTYs | Same speed, ready for Windows |
 | D11 | Phones pin a certificate, or use SSH | No cloud; pairing needs no SSH setup |
@@ -83,13 +83,16 @@ prompt for it.
 
 Turned down: a stream multiplexing library, because D8 fits terminals better.
 
-## D8. One merged frame in flight
+## D8. A small window of frames in flight
 
-Each session has at most one waiting frame per app. Newer output merges into it,
-and it is sent once the app acknowledges the previous one. For an app that takes
-3 ms per frame, this cut server memory from 128 MB to 3 MB and the time to reach
-the latest screen from 94 s to 10 s. Nothing is lost, because a newer row
-replaces an older one.
+Each session sends an app at most 8 frames, or about 256 KiB, before it waits for
+acknowledgements, and an ack covers every frame up to its number. Newer output
+merges into a single waiting frame while the window is full. For an app that
+takes 3 ms per frame, merging cut server memory from 128 MB to 3 MB and the time
+to reach the latest screen from 94 s to 10 s. Nothing is lost, because a newer
+row replaces an older one. The first design allowed one frame in flight, which
+capped the frame rate at one per round trip over SSH: about 10 frames a second
+at 100 ms.
 
 ## D9. The app draws rows directly
 

@@ -47,22 +47,26 @@ sequenceDiagram
 
 ## Flow control
 
-Each attached session has at most one frame in flight to each app. While the
-app is busy, newer output merges into a single waiting frame.
+Each attached session has a window of frames in flight to each app: at most 8
+frames and about 256 KiB. Output that arrives while the window is full merges
+into a single waiting frame. An ack of a frame's number also acknowledges every
+earlier frame, and apps that ack each frame in order work unchanged.
 
 ```mermaid
 sequenceDiagram
     participant Server
     participant App as Slow app
     Server->>App: Frame 1
-    Note over Server: Frames 2, 3, and 4 merge into one
-    App-->>Server: Ack frame 1
-    Server->>App: Frames 2 to 4, merged
+    Server->>App: Frame 2
+    Note over Server: Window full. Frames 3, 4, and 5 merge into one
+    App-->>Server: Ack frame 2
+    Server->>App: Frames 3 to 5, merged
 ```
 
-Memory stays small, and a slow app jumps straight to the latest screen. Control
-messages are always written first. Wire compression is planned but not built
-yet.
+Memory stays small, and a slow app jumps straight to the latest screen. The
+window also keeps a link with a long round trip busy, where one frame per ack
+would cap the frame rate at one per round trip. Control messages are always
+written first. Wire compression is planned but not built yet.
 
 ## Versions
 
