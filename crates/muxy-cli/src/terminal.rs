@@ -1,7 +1,7 @@
 use std::io::{self, IsTerminal, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
 
@@ -27,42 +27,96 @@ pub(crate) fn over_ssh() -> bool {
 
 pub(crate) type Terminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>;
 
+enum Signal {
+    Input(io::Result<event::Event>),
+    Redraw,
+}
+
+/// Wakes the event loop to draw again, at most once until it has.
+#[derive(Clone)]
+pub(crate) struct Waker {
+    sender: SyncSender<Signal>,
+    pending: Arc<AtomicBool>,
+}
+
+impl Waker {
+    pub(crate) fn wake(&self) {
+        if self.pending.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        if self.sender.try_send(Signal::Redraw).is_err() {
+            self.pending.store(false, Ordering::Release);
+        }
+    }
+}
+
 pub(crate) struct Events {
-    receiver: Receiver<io::Result<event::Event>>,
+    receiver: Receiver<Signal>,
+    waker: Waker,
+    reader: Option<thread::JoinHandle<()>>,
     stop: Arc<AtomicBool>,
 }
 
 impl Events {
     pub(crate) fn start() -> io::Result<Self> {
-        let (sender, receiver) = mpsc::sync_channel(128);
-        let stop = Arc::new(AtomicBool::new(false));
-        let stopped = Arc::clone(&stop);
-        thread::Builder::new()
-            .name("muxy-tui-host-input".into())
-            .spawn(move || {
-                while !stopped.load(Ordering::Acquire) {
-                    let event = match event::poll(Duration::from_millis(16)) {
-                        Ok(false) => continue,
-                        Ok(true) => event::read(),
-                        Err(error) => Err(error),
-                    };
-                    let failed = event.is_err();
-                    if sender.send(event).is_err() || failed {
-                        break;
+        let mut events = Self::detached();
+        let sender = events.waker.sender.clone();
+        let stop = Arc::clone(&events.stop);
+        events.reader = Some(
+            thread::Builder::new()
+                .name("muxy-tui-host-input".into())
+                .spawn(move || {
+                    while !stop.load(Ordering::Acquire) {
+                        let event = match event::poll(Duration::from_millis(16)) {
+                            Ok(false) => continue,
+                            Ok(true) => event::read(),
+                            Err(error) => Err(error),
+                        };
+                        let failed = event.is_err();
+                        if sender.send(Signal::Input(event)).is_err() || failed {
+                            break;
+                        }
                     }
-                }
-            })?;
-        Ok(Self { receiver, stop })
+                })?,
+        );
+        Ok(events)
     }
 
-    pub(crate) fn next(&self) -> io::Result<Option<event::Event>> {
-        match self.receiver.recv_timeout(Duration::from_millis(16)) {
-            Ok(event) => event.map(Some),
-            Err(mpsc::RecvTimeoutError::Timeout) => Ok(None),
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                Err(io::Error::other("Terminal input closed"))
-            }
+    fn detached() -> Self {
+        let (sender, receiver) = mpsc::sync_channel(128);
+        Self {
+            receiver,
+            waker: Waker {
+                sender,
+                pending: Arc::new(AtomicBool::new(false)),
+            },
+            reader: None,
+            stop: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    pub(crate) fn waker(&self) -> Waker {
+        self.waker.clone()
+    }
+
+    /// Waits for input or a requested redraw, giving `None` for the latter
+    /// or when nothing happened within a frame.
+    pub(crate) fn next(&self) -> io::Result<Option<event::Event>> {
+        let signal = self.receiver.recv_timeout(Duration::from_millis(16));
+        if let Ok(Signal::Input(event)) = signal {
+            return event.map(Some);
+        }
+        if self
+            .reader
+            .as_ref()
+            .is_some_and(thread::JoinHandle::is_finished)
+        {
+            return Err(io::Error::other("Terminal input closed"));
+        }
+        if matches!(signal, Ok(Signal::Redraw)) {
+            self.waker.pending.store(false, Ordering::Release);
+        }
+        Ok(None)
     }
 }
 
@@ -197,5 +251,35 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         Ok(())
+    }
+
+    #[test]
+    fn a_frame_wakes_the_loop_through_the_input_queue_once_per_draw() -> io::Result<()> {
+        let events = Events::detached();
+        let waker = events.waker();
+        for _ in 0..1000 {
+            waker.wake();
+        }
+        assert!(events.next()?.is_none());
+        assert!(events.receiver.try_recv().is_err());
+        waker.wake();
+        assert!(matches!(events.receiver.try_recv(), Ok(Signal::Redraw)));
+        Ok(())
+    }
+
+    #[test]
+    fn a_full_input_queue_does_not_lose_later_wakes() {
+        let events = Events::detached();
+        let waker = events.waker();
+        while waker
+            .sender
+            .try_send(Signal::Input(Ok(event::Event::FocusGained)))
+            .is_ok()
+        {}
+        waker.wake();
+        assert!(!waker.pending.load(Ordering::Acquire));
+        while events.receiver.try_recv().is_ok() {}
+        waker.wake();
+        assert!(matches!(events.receiver.try_recv(), Ok(Signal::Redraw)));
     }
 }

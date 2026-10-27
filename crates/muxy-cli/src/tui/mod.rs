@@ -56,15 +56,16 @@ pub(crate) fn run(remote: Option<SshTarget>, folder: Option<&Path>) -> Result {
     let size = host.terminal.size().map_err(|error| error.to_string())?;
     let ui = Ui::default();
     let body = Chrome::new(Rect::new(0, 0, size.width, size.height), ui.sidebar()).body;
-    let worker = Worker::start(target, first, body, open)?;
-    let result = events(&mut host, &worker, ui);
+    let events = terminal::Events::start().map_err(|error| error.to_string())?;
+    let worker = Worker::start(target, first, body, open, events.waker())?;
+    let result = event_loop(&mut host, &worker, &events, ui);
+    drop(events);
     drop(host);
     drop(worker);
     result
 }
 
-fn events(host: &mut Host, worker: &Worker, mut ui: Ui) -> Result {
-    let events = terminal::Events::start().map_err(|error| error.to_string())?;
+fn event_loop(host: &mut Host, worker: &Worker, events: &terminal::Events, mut ui: Ui) -> Result {
     let mut pointer = mouse::Pointer::default();
     let mut capturing = true;
     let mut shape = None;

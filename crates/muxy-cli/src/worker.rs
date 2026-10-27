@@ -22,6 +22,7 @@ use ratatui::layout::Rect;
 use crate::input::Input;
 use crate::state::{Discard, Result, State, Store};
 use crate::target::Target;
+use crate::terminal::Waker;
 
 /// How long the worker waits for a request before checking whether to quit.
 const POLL: Duration = Duration::from_millis(100);
@@ -86,6 +87,7 @@ impl Worker {
         first: Option<Client>,
         viewport: Rect,
         open: Option<ProjectId>,
+        redraw: Waker,
     ) -> Result<Self> {
         let mut initial = Shared::default();
         target.describe().clone_into(&mut initial.server);
@@ -111,6 +113,7 @@ impl Worker {
             input: Arc::clone(&input),
             ordered: Arc::clone(&ordered),
             queued_bytes: Arc::clone(&queued_bytes),
+            redraw,
         };
         let worker = thread::Builder::new()
             .name("muxy-tui-requests".into())
@@ -225,6 +228,7 @@ struct Core {
     input: Arc<InputWriter>,
     ordered: Arc<AtomicUsize>,
     queued_bytes: Arc<AtomicUsize>,
+    redraw: Waker,
 }
 
 impl Core {
@@ -254,7 +258,11 @@ impl Core {
             };
             failures = 0;
             *lock(&self.connection) = Some(client.clone());
-            let reader = match io::reader(client.clone(), Arc::clone(&self.shared)) {
+            let reader = match io::reader(
+                client.clone(),
+                Arc::clone(&self.shared),
+                self.redraw.clone(),
+            ) {
                 Ok(reader) => reader,
                 Err(error) => {
                     self.message(&error);

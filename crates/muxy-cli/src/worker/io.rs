@@ -13,6 +13,7 @@ use muxy_protocol::{
 
 use crate::scroll::{HistoryRequest, Scroll};
 use crate::state::{Result, State};
+use crate::terminal::Waker;
 
 #[derive(Clone, Debug)]
 pub(crate) struct View {
@@ -191,7 +192,11 @@ pub(crate) fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-pub(super) fn reader(client: Client, shared: Arc<Mutex<Shared>>) -> Result<JoinHandle<()>> {
+pub(super) fn reader(
+    client: Client,
+    shared: Arc<Mutex<Shared>>,
+    redraw: Waker,
+) -> Result<JoinHandle<()>> {
     let events = client.events().ok_or("Connection events already taken")?;
     thread::Builder::new()
         .name("muxy-tui-events".into())
@@ -262,6 +267,7 @@ pub(super) fn reader(client: Client, shared: Arc<Mutex<Shared>>) -> Result<JoinH
                 }
                 let invalid = state.pending.len() > 16;
                 drop(state);
+                redraw.wake();
                 if invalid || ack.is_some_and(|(channel, seq)| client.ack(channel, seq).is_err()) {
                     client.disconnect();
                     break;
