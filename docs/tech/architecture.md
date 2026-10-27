@@ -78,7 +78,7 @@ sequenceDiagram
     Connection->>Session: Forward right away
     Session->>Shell: Write to the PTY
     Shell-->>Session: Output
-    Note over Session: Next tick, about 16 ms later
+    Note over Session: At once, or at the next 16 ms tick after a recent frame
     Session-->>Connection: Rows that changed
     Connection-->>App: Screen frame
     App->>Connection: Ack, ready for the next frame

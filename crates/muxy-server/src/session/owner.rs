@@ -103,6 +103,7 @@ struct Owner {
     prompts: Vec<u16>,
     frame_state: Option<(muxy_protocol::Cursor, muxy_protocol::Modes)>,
     next_tick: Option<Instant>,
+    last_tick: Option<Instant>,
     synchronized_since: Option<Instant>,
     output_state: OutputState,
     archive: Archive,
@@ -198,6 +199,7 @@ pub(crate) fn start(
                 prompts: Vec::new(),
                 frame_state: None,
                 next_tick: None,
+                last_tick: None,
                 synchronized_since: None,
                 output_state: OutputState::Open,
                 archive,
@@ -372,7 +374,7 @@ impl Owner {
                 return Ok(exit_reason(status));
             }
             if self.next_tick.is_none() && self.has_pending_work() {
-                self.next_tick = Some(Instant::now() + TICK);
+                self.next_tick = Some(tick_deadline(self.last_tick, Instant::now()));
             }
         }
     }
@@ -603,6 +605,7 @@ impl Owner {
 
     fn tick(&mut self) -> Result<(), Fault> {
         self.next_tick = None;
+        self.last_tick = Some(Instant::now());
         if self.terminal.synchronized_output()? {
             let since = self.synchronized_since.get_or_insert_with(Instant::now);
             if since.elapsed() < SYNC_TIMEOUT {
@@ -896,6 +899,10 @@ fn exit_reason(status: ExitStatus) -> ExitReason {
     }
 }
 
+fn tick_deadline(last_tick: Option<Instant>, now: Instant) -> Instant {
+    last_tick.map_or(now, |last| (last + TICK).max(now))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -955,12 +962,35 @@ mod tests {
             prompts: Vec::new(),
             frame_state: None,
             next_tick: None,
+            last_tick: None,
             synchronized_since: None,
             output_state: OutputState::Closed,
             archive: Archive::memory(1024),
             next_checkpoint: None,
             next_metadata: Instant::now(),
         })
+    }
+
+    #[test]
+    fn first_output_after_idle_renders_immediately_and_bursts_stay_on_the_tick_grid() {
+        let last = Instant::now();
+        let after = |millis| last + Duration::from_millis(millis);
+        assert_eq!(tick_deadline(None, last), last);
+        assert_eq!(tick_deadline(Some(last), last), last + TICK);
+        assert_eq!(tick_deadline(Some(last), after(5)), last + TICK);
+        assert_eq!(tick_deadline(Some(last), last + TICK), last + TICK);
+        assert_eq!(tick_deadline(Some(last), after(17)), after(17));
+        assert_eq!(tick_deadline(Some(last), after(500)), after(500));
+    }
+
+    #[test]
+    fn rendering_records_the_tick_that_paces_the_next_one() -> Result<(), Fault> {
+        let mut owner = owner()?;
+        assert!(owner.last_tick.is_none());
+        let before = Instant::now();
+        owner.tick()?;
+        assert!(owner.last_tick.is_some_and(|tick| tick >= before));
+        Ok(())
     }
 
     #[test]
