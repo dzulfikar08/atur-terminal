@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fmt;
 use std::io::{self, Read};
+use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStderr, Command, Stdio};
 use std::str::FromStr;
@@ -23,17 +24,17 @@ const READY_TIMEOUT: Duration = Duration::from_secs(20);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 /// How much of ssh's error output is kept for messages.
 const STDERR_TAIL: usize = 8 * 1024;
-/// Keepalives end a dead connection instead of hanging. A shared master
-/// would keep running with our pipes, and the user's remote command and
-/// forwards belong to interactive sessions, not to the bridge.
-const OPTIONS: [&str; 6] = [
+/// Keepalives end a dead connection instead of hanging. The user's remote
+/// command and forwards belong to interactive sessions, not to the bridge.
+const OPTIONS: [&str; 5] = [
     "ConnectTimeout=10",
     "ServerAliveInterval=15",
     "ServerAliveCountMax=3",
-    "ControlMaster=no",
     "RemoteCommand=none",
     "ClearAllForwardings=yes",
 ];
+/// Seconds a shared connection stays up with no bridge using it.
+const CONTROL_PERSIST: u32 = 600;
 
 /// A computer to reach with ssh: an `ssh_config` alias, `user@host`, or
 /// `ssh://user@host:port`, or a custom command prefix.
@@ -175,6 +176,16 @@ impl SshTarget {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
+    /// A master private to Muxy keeps the login and key exchange for later
+    /// bridges, which saves several round trips on every connection. Logins
+    /// with their own key or host key prompt never share one.
+    fn connection_sharing(&self) -> Vec<String> {
+        let directory = (self.identity.is_none() && !self.host_key_prompt)
+            .then(private_control_directory)
+            .flatten();
+        sharing_options(directory.as_deref())
+    }
+
     /// Runs `remote` there through the same ssh and login as the bridge,
     /// such as an installer. Its output is the caller's to read.
     pub fn command(&self, remote: &str) -> io::Result<Command> {
@@ -213,6 +224,9 @@ impl SshTarget {
             ] {
                 arguments.extend(["-o".into(), option.into()]);
             }
+        }
+        for option in self.connection_sharing() {
+            arguments.extend(["-o".into(), option.into()]);
         }
         if let Some(identity) = &self.identity {
             arguments.extend([
@@ -303,6 +317,47 @@ fn program(explicit: Option<&Path>, environment: Option<OsString>) -> io::Result
         )),
         (None, Some(program)) => Ok(program.into()),
         (None, None) => Ok("ssh".into()),
+    }
+}
+
+/// ssh adds a dot and 16 random characters while binding, and `%C` is 40
+/// hexadecimal characters, all within a socket path's 104 bytes.
+const MAX_CONTROL_DIRECTORY: usize = 104 - 1 - 40 - 17;
+
+/// Beside the user's other runtime sockets, out of Muxy's own data folder,
+/// which holds nothing for servers on other computers.
+fn private_control_directory() -> Option<PathBuf> {
+    let runtime = PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?);
+    if !runtime.is_absolute() {
+        return None;
+    }
+    let directory = runtime.join("muxy-ssh");
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&directory)
+        .ok()?;
+    Some(directory)
+}
+
+/// One master per login, named by ssh from its destination. Sharing is
+/// refused when ssh would misread the path or the system would cut it short.
+fn sharing_options(directory: Option<&Path>) -> Vec<String> {
+    let unsafe_character = |character: char| {
+        character.is_whitespace()
+            || character.is_control()
+            || matches!(character, '%' | '"' | '\'' | '\\')
+    };
+    let directory = directory.and_then(Path::to_str).filter(|directory| {
+        directory.len() <= MAX_CONTROL_DIRECTORY && !directory.chars().any(unsafe_character)
+    });
+    match directory {
+        Some(directory) => vec![
+            "ControlMaster=auto".into(),
+            format!("ControlPath={directory}/%C"),
+            format!("ControlPersist={CONTROL_PERSIST}"),
+        ],
+        None => vec!["ControlMaster=no".into()],
     }
 }
 
@@ -494,6 +549,51 @@ mod tests {
                 || arg == "StrictHostKeyChecking=accept-new")
         );
         Ok(())
+    }
+
+    #[test]
+    fn shared_connections_use_one_private_master_that_outlives_the_bridge() {
+        let directory = Path::new("/run/user/1000/muxy-ssh");
+        let options = sharing_options(Some(directory));
+        assert_eq!(
+            options,
+            [
+                "ControlMaster=auto",
+                "ControlPath=/run/user/1000/muxy-ssh/%C",
+                "ControlPersist=600"
+            ]
+        );
+        assert_eq!(sharing_options(None), ["ControlMaster=no"]);
+    }
+
+    #[test]
+    fn explicit_keys_and_host_key_prompts_never_ride_another_logins_connection() -> io::Result<()> {
+        for target in [
+            SshTarget::new("dev@box")?.with_identity("/private/key"),
+            SshTarget::new("dev@box")?.with_host_key_prompt(),
+        ] {
+            let args = target.arguments_for(bridge::command(Start::IfNeeded));
+            let has = |option: &str| args.windows(2).any(|args| args == ["-o", option]);
+            assert!(has("ControlMaster=no"));
+            assert!(!has("ControlMaster=auto"));
+            assert!(!has("ControlPersist=600"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn control_sockets_stay_within_unix_path_limits_and_ssh_quoting() {
+        let long = PathBuf::from(format!("/{}", "d".repeat(MAX_CONTROL_DIRECTORY)));
+        assert_eq!(sharing_options(Some(&long)), ["ControlMaster=no"]);
+        let exact = PathBuf::from(format!("/{}", "d".repeat(MAX_CONTROL_DIRECTORY - 1)));
+        assert_eq!(sharing_options(Some(&exact))[0], "ControlMaster=auto");
+        for refused in ["/run/my dev/ssh", "/run/d%ev/ssh", "/run/d\"ev/ssh"] {
+            assert_eq!(
+                sharing_options(Some(Path::new(refused))),
+                ["ControlMaster=no"],
+                "{refused}"
+            );
+        }
     }
 
     #[test]

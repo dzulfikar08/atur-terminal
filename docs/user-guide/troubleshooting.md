@@ -57,6 +57,11 @@ If `muxy --version` shows 1.x, Muxy 1.x's CLI comes first on your `PATH`.
   version is right but the old server is still running, run
   `pkill -x muxy-server` there. This ends its terminals.
 - **Terminals end when SSH disconnects (Linux):** run `loginctl enable-linger`.
+- **Changed SSH settings or keys don't apply:** Muxy keeps one SSH connection
+  per host open for 10 minutes and reuses it, from a socket in
+  `$XDG_RUNTIME_DIR/muxy-ssh`. Run `ssh -O exit -S "$XDG_RUNTIME_DIR/muxy-ssh/%C" <host>`
+  to close it, or wait for it to expire. Without `XDG_RUNTIME_DIR` every
+  connection logs in again.
 
 ## A phone can't connect
 
