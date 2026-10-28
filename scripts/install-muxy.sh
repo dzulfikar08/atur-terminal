@@ -6,16 +6,17 @@ export LC_ALL
 
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "Install $1 and retry."; }
-usage() { echo 'Usage: install-muxy.sh (--version X.Y.Z[-beta.N] | --dev-archive < archive.tar.gz) [--install-dir PATH] [--replace]'; }
+usage() { echo 'Usage: install-muxy.sh (--version X.Y.Z[-beta.N] [--tag atur-vX.Y.Z[-REVISION]] | --dev-archive < archive.tar.gz) [--install-dir PATH] [--replace]'; }
 VERSION=
+TAG=
 DEV_ARCHIVE=false
 DEST=${HOME:?HOME is required}/.local/bin
 REPLACE=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --version|--install-dir)
+        --version|--install-dir|--tag)
             [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 requires a value"
-            case "$1" in --version) VERSION=$2 ;; --install-dir) DEST=$2 ;; esac
+            case "$1" in --version) VERSION=$2 ;; --install-dir) DEST=$2 ;; --tag) TAG=$2 ;; esac
             shift 2 ;;
         --replace) REPLACE=true; shift ;;
         --dev-archive) DEV_ARCHIVE=true; shift ;;
@@ -69,7 +70,17 @@ else
 fi
 
 ARCHIVE=muxy-$VERSION-$PLATFORM-$ARCH.$EXT
-BASE=https://github.com/muxy-app/muxy/releases/download/v$VERSION
+if [ "$DEV_ARCHIVE" = false ]; then
+    TAG=${TAG:-atur-v$VERSION}
+    SUFFIX=${TAG#atur-v"$VERSION"}
+    [ "$SUFFIX" != "$TAG" ] || fail "The release tag must be atur-v$VERSION or atur-v$VERSION-<revision>."
+    case "$SUFFIX" in
+        '') ;;
+        -[1-9]*) case "${SUFFIX#-}" in *[!0-9]*) fail 'Invalid release revision.' ;; esac ;;
+        *) fail "The release tag must be atur-v$VERSION or atur-v$VERSION-<revision>." ;;
+    esac
+fi
+BASE=https://github.com/dzulfikar08/muxy/releases/download/${TAG:-}
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/muxy-install.XXXXXX")
 LOCK=
 STAGE=
@@ -181,7 +192,7 @@ for BINARY in muxy muxy-server; do
 done
 if [ ! -L "$DEST/muxy" ] && [ ! -L "$DEST/muxy-server" ] &&
     cmp -s "$DEST/muxy" "$STAGE/pair/muxy" && cmp -s "$DEST/muxy-server" "$STAGE/pair/muxy-server"; then
-    echo "Muxy $VERSION is already installed."
+    echo "Atur Terminal CLI and server $VERSION are already installed."
     exit 0
 fi
 [ ! -e "$MANAGED/current" ] || [ -L "$MANAGED/current" ] || fail "$MANAGED/current must be a symlink."
@@ -218,7 +229,7 @@ for BINARY in muxy-server muxy; do
 done
 mv -f "$MOVE_FLAG" "$STAGE/current" "$MANAGED/current"
 COMMITTED=true
-printf 'Installed Muxy %s in %s\n' "$VERSION" "$DEST"
+printf 'Installed Atur Terminal CLI and server %s in %s\n' "$VERSION" "$DEST"
 case ":$PATH:" in
     *":$DEST:"*) ;;
     *) printf 'Add this directory to PATH: %s\n' "$DEST" ;;

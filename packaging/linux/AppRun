@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-fail() { printf 'Muxy: %s\n' "$*" >&2; exit 1; }
+fail() { printf 'Atur Terminal: %s\n' "$*" >&2; exit 1; }
 HERE=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)
 case "${1:-}" in
     --build-info) exec "$HERE/usr/bin/muxy-app" "$@" ;;

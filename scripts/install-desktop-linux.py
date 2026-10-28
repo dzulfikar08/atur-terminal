@@ -20,7 +20,7 @@ import time
 import urllib.request
 import urllib.parse
 
-RELEASES = "https://github.com/muxy-app/muxy/releases/download"
+RELEASES = "https://github.com/dzulfikar08/muxy/releases/download"
 MAX_ARCHIVE = 2 * 1024**3
 FILES = {"muxy-app", "muxy", "muxy-server", "icon.png", "install.py", "LICENSE", "manifest.json"}
 BINARIES = {"muxy-app", "muxy", "muxy-server"}
@@ -292,12 +292,12 @@ def restart(root, version, previous, parent):
 
 def desktop_entry(root, version, appimage=False):
     beta = channel(version) == "beta"
-    identifier = "com.muxy-beta.app" if beta else "com.muxy.app"
+    identifier = "com.joyodigitama.atur-terminal-beta" if beta else "com.joyodigitama.atur-terminal"
     path = data_home() / "applications" / f"{identifier}.desktop"
     executable = str(root / ("usr/bin/muxy-app" if appimage else "current/muxy-app"))
     executable = executable.replace("\\", "\\\\\\\\").replace('"', '\\\\"').replace("`", "\\\\`").replace("$", "\\\\$").replace("%", "%%")
     icon = str(root / (f"{identifier}.png" if appimage else "current/icon.png")).replace("\\", "\\\\")
-    contents = (f"[Desktop Entry]\nType=Application\nName={'Muxy Beta' if beta else 'Muxy'}\n"
+    contents = (f"[Desktop Entry]\nType=Application\nName={'Atur Terminal Beta' if beta else 'Atur Terminal'}\n"
                 f'Exec="{executable}" %F\nIcon={icon}\nTerminal=false\nCategories=Development;TerminalEmulator;\n'
                 f"StartupWMClass={identifier}\n")
     if appimage:
@@ -375,7 +375,7 @@ def uninstall(root):
 
 
 def fetch(url, output, limit):
-    request = urllib.request.Request(url, headers={"User-Agent": "Muxy-Desktop-Installer"})
+    request = urllib.request.Request(url, headers={"User-Agent": "AturTerminal-Desktop-Installer"})
     with urllib.request.build_opener(HTTPSRedirectHandler()).open(request, timeout=60) as response:
         if not response.url.startswith("https://"):
             raise ValueError("Refusing an insecure download redirect")
@@ -388,10 +388,18 @@ def fetch(url, output, limit):
     return total
 
 
+def release_tag(version, tag=None):
+    tag = tag or f"atur-v{version}"
+    if not re.fullmatch(r"atur-v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*|-[1-9][0-9]*)?", tag) or not tag.startswith(f"atur-v{version}"):
+        raise ValueError("The release tag does not match the version")
+    return tag
+
+
 def latest(release_channel):
+    """The newest version of a channel and the release tag that carries it."""
     import io
-    url = (f"{RELEASES}/beta-2.x/update.json" if release_channel == "beta"
-           else "https://github.com/muxy-app/muxy/releases/latest/download/update.json")
+    url = (f"{RELEASES}/atur-beta/update.json" if release_channel == "beta"
+           else "https://github.com/dzulfikar08/muxy/releases/latest/download/update.json")
     metadata = io.BytesIO()
     fetch(url, metadata, 65536)
     feed = json.loads(metadata.getvalue())
@@ -402,17 +410,22 @@ def latest(release_channel):
     if key not in feed.get("platforms", {}):
         raise ValueError(f"The latest {release_channel} release has no Linux desktop for this architecture. "
                          "Use --channel beta to opt into beta releases, or --version to select a desktop release.")
-    return version
+    prefix = f"{RELEASES}/"
+    asset_url = feed["platforms"][key]["url"]
+    if not asset_url.startswith(prefix):
+        raise ValueError("Unexpected desktop release metadata")
+    return version, release_tag(version, asset_url[len(prefix):].split("/", 1)[0])
 
 
-def download(version, directory):
+def download(version, directory, tag=None):
     import io
+    tag = release_tag(version, tag)
     metadata = io.BytesIO()
-    fetch(f"{RELEASES}/v{version}/update.json", metadata, 65536)
+    fetch(f"{RELEASES}/{tag}/update.json", metadata, 65536)
     feed = json.loads(metadata.getvalue())
     arch = architecture()
     asset = feed["platforms"]["linux-aarch64" if arch == "arm64" else "linux-x86_64"]
-    url = f"{RELEASES}/v{version}/muxy-desktop-{version}-linux-{arch}.tar.gz"
+    url = f"{RELEASES}/{tag}/muxy-desktop-{version}-linux-{arch}.tar.gz"
     size = asset["size"]
     if feed["schema"] != 1 or feed["version"] != version or asset["url"] != url or not 0 < size <= MAX_ARCHIVE:
         raise ValueError("Unexpected desktop release metadata")
@@ -427,6 +440,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("install", "stage", "verify", "prune", "discard", "activate", "restart", "uninstall", "integrate-appimage"))
     parser.add_argument("--version", help="Exact release; otherwise install the latest release in the selected channel")
+    parser.add_argument("--tag", help="GitHub release tag of --version (default: atur-v<version>)")
     parser.add_argument("--channel", choices=("stable", "beta"), help="Channel for install (default: stable)")
     parser.add_argument("--root", type=Path)
     parser.add_argument("--archive", type=Path)
@@ -442,10 +456,10 @@ def main():
         if args.archive and not args.version:
             raise ValueError("An offline archive requires --version and --sha256")
         if not args.version:
-            args.version = latest(args.channel or "stable")
+            args.version, args.tag = latest(args.channel or "stable")
         if args.channel and channel(args.version) != args.channel:
             raise ValueError("The version does not belong to the selected channel")
-        print(f"Installing Muxy {args.version} for Linux {architecture()}…", flush=True)
+        print(f"Installing Atur Terminal {args.version} for Linux {architecture()}…", flush=True)
     if args.command in {"install", "stage", "verify", "discard", "activate", "restart", "integrate-appimage"}:
         channel(args.version or "")
     root = args.root or (default_root(args.version) if args.command == "install" else Path(__file__).resolve().parent.parent.parent)
@@ -471,15 +485,15 @@ def main():
         if args.command in {"install", "stage"}:
             installation(root, args.version)
             if args.command == "install" and (root / "current").is_symlink():
-                raise ValueError("Muxy is already installed. Use Check for Updates in the app; uninstall before reinstalling.")
+                raise ValueError("Atur Terminal is already installed. Use Check for Updates in the app; uninstall before reinstalling.")
             with tempfile.TemporaryDirectory() as temporary:
                 archive, expected = ((args.archive, args.sha256) if args.archive
-                                     else download(args.version, Path(temporary)))
+                                     else download(args.version, Path(temporary), args.tag))
                 stage(root, archive, args.version, expected or "")
             if args.command == "install":
                 integrate(root, args.version)
                 switch(root, args.version)
-                print(f"Installed {root / 'current'}. Open Muxy from your desktop's Applications menu.")
+                print(f"Installed {root / 'current'}. Open Atur Terminal from your desktop's Applications menu.")
         elif args.command == "verify":
             installation(root, args.version)
             print(json.dumps(verify(root / "versions" / args.version, args.version)))
@@ -498,7 +512,7 @@ def main():
                     shutil.rmtree(directory)
         else:
             uninstall(root)
-            print("Removed the desktop installation. Your Muxy settings, projects and session data were kept.")
+            print("Removed the desktop installation. Your Atur Terminal settings, projects and session data were kept.")
 
 
 if __name__ == "__main__":

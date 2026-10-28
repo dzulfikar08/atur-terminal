@@ -16,8 +16,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+from release import APPS
+
 ROOT = Path(__file__).resolve().parent.parent
 BINARIES = ("muxy", "muxy-server")
+BETA_APP = f"{APPS['beta'][0]}.app"
 
 
 def load_release_env(path):
@@ -88,7 +91,7 @@ def signing_identity(requested):
 
 
 def package_app(directory, binaries, version, identity):
-    app = directory / "Muxy Beta.app"
+    app = directory / BETA_APP
     contents = app / "Contents"
     executables = contents / "MacOS"
     resources = contents / "Resources"
@@ -96,26 +99,23 @@ def package_app(directory, binaries, version, identity):
     resources.mkdir()
     for name in (*BINARIES, "muxy-app"):
         shutil.copy2(binaries / name, executables / name)
-    from release import build_number, bundle_info
+    from release import build_number, bundle_info, license_text
     if version == "2.0.0-beta-0":
         # Keep unstamped local builds identifiable without stamping the source checkout.
         info = bundle_info("2.0.0-beta.1", "1")
         info.update(CFBundleVersion="0", MuxyVersion=version,
-                    CFBundleGetInfoString="Muxy Beta " + version)
+                    CFBundleGetInfoString=f"{APPS['beta'][0]} {version}")
     else:
         info = bundle_info(version, build_number(version))
     (contents / "Info.plist").write_bytes(plistlib.dumps(info))
     (contents / "PkgInfo").write_bytes(b"APPL????")
-    (resources / "LICENSE").write_bytes(b"\n".join((ROOT / path).read_bytes() for path in (
-        "LICENSE", "crates/muxy-server/src/detection/THIRD_PARTY.md",
-        "crates/muxy-server/src/detection/LICENSE-herdr",
-    )))
+    (resources / "LICENSE").write_text(license_text())
     iconset = directory / "AppIcon.iconset"
     iconset.mkdir()
     for size in (16, 32, 128, 256, 512):
         for scale, suffix in ((1, ""), (2, "@2x")):
             run("sips", "-z", size * scale, size * scale,
-                ROOT / "packaging/macos/AppIconBeta.png", "--out",
+                ROOT / "packaging/macos/AppIcon.png", "--out",
                 iconset / f"icon_{size}x{size}{suffix}.png", stdout=subprocess.DEVNULL)
     run("iconutil", "--convert", "icns", "--output", resources / "AppIcon.icns", iconset)
     sign = ("codesign", "--force", "--sign", identity, "--options", "runtime", "--timestamp")
@@ -140,7 +140,7 @@ def install(artifact, bin_dir, app_dir=None):
     bin_dir.mkdir(parents=True, exist_ok=True)
     with (bin_dir / ".muxy-build-install.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        destination = app_dir / "Muxy Beta.app" if app_dir else bin_dir / ".muxy-local"
+        destination = app_dir / BETA_APP if app_dir else bin_dir / ".muxy-local"
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
             raise ValueError(f"Expected a regular installation directory: {destination}")
@@ -201,7 +201,7 @@ def main():
         "existing shell variables and command-line options take precedence. "
         "macOS credentials: set NOTARY_KEYCHAIN_PROFILE, or APPLE_ID, "
         "APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID. Replaces the installed "
-        "Muxy bundle and commands. Does not launch the app or restart servers."
+        "Atur Terminal bundle and commands. Does not launch the app or restart servers."
     ))
     parser.add_argument("--install-dir", type=Path, default=Path.home() / ".local/bin")
     parser.add_argument("--app-dir", type=Path, default=Path("/Applications"))
@@ -251,7 +251,7 @@ def main():
                 args.app_dir.expanduser().resolve() if system == "Darwin" else None)
         if str(args.install_dir.expanduser().resolve()) not in os.environ.get("PATH", "").split(os.pathsep):
             print(f"Add {args.install_dir.expanduser().resolve()} to PATH to run muxy.")
-        print("Reopen Muxy to use the new build. Existing servers and sessions were left running.")
+        print("Reopen Atur Terminal to use the new build. Existing servers and sessions were left running.")
 
 
 if __name__ == "__main__":

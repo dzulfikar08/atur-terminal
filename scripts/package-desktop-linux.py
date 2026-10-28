@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from release import ROOT, build_metadata, channel, check_build
+from release import ROOT, build_metadata, channel, check_build, license_text
 
 
 def package(version, arch, binaries, output, native_formats=False, tools=None):
@@ -24,13 +24,9 @@ def package(version, arch, binaries, output, native_formats=False, tools=None):
             check_build(version, binaries / name)
             shutil.copyfile(binaries / name, directory / name)
             (directory / name).chmod(0o755)
-        icon = "AppIconBeta.png" if release_channel == "beta" else "AppIcon.png"
-        shutil.copyfile(ROOT / "packaging/macos" / icon, directory / "icon.png")
+        shutil.copyfile(ROOT / "packaging/macos/AppIcon.png", directory / "icon.png")
         shutil.copyfile(ROOT / "scripts/install-desktop-linux.py", directory / "install.py")
-        (directory / "LICENSE").write_text("\n".join(
-            (ROOT / path).read_text() for path in (
-                "LICENSE", "crates/muxy-server/src/detection/THIRD_PARTY.md",
-                "crates/muxy-server/src/detection/LICENSE-herdr")))
+        (directory / "LICENSE").write_text(license_text())
         files = {}
         for path in sorted(directory.iterdir()):
             checksum = hashlib.sha256()

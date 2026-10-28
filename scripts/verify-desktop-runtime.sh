@@ -20,7 +20,7 @@ docker run --rm --cap-add SYS_PTRACE -v "$ROOT:/src:ro" -v "$PACKAGES:/packages:
       "/packages/${PACKAGE}_${VERSION}_${DEB_ARCH}.deb" --version "$VERSION"
     runuser -u package-check -- dbus-run-session -- xvfb-run -a \
       python3 /src/scripts/verify-desktop-formats.py appimage \
-      "/packages/Muxy-$VERSION-linux-$ARCH.AppImage" --version "$VERSION" --desktop
+      "/packages/AturTerminal-$VERSION-linux-$ARCH.AppImage" --version "$VERSION" --desktop
     runuser -u package-check -- python3 /src/scripts/verify-desktop-linux.py \
       "/packages/muxy-desktop-$VERSION-linux-$ARCH.tar.gz" --version "$VERSION"
 '

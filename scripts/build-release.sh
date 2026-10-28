@@ -34,10 +34,7 @@ case "$ARCH" in
     x86_64) TARGET="x86_64-apple-darwin" ;;
     *) echo "Error: arch must be arm64 or x86_64" >&2; exit 1 ;;
 esac
-case "$(python3 "$ROOT/scripts/release.py" channel "$VERSION")" in
-    beta) ICON_SOURCE="$ROOT/packaging/macos/AppIconBeta.png" ;;
-    stable) ICON_SOURCE="$ROOT/packaging/macos/AppIcon.png" ;;
-esac
+ICON_SOURCE="$ROOT/packaging/macos/AppIcon.png"
 APP_NAME="$(python3 "$ROOT/scripts/release.py" app-name "$VERSION")"
 if [[ "$(uname -s)" != Darwin ]]; then
     echo "Error: packaging requires macOS and Xcode" >&2
@@ -91,8 +88,7 @@ done
 python3 "$ROOT/scripts/release.py" plist "$VERSION" "$APP/Contents/Info.plist" ${BUILD_NUMBER:+--build "$BUILD_NUMBER"}
 plutil -lint "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
-cat "$ROOT/LICENSE" "$ROOT/crates/muxy-server/src/detection/THIRD_PARTY.md" \
-    "$ROOT/crates/muxy-server/src/detection/LICENSE-herdr" > "$APP/Contents/Resources/LICENSE"
+python3 "$ROOT/scripts/release.py" licenses > "$APP/Contents/Resources/LICENSE"
 
 ICONSET="$STAGING/AppIcon.iconset"
 mkdir -p "$ICONSET"
@@ -132,7 +128,7 @@ CLI_ARCHIVE="$STAGING/artifacts/muxy-${VERSION}-macos-${ARCH}.zip"
 (cd "$STAGING/cli" && zip -X "$CLI_ARCHIVE" muxy muxy-server LICENSE)
 
 ln -s /Applications "$STAGING/dmg/Applications"
-DMG="$STAGING/artifacts/Muxy-${VERSION}-${ARCH}.dmg"
+DMG="$STAGING/artifacts/AturTerminal-${VERSION}-${ARCH}.dmg"
 # CI runners intermittently fail with "hdiutil: create failed - Resource busy".
 for ATTEMPT in 1 2 3 4 5; do
     rm -f "$DMG"
@@ -148,7 +144,7 @@ done
 codesign "${SIGN_ARGS[@]}" "$DMG"
 codesign --verify --strict --verbose=2 "$DMG"
 ditto -c -k --sequesterRsrc --keepParent "$STAGING/symbols" \
-    "$STAGING/artifacts/Muxy-${VERSION}-${ARCH}-symbols.zip"
+    "$STAGING/artifacts/AturTerminal-${VERSION}-${ARCH}-symbols.zip"
 mv "$APP" "$STAGING/artifacts/"
 mv "$STAGING/artifacts" "$OUTPUT_DIR"
 echo "==> Built $OUTPUT_DIR"

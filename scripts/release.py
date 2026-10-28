@@ -1,20 +1,36 @@
 #!/usr/bin/env python3
-"""Versions and packaging metadata of beta (X.Y.Z-beta.N) and stable (X.Y.Z) releases."""
+"""Versions and packaging metadata of Atur Terminal's beta (X.Y.Z-beta.N) and stable (X.Y.Z) releases."""
 import argparse
 import hashlib
 import json
 import plistlib
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BETA_PATTERN = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)-beta\.([1-9][0-9]*)")
 STABLE_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
-# Each channel installs as its own app. Stable replaces Muxy 1.x, which shares its identity.
-APPS = {"beta": ("Muxy Beta", "com.muxy-beta.app"), "stable": ("Muxy", "com.muxy.app")}
-# Muxy 1.x's Sparkle only installs an update that keeps 1.x's EdDSA public key.
-SPARKLE_PUBLIC_KEY = "X5YPWvD11Qthw+41DPZQRK8aOYBlPjjfeWW2k3510cY="
+# Each channel installs as its own app, with an identity of its own.
+APPS = {
+    "beta": ("Atur Terminal Beta", "com.joyodigitama.atur-terminal-beta"),
+    "stable": ("Atur Terminal", "com.joyodigitama.atur-terminal"),
+}
+# Files whose notices ship in every package, in order.
+LICENSE_FILES = (
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY.md",
+    "crates/muxy-server/src/detection/THIRD_PARTY.md",
+    "crates/muxy-server/src/detection/LICENSE-herdr",
+)
+TAG_PATTERN = re.compile(r"atur-v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*|-[1-9][0-9]*)?")
+
+
+def license_text(root=ROOT):
+    """The notice every package carries: our licence, attributions and third-party licences."""
+    return "\n\n".join((root / path).read_text().rstrip("\n") for path in LICENSE_FILES) + "\n"
 
 
 def build_metadata(root=ROOT):
@@ -130,7 +146,6 @@ def bundle_info(version, build):
         raise ValueError("build number must be a positive commit count")
     if channel(version) == "beta" and build != build_number(version):
         raise ValueError("a beta's build number is its commit count")
-    sparkle = {"SUPublicEDKey": SPARKLE_PUBLIC_KEY} if channel(version) == "stable" else {}
     return {
         "CFBundleDevelopmentRegion": "en",
         "CFBundleDisplayName": name,
@@ -149,33 +164,36 @@ def bundle_info(version, build):
         "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
         "NSPrincipalClass": "NSApplication",
-        "NSMicrophoneUsageDescription": "Muxy uses your microphone to dictate text into Composer.",
-        "NSSpeechRecognitionUsageDescription": "Muxy transcribes your dictation on this device and inserts it into Composer.",
-        "NSLocalNetworkUsageDescription": "Commands you run in Muxy terminals can connect to devices on your local network.",
+        "NSMicrophoneUsageDescription": f"{name} uses your microphone to dictate text into Composer.",
+        "NSSpeechRecognitionUsageDescription": f"{name} transcribes your dictation on this device and inserts it into Composer.",
+        "NSLocalNetworkUsageDescription": f"Commands you run in {name} terminals can connect to devices on your local network.",
         "NSAppTransportSecurity": {"NSAllowsArbitraryLoadsInWebContent": True},
-        **sparkle,
     }
 
 
-def update_metadata(version, repository, directory):
+def update_metadata(version, repository, directory, tag):
     channel(version)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise ValueError("invalid GitHub repository")
+    if not TAG_PATTERN.fullmatch(tag) or not tag.startswith(f"atur-v{version}"):
+        raise ValueError("release tag must be atur-v<version>[-<revision>]")
     platforms = {}
     for platform, arch in (("macos-aarch64", "arm64"), ("macos-x86_64", "x86_64")):
-        filename = f"Muxy-{version}-{arch}.dmg"
-        if arch == "x86_64" and not (directory / filename).exists():
+        filename = f"AturTerminal-{version}-{arch}.dmg"
+        if not (directory / filename).exists():
             continue
         size = (directory / filename).stat().st_size
         if not 0 < size <= 2 * 1024**3:
             raise ValueError(f"invalid update size for {arch}")
         platforms[platform] = {
-            "url": f"https://github.com/{repository}/releases/download/v{version}/{filename}",
+            "url": f"https://github.com/{repository}/releases/download/{tag}/{filename}",
             "size": size,
         }
     for platform, arch in (("linux-aarch64", "arm64"), ("linux-x86_64", "x86_64")):
         filename = f"muxy-desktop-{version}-linux-{arch}.tar.gz"
         path = directory / filename
+        if not path.exists():
+            continue
         size = path.stat().st_size
         if not 0 < size <= 2 * 1024**3 or path.is_symlink():
             raise ValueError(f"invalid desktop update for {arch}")
@@ -184,10 +202,12 @@ def update_metadata(version, repository, directory):
             for block in iter(lambda: source.read(1024 * 1024), b""):
                 checksum.update(block)
         platforms[platform] = {
-            "url": f"https://github.com/{repository}/releases/download/v{version}/{filename}",
+            "url": f"https://github.com/{repository}/releases/download/{tag}/{filename}",
             "size": size,
             "sha256": checksum.hexdigest(),
         }
+    if not platforms:
+        raise ValueError("no desktop archive found for the update feed")
     return {"schema": 1, "version": version, "platforms": platforms}
 
 
@@ -214,6 +234,8 @@ def main():
     metadata.add_argument("version")
     metadata.add_argument("repository")
     metadata.add_argument("directory", type=Path)
+    metadata.add_argument("tag")
+    commands.add_parser("licenses")
     for command in ("stamp", "check-version", "channel", "app-name", "plist"):
         subparser = commands.add_parser(command)
         subparser.add_argument("version")
@@ -239,8 +261,10 @@ def main():
             print(channel(args.version))
         elif args.command == "app-name":
             print(APPS[channel(args.version)][0])
+        elif args.command == "licenses":
+            sys.stdout.write(license_text())
         elif args.command == "update":
-            metadata = update_metadata(args.version, args.repository, args.directory)
+            metadata = update_metadata(args.version, args.repository, args.directory, args.tag)
             (args.directory / "update.json").write_text(json.dumps(metadata, indent=2) + "\n")
         else:
             if args.build is None and channel(args.version) == "stable":

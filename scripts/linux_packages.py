@@ -74,12 +74,13 @@ def package_deb(version, arch, payload, output):
         size = sum(path.stat().st_size for path in root.rglob("*") if path.is_file() and not path.is_symlink())
         write(root / "DEBIAN/control", (
             f"Package: {package}\nVersion: {debian_version(version)}\nArchitecture: {deb_arch}\n"
-            "Section: utils\nPriority: optional\nMaintainer: Saeed Vaziry <me@saeedvaziry.com>\n"
+            "Section: utils\nPriority: optional\nMaintainer: Joyo Digitama <dzulfikar.at@joyodigitama.com>\n"
             f"Installed-Size: {(size + 1023) // 1024}\nDepends: {', '.join(dependencies)}\n"
             "Recommends: mesa-vulkan-drivers, xdg-desktop-portal-gnome | xdg-desktop-portal-kde | xdg-desktop-portal-gtk\n"
-            "Homepage: https://muxy.app\n"
-            f"Description: {name} terminal multiplexer\n"
+            "Homepage: https://github.com/dzulfikar08/muxy\n"
+            f"Description: {name}, a terminal multiplexer based on Muxy\n"
             " Persistent terminals, projects, split panes and remote sessions.\n"
+            " Part of Atur by Joyo Digitama. Based on Muxy (MIT); can run sessions on herdr.\n"
             " Built for Ubuntu 24.04. Updates are managed by the package manager.\n"))
         guard = (ROOT / "packaging/linux/deb-guard.sh").read_text().replace("@PACKAGE@", package)
         for action in ("preinst", "prerm"):
@@ -140,13 +141,13 @@ def bundle_identity(directory):
 def package_appimage(version, arch, payload, output, tools_directory):
     _, identifier, _ = identity(version)
     _, machine = ARCHITECTURES[arch]
-    archive = output / f"Muxy-{version}-linux-{arch}.AppImage"
+    archive = output / f"AturTerminal-{version}-linux-{arch}.AppImage"
     if archive.exists():
         raise ValueError(f"Output already exists: {archive}")
     tools = appimage_tools(arch, tools_directory)
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
-        root = work / "Muxy.AppDir"
+        root = work / "AturTerminal.AppDir"
         binaries = root / "usr/bin"
         for binary in ("muxy-app", "muxy", "muxy-server"):
             copy(payload / binary, binaries / binary, 0o755)

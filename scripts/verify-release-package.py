@@ -94,7 +94,7 @@ cp "$VERIFY_DOWNLOADS/${URL##*/}" "$OUTPUT"
         env = {k: v for k, v in os.environ.items() if not k.startswith('MUXY_')}
         env.update(PATH=f'{tools}:/usr/bin:/bin:/usr/sbin:/sbin', HOME=str(home), SHELL='/bin/sh',
                    MUXY_DIR=str(profile), VERIFY_DOWNLOADS=str(downloads),
-                   VERIFY_URL=f'https://github.com/muxy-app/muxy/releases/download/v{args.version}')
+                   VERIFY_URL=f'https://github.com/dzulfikar08/muxy/releases/download/atur-v{args.version}')
         assert not shutil.which('cargo', path=env['PATH'])
         assert not shutil.which('zig', path=env['PATH'])
         destination = work / 'installed with spaces'

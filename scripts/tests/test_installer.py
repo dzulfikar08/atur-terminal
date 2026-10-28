@@ -112,8 +112,21 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_pair()
         urls = (self.root / 'curl.log').read_text().splitlines()[-2:]
-        self.assertEqual(urls, [f'https://github.com/muxy-app/muxy/releases/download/v2.0.0/{name}'
+        self.assertEqual(urls, [f'https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0/{name}'
                                for name in (self.asset.name, 'SHA256SUMS')])
+
+    def test_a_release_revision_tag_selects_the_download_and_other_tags_are_refused(self):
+        self.archive(version='2.0.0')
+        result = self.install('--tag', 'atur-v2.0.0-4', version='2.0.0')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        urls = (self.root / 'curl.log').read_text().splitlines()[-2:]
+        self.assertEqual(urls, [f'https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-4/{name}'
+                               for name in (self.asset.name, 'SHA256SUMS')])
+        (self.root / 'curl.log').unlink()
+        for tag in ('v2.0.0', 'atur-v2.0.1', 'atur-v2.0.0-0', 'atur-v2.0.0-1x', 'atur-v2.0.0/../x', 'atur-v2.0.0-'):
+            with self.subTest(tag=tag):
+                self.assertNotEqual(self.install('--replace', '--tag', tag, version='2.0.0').returncode, 0)
+                self.assertFalse((self.root / 'curl.log').exists())
 
     def test_only_exact_release_versions_are_downloaded(self):
         for version in ('2.0.0-beta-1234', '2.0-beta.1234', '2.0.0.0-beta.1234', '2.0.0-beta.0',
@@ -133,7 +146,7 @@ class InstallerTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assert_pair()
                     urls = (self.root / 'curl.log').read_text().splitlines()[-2:]
-                    self.assertEqual(urls, [f'https://github.com/muxy-app/muxy/releases/download/v{VERSION}/{name}'
+                    self.assertEqual(urls, [f'https://github.com/dzulfikar08/muxy/releases/download/atur-v{VERSION}/{name}'
                                            for name in (self.asset.name, 'SHA256SUMS')])
 
     def test_replacement_requires_opt_in_and_switches_one_generation(self):
@@ -150,7 +163,7 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual((old / 'muxy').read_bytes(), b'client-v1')
 
     def test_bundle_links_refused_and_explicit_replace_never_changes_bundle(self):
-        bundle = self.root / 'Muxy Beta.app'
+        bundle = self.root / 'Atur Terminal Beta.app'
         bundle.mkdir()
         self.dest.mkdir()
         for name in ('muxy', 'muxy-server'):

@@ -232,7 +232,7 @@ class DesktopDistributionTests(unittest.TestCase):
         INSTALL.integrate_appimage(new, self.new)
         self.assertEqual(entry.read_text(), INSTALL.desktop_entry(new, self.new, appimage=True)[1])
         self.assertIn(f'Exec="{new}/usr/bin/muxy-app" %F', entry.read_text())
-        self.assertIn(f"Icon={new}/com.muxy-beta.app.png", entry.read_text())
+        self.assertIn(f"Icon={new}/com.joyodigitama.atur-terminal-beta.png", entry.read_text())
         INSTALL.integrate_appimage(new, "2.2.0")
         stable, stable_contents = INSTALL.desktop_entry(new, "2.2.0", appimage=True)
         self.assertEqual(stable.read_text(), stable_contents)
@@ -266,7 +266,7 @@ class DesktopDistributionTests(unittest.TestCase):
         self.assertFalse((self.root / "versions").exists())
 
     def test_downloads_refuse_a_plaintext_redirect_before_following_it(self):
-        request = INSTALL.urllib.request.Request("https://github.com/muxy-app/muxy/releases/download/test")
+        request = INSTALL.urllib.request.Request("https://github.com/dzulfikar08/muxy/releases/download/test")
         with self.assertRaisesRegex(ValueError, "insecure"):
             INSTALL.HTTPSRedirectHandler().redirect_request(request, None, 302, "redirect", {}, "http://example.com/archive")
 
@@ -274,13 +274,14 @@ class DesktopDistributionTests(unittest.TestCase):
         def feed(version, platforms):
             return json.dumps({"schema": 1, "version": version, "platforms": platforms}).encode()
         for selected, version, url in (
-                ("stable", "2.2.0", "https://github.com/muxy-app/muxy/releases/latest/download/update.json"),
-                ("beta", self.new, f"{INSTALL.RELEASES}/beta-2.x/update.json")):
+                ("stable", "2.2.0", "https://github.com/dzulfikar08/muxy/releases/latest/download/update.json"),
+                ("beta", self.new, f"{INSTALL.RELEASES}/atur-beta/update.json")):
             def fetch(actual_url, output, limit):
                 self.assertEqual(actual_url, url)
-                output.write(feed(version, {"linux-aarch64": {}}))
+                tag = f"atur-v{version}" + ("-3" if selected == "stable" else "")
+                output.write(feed(version, {"linux-aarch64": {"url": f"{INSTALL.RELEASES}/{tag}/muxy-desktop-{version}-linux-arm64.tar.gz"}}))
             with patch.object(INSTALL, "fetch", side_effect=fetch):
-                self.assertEqual(INSTALL.latest(selected), version)
+                self.assertEqual(INSTALL.latest(selected), (version, f"atur-v{version}" + ("-3" if selected == "stable" else "")))
         for data, reason in ((feed("2.2.0", {"macos-aarch64": {}}), "no Linux desktop"),
                              (feed(self.new, {"linux-aarch64": {}}), "channel metadata")):
             with patch.object(INSTALL, "fetch", side_effect=lambda url, output, limit: output.write(data)):
@@ -288,15 +289,19 @@ class DesktopDistributionTests(unittest.TestCase):
                     INSTALL.latest("stable")
 
     def test_linux_metadata_is_complete_checksummed_and_keeps_macos_assets(self):
-        for name in (f"Muxy-{self.new}-arm64.dmg", f"Muxy-{self.new}-x86_64.dmg",
+        for name in (f"AturTerminal-{self.new}-arm64.dmg", f"AturTerminal-{self.new}-x86_64.dmg",
                      f"muxy-desktop-{self.new}-linux-arm64.tar.gz", f"muxy-desktop-{self.new}-linux-x86_64.tar.gz"):
             (self.home / name).write_bytes(b"release bytes")
-        metadata = RELEASE.update_metadata(self.new, "muxy-app/muxy", self.home)
+        tag = f"atur-v{self.new}"
+        metadata = RELEASE.update_metadata(self.new, "dzulfikar08/muxy", self.home, tag)
         self.assertEqual(set(metadata["platforms"]), {"macos-aarch64", "macos-x86_64", "linux-aarch64", "linux-x86_64"})
         self.assertEqual(metadata["platforms"]["linux-aarch64"]["sha256"], hashlib.sha256(b"release bytes").hexdigest())
+        self.assertEqual(metadata["platforms"]["macos-aarch64"]["url"],
+                         f"https://github.com/dzulfikar08/muxy/releases/download/{tag}/AturTerminal-{self.new}-arm64.dmg")
         (self.home / f"muxy-desktop-{self.new}-linux-x86_64.tar.gz").unlink()
-        with self.assertRaises(FileNotFoundError):
-            RELEASE.update_metadata(self.new, "muxy-app/muxy", self.home)
+        self.assertNotIn("linux-x86_64", RELEASE.update_metadata(self.new, "dzulfikar08/muxy", self.home, tag)["platforms"])
+        with self.assertRaises(ValueError):
+            RELEASE.update_metadata(self.new, "dzulfikar08/muxy", self.home, "v" + self.new)
 
     def test_desktop_audit_does_not_weaken_standalone_glibc_or_library_policy(self):
         inputs = ["Class: ELF64\nData: little endian\nMachine: AArch64\n",
