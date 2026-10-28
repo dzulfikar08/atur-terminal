@@ -1,0 +1,35 @@
+Atur Terminal
+Copyright (c) 2026 Joyo Digitama
+
+Atur Terminal is part of Atur by Joyo Digitama. It is a modified version of
+Muxy and is not affiliated with or endorsed by the Muxy project or the herdr
+project. "Muxy" and "herdr" are the names of their respective projects; they
+are not used here as the name of this product.
+
+Muxy
+  https://github.com/muxy-app/muxy
+  MIT License, Copyright (c) 2026 Muxy.
+  Atur Terminal is a fork of Muxy. The Muxy copyright and permission notice
+  is kept in LICENSE, and ships with every build. The binary names (muxy,
+  muxy-server, muxy-app), crate names, socket paths, MUXY_* environment
+  variables and the Muxy client protocol are Muxy's and are kept unchanged on
+  purpose, so existing Muxy installs, the Atur bridge and stock Muxy clients
+  keep working.
+
+herdr
+  https://github.com/herdrdev/herdr
+  Apache License 2.0 (full text: crates/muxy-server/src/detection/LICENSE-herdr).
+  1. Runtime: when the herdr backend is selected (backend.toml kind = "herdr"),
+     muxy-server talks to a separately installed herdr server through its
+     documented socket API. herdr is an external process; none of its code is
+     linked or distributed in Atur Terminal builds.
+  2. Adapted code: the agent-detection manifests
+     (crates/muxy-server/src/detection/manifests/*.toml) and the region
+     extraction in crates/muxy-server/src/detection/regions.rs are adapted
+     from herdr commit 7df919d00e5bf8f6ed43a1781e81340cc0bbce8d. They are
+     licensed under Apache-2.0 and keep herdr's attribution. See
+     crates/muxy-server/src/detection/THIRD_PARTY.md. Modifications are marked
+     in the files themselves and by this notice.
+
+Other third-party components that are vendored or bundled are listed, with
+their licences, in THIRD_PARTY.md.
