@@ -53,6 +53,7 @@ pub struct Registry {
     completed: Arc<Condvar>,
     archive: Archive,
     pub(crate) remote: crate::RemoteAccess,
+    herdr: Option<Arc<crate::herdr::Herdr>>,
 }
 
 impl Registry {
@@ -75,6 +76,7 @@ impl Registry {
             sessions: Sessions::default(),
             completed: Arc::default(),
             remote: crate::RemoteAccess::memory(),
+            herdr: None,
         }
     }
 
@@ -483,40 +485,27 @@ impl Registry {
         }
         let settings = self.settings();
         let budget = usize::try_from(settings.history_budget_bytes).unwrap_or(usize::MAX);
-        let listing = Arc::clone(&self.sessions);
-        let events = self.events.clone();
-        let completed = Arc::clone(&self.completed);
-        let catalog = Arc::clone(&self.catalog);
-        let saved = self.archive.clone();
-        let handle = spawn_shell(
-            &settings,
-            self.shell_integration.as_ref(),
-            directory,
-            size.into(),
-            (self.catalog.identity(), id),
-        )
-        .and_then(|pty| {
+        let backing = match &self.herdr {
+            Some(herdr) => self.herdr_terminal(herdr, &info, directory, size),
+            None => spawn_shell(
+                &settings,
+                self.shell_integration.as_ref(),
+                directory,
+                size.into(),
+                (self.catalog.identity(), id),
+            )
+            .map(|pty| Box::new(pty) as Box<dyn session::Backing>),
+        };
+        let handle = backing.and_then(|backing| {
             session::start(
                 info.clone(),
-                pty,
+                backing,
                 size,
                 budget,
                 self.archive.clone(),
                 colors,
                 Arc::clone(&self.activity),
-                move |reason| {
-                    let status = if saved.contains(id) {
-                        muxy_protocol::SessionStatus::Ended
-                    } else {
-                        muxy_protocol::SessionStatus::Unavailable
-                    };
-                    catalog.record_exit(id, status);
-                    let mut state = lock(&listing);
-                    state.sessions.remove(&id);
-                    state.starting.remove(&id);
-                    let _ = events.send(ServerEvent::SessionEnded { id, reason });
-                    completed.notify_all();
-                },
+                self.exit_hook(id),
             )
         });
         let handle = match handle {
@@ -559,6 +548,118 @@ impl Registry {
         {
             requester.created_session(id);
         }
+    }
+
+    /// Runs when a session's owner stops: records how it ended and tells clients.
+    fn exit_hook(&self, id: SessionId) -> impl FnOnce(ExitReason) + Send + 'static {
+        let listing = Arc::clone(&self.sessions);
+        let events = self.events.clone();
+        let completed = Arc::clone(&self.completed);
+        let catalog = Arc::clone(&self.catalog);
+        let saved = self.archive.clone();
+        let herdr = self.herdr.clone();
+        move |reason| {
+            // Only a stopping server leaves its herdr terminal running.
+            if reason != ExitReason::ServerStopped
+                && let Some(herdr) = herdr
+            {
+                herdr.forget(id);
+            }
+            let status = if saved.contains(id) {
+                muxy_protocol::SessionStatus::Ended
+            } else {
+                muxy_protocol::SessionStatus::Unavailable
+            };
+            catalog.record_exit(id, status);
+            let mut state = lock(&listing);
+            state.sessions.remove(&id);
+            state.starting.remove(&id);
+            let _ = events.send(ServerEvent::SessionEnded { id, reason });
+            completed.notify_all();
+        }
+    }
+
+    fn herdr_terminal(
+        &self,
+        herdr: &Arc<crate::herdr::Herdr>,
+        info: &SessionInfo,
+        directory: &Path,
+        size: Size,
+    ) -> Result<Box<dyn session::Backing>, ServerError> {
+        if !directory.is_dir() {
+            return Err(ServerError::new(
+                ErrorCode::BadPath,
+                format!("{} is not a directory", directory.display()),
+            ));
+        }
+        let mut environment = vec![
+            (
+                "MUXY_SERVER_ID".to_owned(),
+                self.catalog.identity().to_string(),
+            ),
+            ("MUXY_SESSION_ID".to_owned(), info.id.get().to_string()),
+        ];
+        environment.extend(
+            std::env::var("MUXY_DIR")
+                .ok()
+                .map(|dir| ("MUXY_DIR".to_owned(), dir)),
+        );
+        let project_name = self
+            .catalog
+            .project_name(info.project)
+            .unwrap_or_else(|| "Muxy".to_owned());
+        let backing = herdr.create(&crate::herdr::NewTerminal {
+            info,
+            project_name: &project_name,
+            directory,
+            size,
+            environment,
+        })?;
+        Ok(Box::new(backing))
+    }
+
+    /// Serves herdr terminals instead of spawning shells, and takes back the
+    /// sessions of an earlier run that herdr kept alive.
+    pub fn with_herdr(
+        mut self,
+        config: &crate::herdr::HerdrConfig,
+        state: &Path,
+    ) -> io::Result<Self> {
+        let herdr = crate::herdr::Herdr::open(config, state)?;
+        herdr.ping().map_err(io::Error::other)?;
+        self.herdr = Some(Arc::clone(&herdr));
+        let known = self.catalog.sessions();
+        let budget = usize::try_from(self.settings().history_budget_bytes).unwrap_or(usize::MAX);
+        for (id, backing) in herdr.survivors() {
+            let Some(info) = self
+                .catalog
+                .session_info(id)
+                .filter(|_| known.contains(&id))
+            else {
+                herdr.forget(id);
+                continue;
+            };
+            let size = backing.size();
+            let handle = session::start(
+                info,
+                Box::new(backing),
+                size,
+                budget,
+                self.archive.clone(),
+                None,
+                Arc::clone(&self.activity),
+                self.exit_hook(id),
+            );
+            match handle {
+                Ok(handle) => {
+                    self.catalog.restore_live(id)?;
+                    lock(&self.sessions).sessions.insert(id, handle);
+                    log::info!("session adopted from herdr: {}", id.get());
+                }
+                Err(error) => log::error!("session {} was not adopted: {error}", id.get()),
+            }
+        }
+        Ok(self)
     }
 
     fn reserve_start(&self) -> Result<SessionId, ServerError> {

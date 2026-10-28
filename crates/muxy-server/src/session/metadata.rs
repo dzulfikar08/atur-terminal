@@ -7,9 +7,9 @@ use linux::{agent_provider, foreground_member, process_directory};
 #[cfg(target_os = "macos")]
 use macos::{agent_provider, foreground_member, process_directory};
 
+use super::backing::Backing;
 use muxy_protocol::{ForegroundProcess, MetadataEvent, ServerPath};
 use muxy_terminal::TerminalEvent;
-use muxy_terminal::pty::Pty;
 
 pub(super) struct Metadata {
     pub(super) title: String,
@@ -34,7 +34,11 @@ impl Metadata {
         }
     }
 
-    pub(super) fn update(&mut self, pty: &Pty, terminal: Vec<TerminalEvent>) -> Vec<MetadataEvent> {
+    pub(super) fn update(
+        &mut self,
+        pty: &dyn Backing,
+        terminal: Vec<TerminalEvent>,
+    ) -> Vec<MetadataEvent> {
         let mut events = Vec::new();
         let previous_directory = self.directory.clone();
         let group = pty.foreground_pid();

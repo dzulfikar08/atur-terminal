@@ -1,3 +1,4 @@
+pub(crate) mod backing;
 mod metadata;
 mod owner;
 
@@ -11,7 +12,8 @@ use muxy_protocol::{
 };
 
 use crate::error::ServerError;
-use owner::OwnerEvent;
+pub(crate) use backing::Backing;
+pub(crate) use owner::OwnerEvent;
 
 pub(crate) use owner::start;
 

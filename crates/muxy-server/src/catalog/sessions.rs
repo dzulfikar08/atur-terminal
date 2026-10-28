@@ -234,3 +234,31 @@ impl Catalog {
         })
     }
 }
+
+impl Catalog {
+    pub(crate) fn project_name(&self, project: ProjectId) -> Option<String> {
+        self.lock()
+            .projects
+            .get(&project)
+            .map(|project| project.name.clone())
+    }
+
+    pub(crate) fn session_info(&self, session: SessionId) -> Option<SessionInfo> {
+        self.lock()
+            .sessions
+            .get(&session)
+            .map(|membership| membership.info.clone())
+    }
+
+    /// Marks a session live again: its terminal outlived the previous server.
+    pub(crate) fn restore_live(&self, session: SessionId) -> std::io::Result<()> {
+        self.update(|state| {
+            if let Some(membership) = state.sessions.get_mut(&session) {
+                membership.status = SessionStatus::Live;
+                membership.ended_at = None;
+            }
+            Ok(())
+        })
+        .map_err(std::io::Error::other)
+    }
+}

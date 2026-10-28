@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::io::{self, Write};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
@@ -10,11 +9,12 @@ use muxy_protocol::{
     MetadataEvent, SavedScreen, ScreenFrame, SearchPage, SessionInfo, Size, TerminalColors,
 };
 use muxy_terminal::Terminal;
-use muxy_terminal::pty::{ExitStatus, Pty, PtyEvent};
+use muxy_terminal::pty::{ExitStatus, PtyEvent};
 
 use crate::archive::{Archive, bound_history_page, history_range};
 use crate::error::ServerError;
 use crate::search::Search;
+use crate::session::backing::{Backing, Fault};
 use crate::session::metadata::Metadata;
 use crate::session::{
     AttachmentEvent, AttachmentId, AttachmentSink, SessionCommand, SessionHandle,
@@ -24,8 +24,6 @@ const TICK: Duration = Duration::from_millis(16);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(1);
 const CHECKPOINT: Duration = Duration::from_secs(1);
 const METADATA_POLL: Duration = Duration::from_millis(100);
-
-type Fault = Box<dyn Error + Send + Sync>;
 
 struct InputWrite {
     bytes: Vec<u8>,
@@ -76,7 +74,7 @@ struct Attachment {
 )]
 struct Owner {
     info: SessionInfo,
-    pty: Pty,
+    pty: Box<dyn Backing>,
     terminal: Terminal,
     metadata: Metadata,
     progress: super::SharedProgress,
@@ -107,6 +105,8 @@ struct Owner {
     synchronized_since: Option<Instant>,
     output_state: OutputState,
     archive: Archive,
+    /// False when the backing keeps terminal content, which then saves only at exit.
+    checkpoints: bool,
     next_checkpoint: Option<Instant>,
     next_metadata: Instant,
 }
@@ -117,7 +117,7 @@ struct Owner {
 )]
 pub(crate) fn start(
     info: SessionInfo,
-    mut pty: Pty,
+    mut pty: Box<dyn Backing>,
     size: Size,
     history_budget_bytes: usize,
     archive: Archive,
@@ -128,8 +128,7 @@ pub(crate) fn start(
     let id = info.id.get();
     let (sender, receiver) = mpsc::channel();
     let (ready_sender, ready) = mpsc::channel();
-    pty.start_reader(sender.clone())
-        .map_err(ServerError::spawn_failed)?;
+    pty.start_reader(sender.clone())?;
 
     let progress = super::SharedProgress::default();
     let session_progress = progress.clone();
@@ -160,7 +159,7 @@ pub(crate) fn start(
                         return;
                     }
                 };
-            let input = match start_input(&mut pty, failed) {
+            let input = match start_input(pty.as_mut(), failed) {
                 Ok(input) => input,
                 Err(error) => {
                     let _ = pty.kill();
@@ -170,6 +169,7 @@ pub(crate) fn start(
                 }
             };
             let _ = ready_sender.send(Ok(()));
+            let checkpoints = !pty.persists_content();
             let owner = Owner {
                 metadata: Metadata::new(session.directory.clone()),
                 progress: session_progress,
@@ -203,7 +203,8 @@ pub(crate) fn start(
                 synchronized_since: None,
                 output_state: OutputState::Open,
                 archive,
-                next_checkpoint: Some(Instant::now() + CHECKPOINT),
+                checkpoints,
+                next_checkpoint: checkpoints.then(|| Instant::now() + CHECKPOINT),
                 next_metadata: Instant::now(),
             };
             on_exit(owner.run());
@@ -224,10 +225,10 @@ fn set_colors(
 }
 
 fn start_input(
-    pty: &mut Pty,
+    pty: &mut dyn Backing,
     events: Sender<OwnerEvent>,
 ) -> Result<Sender<InputWrite>, ServerError> {
-    let mut writer = pty.take_writer().map_err(ServerError::spawn_failed)?;
+    let mut writer = pty.take_writer()?;
     let (input, pending) = mpsc::channel::<InputWrite>();
     thread::Builder::new()
         .name(format!("session-{}-input", pty.child_pid()))
@@ -256,8 +257,9 @@ fn start_input(
 impl Owner {
     fn run(mut self) -> ExitReason {
         let reason = self.serve().unwrap_or_else(|_| {
-            let _ = self.pty.kill();
-            self.pty.wait().map_or(ExitReason::Ended, exit_reason)
+            self.pty
+                .release(ExitReason::Ended)
+                .map_or(ExitReason::Ended, exit_reason)
         });
         self.drain_output();
         self.update_metadata();
@@ -305,9 +307,13 @@ impl Owner {
                     self.output_pending = true;
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::Mouse(event))) => {
-                    let bytes = self.terminal.encode_mouse(&event)?;
-                    if !bytes.is_empty() {
-                        self.input.send(bytes.into())?;
+                    if let Some(sent) = self.pty.mouse(&event) {
+                        sent?;
+                    } else {
+                        let bytes = self.terminal.encode_mouse(&event)?;
+                        if !bytes.is_empty() {
+                            self.input.send(bytes.into())?;
+                        }
                     }
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::SetColors(colors))) => {
@@ -433,15 +439,29 @@ impl Owner {
         }
         self.output_pending = true;
         self.compress_pending = true;
-        self.next_checkpoint
-            .get_or_insert_with(|| Instant::now() + CHECKPOINT);
+        self.arm_checkpoint(false);
         Ok(())
+    }
+
+    fn arm_checkpoint(&mut self, immediately: bool) {
+        if !self.checkpoints {
+            return;
+        }
+        if immediately {
+            self.next_checkpoint = Some(Instant::now());
+        } else {
+            self.next_checkpoint
+                .get_or_insert_with(|| Instant::now() + CHECKPOINT);
+        }
     }
 
     fn terminal_input(&mut self, input: muxy_protocol::TerminalInput) -> Result<(), Fault> {
         use muxy_protocol::TerminalInput;
         let bytes = match input {
             TerminalInput::Key(event) => self.terminal.encode_key(event)?,
+            TerminalInput::Paste(bytes) if self.pty.brackets_paste() => {
+                self.terminal.encode_paste_bracketed(bytes)?
+            }
             TerminalInput::Paste(bytes) => self.terminal.encode_paste(bytes)?,
             TerminalInput::Focus(focused) => self.terminal.encode_focus(focused)?,
             TerminalInput::ClearScreen => return self.clear_screen(),
@@ -457,7 +477,7 @@ impl Owner {
             self.resize_pending = true;
             self.output_pending = true;
             self.detection_dirty = true;
-            self.next_checkpoint = Some(Instant::now());
+            self.arm_checkpoint(true);
             let redraw = self.terminal.take_pty_output();
             if !redraw.is_empty() {
                 self.input.send(redraw.into())?;
@@ -467,12 +487,11 @@ impl Owner {
     }
 
     fn resize(&mut self, size: Size) -> Result<(), Fault> {
-        self.pty.resize(size.into())?;
+        self.pty.resize(size)?;
         self.terminal.resize(size)?;
         self.size = size;
         self.resize_pending = true;
-        self.next_checkpoint
-            .get_or_insert_with(|| Instant::now() + CHECKPOINT);
+        self.arm_checkpoint(false);
         Ok(())
     }
 
@@ -700,7 +719,7 @@ impl Owner {
                     .unwrap_or_else(std::sync::PoisonError::into_inner) = *progress;
             }
         }
-        let events = self.metadata.update(&self.pty, terminal);
+        let events = self.metadata.update(self.pty.as_ref(), terminal);
         if events.iter().any(|event| {
             matches!(
                 event,
@@ -851,8 +870,7 @@ impl Owner {
     }
 
     fn terminate(&mut self, reason: ExitReason) -> Result<ExitReason, Fault> {
-        self.pty.kill()?;
-        self.pty.wait()?;
+        self.pty.release(reason)?;
         Ok(reason)
     }
 
@@ -907,7 +925,7 @@ fn tick_deadline(last_tick: Option<Instant>, now: Instant) -> Instant {
 mod tests {
     use super::*;
     use muxy_protocol::{ServerPath, SessionId};
-    use muxy_terminal::pty::SpawnRequest;
+    use muxy_terminal::pty::{Pty, SpawnRequest};
     use std::num::NonZeroU64;
     use std::os::unix::ffi::OsStrExt;
 
@@ -930,7 +948,7 @@ mod tests {
                 id: SessionId::from(NonZeroU64::MIN),
                 directory: directory.clone(),
             },
-            pty,
+            pty: Box::new(pty),
             terminal: Terminal::new(size, 1024)?,
             metadata: Metadata::new(directory.clone()),
             progress: crate::session::SharedProgress::default(),
@@ -966,6 +984,7 @@ mod tests {
             synchronized_since: None,
             output_state: OutputState::Closed,
             archive: Archive::memory(1024),
+            checkpoints: true,
             next_checkpoint: None,
             next_metadata: Instant::now(),
         })

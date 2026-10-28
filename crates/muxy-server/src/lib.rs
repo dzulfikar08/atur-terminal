@@ -24,6 +24,9 @@ pub use shell::ShellIntegration;
 mod catalog;
 pub use catalog::LegacyImport;
 
+mod herdr;
+pub use herdr::HerdrConfig;
+
 mod files;
 mod git;
 mod uploads;

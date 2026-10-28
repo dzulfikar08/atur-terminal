@@ -20,7 +20,7 @@ use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
 use crate::remote_listener::RemoteListener;
-use crate::{args::Args, logging, settings_file};
+use crate::{args::Args, backend, logging, settings_file};
 
 const POLL: Duration = Duration::from_millis(10);
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
@@ -321,15 +321,20 @@ fn bootstrap_registry(
         muxy_server::ShellIntegration::install(&directory.with_file_name("shell-integration"))?;
     let settings_path = args.settings.clone();
     let listener = Arc::clone(remote);
-    Ok(Arc::new(
-        Registry::persistent_with_import(settings, sender, directory, legacy)?
-            .with_shell_integration(hooks)
-            .with_settings_persistence(move |settings| {
-                settings_file::save(&settings_path, settings)
-            })
-            .with_remote_access(RemoteAccess::open(directory.with_file_name("remote.json")))
-            .with_remote_listener(move |listening| listener.apply(listening)),
-    ))
+    let registry = Registry::persistent_with_import(settings, sender, directory, legacy)?
+        .with_shell_integration(hooks)
+        .with_settings_persistence(move |settings| settings_file::save(&settings_path, settings))
+        .with_remote_access(RemoteAccess::open(directory.with_file_name("remote.json")))
+        .with_remote_listener(move |listening| listener.apply(listening));
+    let state = directory.parent().unwrap_or_else(|| Path::new("."));
+    let registry = match backend::herdr(state)? {
+        Some(config) => {
+            log::info!("terminal backend: herdr");
+            registry.with_herdr(&config, state)?
+        }
+        None => registry,
+    };
+    Ok(Arc::new(registry))
 }
 
 fn accept(socket: &Socket, registry: &Arc<Registry>, connections: &Connections) -> io::Result<()> {

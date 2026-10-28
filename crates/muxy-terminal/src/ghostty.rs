@@ -407,6 +407,13 @@ impl Terminal {
             .map_err(|error| TerminalError::wrap(TerminalStep::Input, error))
     }
 
+    /// Wraps a paste in bracketed-paste markers whatever this terminal's own
+    /// mode, for a peer that applies the application's mode itself.
+    pub fn encode_paste_bracketed(&self, bytes: Vec<u8>) -> Result<Vec<u8>, TerminalError> {
+        crate::input::paste(bytes, true)
+            .map_err(|error| TerminalError::wrap(TerminalStep::Input, error))
+    }
+
     pub fn encode_focus(&self, focused: bool) -> Result<Vec<u8>, TerminalError> {
         if self.input_modes()?.focus_events {
             Ok(if focused { b"\x1b[I" } else { b"\x1b[O" }.to_vec())

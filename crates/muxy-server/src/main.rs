@@ -1,6 +1,7 @@
 //! Server executable composition root and process lifecycle.
 
 mod args;
+mod backend;
 mod legacy;
 mod logging;
 mod remote_listener;
