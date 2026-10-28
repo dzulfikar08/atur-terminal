@@ -556,25 +556,43 @@ impl Owner {
         Ok(())
     }
 
+    /// The scrollback's generation and row count, from the backing when it keeps
+    /// the scrollback, else from the owner's terminal.
+    fn history_state(&mut self) -> Result<(u64, usize), muxy_terminal::TerminalError> {
+        match self.pty.history_rows() {
+            Some(rows) => Ok((1, rows)),
+            None => Ok((
+                self.terminal.history_generation()?,
+                self.terminal.history_rows()?,
+            )),
+        }
+    }
+
     fn history_page(
         &mut self,
         before: HistoryCursor,
         max_rows: u16,
     ) -> Result<HistoryPage, ServerError> {
-        let terminal_error = |error| {
+        fn terminal_error(error: impl std::fmt::Display) -> ServerError {
             ServerError::new(
                 ErrorCode::HistoryUnavailable,
                 format!("terminal history: {error}"),
             )
-        };
-        let generation = self.terminal.history_generation().map_err(terminal_error)?;
-        let total = self.terminal.history_rows().map_err(terminal_error)?;
+        }
+        let (generation, total) = self.history_state().map_err(terminal_error)?;
         let (range, next) = history_range(self.info.id, generation, before, max_rows, total)?;
         self.compress_pending = true;
-        let (history, mut prompts) = self
-            .terminal
-            .history_with_prompts(range)
-            .map_err(terminal_error)?;
+        let (history, mut prompts) = if self.pty.history_rows().is_some() {
+            let rows = self
+                .pty
+                .history(range, self.size.cols)
+                .map_err(terminal_error)?;
+            (rows, Vec::new())
+        } else {
+            self.terminal
+                .history_with_prompts(range)
+                .map_err(terminal_error)?
+        };
         let screen = if before.0 == 0 {
             prompts.extend(
                 self.terminal
@@ -662,12 +680,13 @@ impl Owner {
         before: HistoryCursor,
         max_results: u16,
     ) -> Result<SearchPage, ServerError> {
-        let failed =
-            |error| ServerError::new(ErrorCode::HistoryUnavailable, format!("search: {error}"));
-        let history_rows = self.terminal.history_rows().map_err(failed)?;
+        fn failed(error: impl std::fmt::Display) -> ServerError {
+            ServerError::new(ErrorCode::HistoryUnavailable, format!("search: {error}"))
+        }
+        let (generation, history_rows) = self.history_state().map_err(failed)?;
         let search = Search {
             session: self.info.id,
-            generation: self.terminal.history_generation().map_err(failed)?,
+            generation,
             query,
             ignore_case,
             before,
@@ -677,10 +696,12 @@ impl Owner {
         };
         let range = search.range()?;
         self.compress_pending = true;
-        let history = self
-            .terminal
-            .history(range.start.min(history_rows)..range.end.min(history_rows))
-            .map_err(failed)?;
+        let rows = range.start.min(history_rows)..range.end.min(history_rows);
+        let history = if self.pty.history_rows().is_some() {
+            self.pty.history(rows, self.size.cols).map_err(failed)?
+        } else {
+            self.terminal.history(rows).map_err(failed)?
+        };
         let screen = if range.end > history_rows {
             self.terminal.screen().map_err(failed)?
         } else {
@@ -753,19 +774,25 @@ impl Owner {
         if now >= self.next_detection {
             self.next_detection = now + METADATA_POLL;
             if self.metadata.agent.is_some() {
-                if self.detection_dirty && !self.terminal.synchronized_output().unwrap_or(true) {
-                    if let Ok(screen) = self.terminal.detection_text() {
-                        self.detection_screen = screen;
+                let reported = self.pty.agent().map(|(_, state)| state);
+                let completed = if let Some(state) = reported {
+                    self.detector.adopt(self.metadata.agent, state)
+                } else {
+                    if self.detection_dirty && !self.terminal.synchronized_output().unwrap_or(true)
+                    {
+                        if let Ok(screen) = self.terminal.detection_text() {
+                            self.detection_screen = screen;
+                        }
+                        self.detection_dirty = false;
                     }
-                    self.detection_dirty = false;
-                }
-                let completed = self.detector.update(
-                    self.metadata.agent,
-                    self.detection_screen.clone(),
-                    &self.metadata.title,
-                    &self.detection_progress,
-                    now,
-                );
+                    self.detector.update(
+                        self.metadata.agent,
+                        self.detection_screen.clone(),
+                        &self.metadata.title,
+                        &self.detection_progress,
+                        now,
+                    )
+                };
                 if let Some(provider) = self.detector.provider {
                     self.activity.update(
                         muxy_protocol::AgentActivity {
@@ -795,8 +822,8 @@ impl Owner {
         if self.attachments.is_empty() {
             return Ok(());
         }
-        let total_rows = self.terminal.history_rows()? as u64;
-        let generation = self.terminal.history_generation()?;
+        let (generation, total_rows) = self.history_state()?;
+        let total_rows = total_rows as u64;
         if total_rows != self.history_total || generation != self.history_generation {
             self.history_total = total_rows;
             self.history_generation = generation;

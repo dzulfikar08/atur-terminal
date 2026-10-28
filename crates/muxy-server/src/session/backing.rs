@@ -5,11 +5,12 @@
 
 use std::error::Error;
 use std::io::Write;
+use std::ops::Range;
 use std::sync::mpsc::Sender;
 
-use muxy_protocol::{ExitReason, MouseEvent, Size};
-use muxy_terminal::CellSize;
+use muxy_protocol::{AgentProvider, AgentState, ExitReason, MouseEvent, Size};
 use muxy_terminal::pty::{ExitStatus, Pty};
+use muxy_terminal::{CellSize, Row};
 
 use super::owner::OwnerEvent;
 use crate::error::ServerError;
@@ -63,6 +64,28 @@ pub(crate) trait Backing: Send {
     /// periodic checkpoints and saves only when the session ends.
     fn persists_content(&self) -> bool {
         false
+    }
+
+    /// How many rows of scrollback the process's owner keeps, when that is not
+    /// the owner's own terminal.
+    fn history_rows(&self) -> Option<usize> {
+        None
+    }
+
+    /// Rows `range` of that scrollback, oldest first.
+    fn history(&self, range: Range<usize>, cols: u16) -> Result<Vec<Row>, Fault> {
+        let _ = (range, cols);
+        Ok(Vec::new())
+    }
+
+    /// The title the application set, when the byte stream does not carry it.
+    fn title(&self) -> Option<String> {
+        None
+    }
+
+    /// The agent the process's owner recognised and what it is doing.
+    fn agent(&self) -> Option<(AgentProvider, AgentState)> {
+        None
     }
 }
 

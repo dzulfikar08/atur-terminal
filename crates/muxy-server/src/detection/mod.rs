@@ -258,6 +258,30 @@ impl Detector {
     }
 }
 
+impl Detector {
+    /// Takes a state decided elsewhere, such as by the server that runs the
+    /// terminal. True when a working cycle just finished.
+    pub(crate) fn adopt(&mut self, provider: Option<AgentProvider>, state: AgentState) -> bool {
+        if self.provider != provider {
+            *self = Self {
+                provider,
+                ..Self::default()
+            };
+        }
+        if provider.is_none() {
+            return false;
+        }
+        let completed = self.cycle && state == AgentState::Idle;
+        match state {
+            AgentState::Working => self.cycle = true,
+            AgentState::Blocked => {}
+            _ => self.cycle = false,
+        }
+        self.state = state;
+        completed
+    }
+}
+
 pub(crate) fn identify(name: &str, argv: &[String]) -> Option<AgentProvider> {
     let name = basename(name);
     if let Some(provider) = alias(name) {

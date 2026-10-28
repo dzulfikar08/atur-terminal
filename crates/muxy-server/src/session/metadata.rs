@@ -53,11 +53,13 @@ impl Metadata {
                         "sh" | "bash" | "zsh" | "fish" | "dash" | "ksh"
                     )
                 });
-            self.agent = if session_shell {
-                None
-            } else {
-                group.and_then(agent_provider)
-            };
+            self.agent = pty.agent().map(|(provider, _)| provider).or_else(|| {
+                if session_shell {
+                    None
+                } else {
+                    group.and_then(agent_provider)
+                }
+            });
         }
         if let Some(group) = group {
             let process = ForegroundProcess {
@@ -97,6 +99,12 @@ impl Metadata {
                 TerminalEvent::Bell => events.push(MetadataEvent::Bell),
                 TerminalEvent::Progress(_) | TerminalEvent::Title(_) => {}
             }
+        }
+        if let Some(title) = pty.title()
+            && title != self.title
+        {
+            self.title.clone_from(&title);
+            events.push(MetadataEvent::Title(title));
         }
         if self.directory != previous_directory {
             events.push(MetadataEvent::Directory(self.directory.clone()));

@@ -8,6 +8,8 @@
 mod api;
 mod base64;
 mod control;
+mod panes;
+mod scrollback;
 mod store;
 
 use std::io::{self, Write};
@@ -16,13 +18,16 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
-use muxy_protocol::{ErrorCode, ExitReason, MouseEvent, SessionId, SessionInfo, Size};
-use muxy_terminal::CellSize;
+use muxy_protocol::{
+    AgentProvider, AgentState, ErrorCode, ExitReason, MouseEvent, SessionId, SessionInfo, Size,
+};
 use muxy_terminal::pty::ExitStatus;
+use muxy_terminal::{CellSize, Row};
 use serde_json::{Value, json};
 
 use api::Api;
 use control::{Control, Launch};
+use panes::{PaneState, Panes};
 use store::Store;
 
 use crate::error::ServerError;
@@ -73,6 +78,7 @@ pub(crate) struct Herdr {
     api: Arc<Api>,
     config: HerdrConfig,
     store: Store,
+    panes: Panes,
 }
 
 /// What a new session needs from its project.
@@ -91,6 +97,7 @@ impl Herdr {
             api: Arc::new(Api::new(config.socket())),
             config: config.clone(),
             store: Store::open(state)?,
+            panes: Panes::default(),
         }))
     }
 
@@ -362,6 +369,39 @@ const GONE: ExitStatus = ExitStatus {
     signal: None,
 };
 
+impl HerdrBacking {
+    fn state(&self) -> Option<PaneState> {
+        self.herdr.panes.get(&self.herdr.api, &self.terminal)
+    }
+}
+
+/// The provider herdr names by its agent label.
+fn provider(label: &str) -> Option<AgentProvider> {
+    Some(match label {
+        "claude" => AgentProvider::Claude,
+        "codex" => AgentProvider::Codex,
+        "opencode" => AgentProvider::OpenCode,
+        "cursor" => AgentProvider::Cursor,
+        "github_copilot" | "github-copilot" | "copilot" => AgentProvider::Copilot,
+        "droid" => AgentProvider::Droid,
+        "pi" => AgentProvider::Pi,
+        "grok" => AgentProvider::Grok,
+        "kiro" => AgentProvider::Kiro,
+        "antigravity" => AgentProvider::Antigravity,
+        "omp" => AgentProvider::OhMyPi,
+        _ => return None,
+    })
+}
+
+fn agent_state(status: &str) -> AgentState {
+    match status {
+        "working" => AgentState::Working,
+        "blocked" => AgentState::Blocked,
+        "idle" | "done" => AgentState::Idle,
+        _ => AgentState::Unknown,
+    }
+}
+
 impl Backing for HerdrBacking {
     fn start_reader(&self, sink: Sender<OwnerEvent>) -> Result<(), ServerError> {
         let control = Control::start(
@@ -463,6 +503,25 @@ impl Backing for HerdrBacking {
     fn persists_content(&self) -> bool {
         true
     }
+
+    fn history_rows(&self) -> Option<usize> {
+        Some(self.state().map_or(0, |pane| pane.history_rows))
+    }
+
+    fn history(&self, range: std::ops::Range<usize>, cols: u16) -> Result<Vec<Row>, Fault> {
+        let pane = self.state().ok_or("herdr no longer lists the terminal")?;
+        scrollback::read(&self.herdr.api, &pane, cols, range)
+    }
+
+    fn title(&self) -> Option<String> {
+        self.state()?.title
+    }
+
+    fn agent(&self) -> Option<(AgentProvider, AgentState)> {
+        let pane = self.state()?;
+        let provider = provider(pane.agent.as_deref()?)?;
+        Some((provider, agent_state(pane.agent_status.as_deref()?)))
+    }
 }
 
 impl Drop for HerdrBacking {
@@ -470,5 +529,32 @@ impl Drop for HerdrBacking {
         if let Some(control) = self.control.get() {
             control.detach();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn herdr_agent_labels_and_states_map_to_muxy_ones() {
+        assert_eq!(provider("omp"), Some(AgentProvider::OhMyPi));
+        assert_eq!(provider("github_copilot"), Some(AgentProvider::Copilot));
+        assert_eq!(provider("amp"), None);
+        assert_eq!(agent_state("done"), AgentState::Idle);
+        assert_eq!(agent_state("working"), AgentState::Working);
+        assert_eq!(agent_state("blocked"), AgentState::Blocked);
+        assert_eq!(agent_state("unknown"), AgentState::Unknown);
+    }
+
+    #[test]
+    fn a_reported_working_cycle_completes_when_the_agent_goes_idle() {
+        let mut detector = crate::detection::Detector::default();
+        let provider = Some(AgentProvider::Claude);
+        assert!(!detector.adopt(provider, AgentState::Idle));
+        assert!(!detector.adopt(provider, AgentState::Working));
+        assert!(!detector.adopt(provider, AgentState::Blocked));
+        assert!(detector.adopt(provider, AgentState::Idle));
+        assert!(!detector.adopt(provider, AgentState::Idle));
     }
 }
