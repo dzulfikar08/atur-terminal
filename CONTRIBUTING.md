@@ -1,6 +1,6 @@
-# Contributing to Muxy
+# Contributing to Atur Terminal
 
-Thank you for your interest in contributing to Muxy! This guide will help you get started.
+Atur Terminal is a fork of [Muxy](https://github.com/muxy-app/muxy). Thank you for your interest in contributing! This guide will help you get started.
 
 ## Humans Only Policy
 
@@ -27,7 +27,7 @@ Read [docs/product](docs/product/README.md) and [docs/tech](docs/tech/README.md)
 ### Setup
 
 ```bash
-git clone https://github.com/muxy-app/muxy.git
+git clone https://github.com/dzulfikar08/muxy.git
 cd muxy
 ```
 
@@ -97,7 +97,7 @@ and tests with `-p` for each package that
 
 ## Reporting Issues
 
-- Report bugs and ideas on [GitHub Issues](https://github.com/muxy-app/muxy/issues)
+- Report bugs and ideas on [GitHub Issues](https://github.com/dzulfikar08/muxy/issues)
 - Search existing issues before creating a new one
 
 ## License
