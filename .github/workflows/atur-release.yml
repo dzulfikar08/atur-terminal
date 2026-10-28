@@ -217,7 +217,7 @@ jobs:
           cp "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip" assets/
           rm -f assets/SHA256SUMS
           python3 scripts/release.py update "$VERSION" "$GITHUB_REPOSITORY" assets "$TAG"
-          (cd assets && ls -1 | LC_ALL=C sort | xargs -d '\n' shasum -a 256 > SHA256SUMS)
+          (cd assets && ls -1 | LC_ALL=C sort | tr '\n' '\0' | xargs -0 shasum -a 256 > SHA256SUMS)
           cat assets/SHA256SUMS
           (cd assets && gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
             "AturTerminal-$VERSION-$ARCH.dmg" "muxy-$VERSION-macos-$ARCH.zip" update.json SHA256SUMS)
