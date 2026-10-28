@@ -9,7 +9,7 @@ pub fn default_path() -> Result<PathBuf, AppError> {
     muxy_core::dirs::muxy_dir()
         .map(|directory| directory.join("desktop-state.json"))
         .map_err(|source| AppError::Io {
-            path: PathBuf::from("Muxy state directory"),
+            path: PathBuf::from("Atur Terminal state directory"),
             source,
         })
 }

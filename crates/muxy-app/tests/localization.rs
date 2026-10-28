@@ -151,7 +151,7 @@ fn literal(text: &str) -> Option<String> {
 
 fn render(keys: &BTreeSet<String>) -> String {
     let mut catalog = String::from(
-        "/* Muxy's English strings, the source for language packs. Translate the\n   right-hand side of each line and keep its placeholders. */\n\n",
+        "/* Atur Terminal's English strings, the source for language packs. Translate the\n   right-hand side of each line and keep its placeholders. */\n\n",
     );
     for key in keys {
         let escaped = escape(key);

@@ -19,7 +19,7 @@ pub(crate) use args::{Invocation, parse};
 const REPLY_TIME: Duration = Duration::from_secs(10);
 /// How long a desktop app that `open` started has to begin listening.
 const APP_START_TIME: Duration = Duration::from_secs(20);
-const INVALID_REPLY: &str = "invalid reply from Muxy";
+const INVALID_REPLY: &str = "invalid reply from Atur Terminal";
 
 pub(crate) fn run(invocation: Invocation) -> Result<(), Box<dyn Error>> {
     let socket = api::socket_path(&muxy_core::dirs::muxy_dir()?);

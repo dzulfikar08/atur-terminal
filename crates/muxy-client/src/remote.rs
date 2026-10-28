@@ -92,7 +92,7 @@ impl Client {
                 Err(ClientError::Server(ErrorReply {
                     code: ErrorCode::Unsupported,
                     message:
-                        "This server can't add addresses to a pairing code. Update Muxy on it."
+                        "This server can't add addresses to a pairing code. Update Atur Terminal on it."
                             .into(),
                 }))
             }

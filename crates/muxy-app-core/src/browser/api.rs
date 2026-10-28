@@ -58,13 +58,13 @@ pub fn encode_reply(result: &Result<Value, String>) -> Vec<u8> {
 
 pub fn decode_reply(bytes: &[u8]) -> Result<Value, String> {
     let mut reply: Value =
-        serde_json::from_slice(bytes).map_err(|_| "invalid reply from Muxy".to_owned())?;
+        serde_json::from_slice(bytes).map_err(|_| "invalid reply from Atur Terminal".to_owned())?;
     if reply["ok"].as_bool() == Some(true) {
         Ok(reply["value"].take())
     } else {
         Err(reply["error"]
             .as_str()
-            .unwrap_or("Muxy did not handle the request")
+            .unwrap_or("Atur Terminal did not handle the request")
             .to_owned())
     }
 }
@@ -81,11 +81,11 @@ pub enum CallError {
 impl std::fmt::Display for CallError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NotRunning => formatter.write_str("the Muxy desktop app is not running"),
+            Self::NotRunning => formatter.write_str("the Atur Terminal desktop app is not running"),
             Self::Io(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                formatter.write_str("no response from Muxy")
+                formatter.write_str("no response from Atur Terminal")
             }
-            Self::Io(error) => write!(formatter, "could not reach Muxy: {error}"),
+            Self::Io(error) => write!(formatter, "could not reach Atur Terminal: {error}"),
             Self::Failed(error) => formatter.write_str(error),
         }
     }

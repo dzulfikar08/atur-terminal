@@ -76,8 +76,9 @@ pub(super) fn install_command(version: &str) -> String {
 /// The command that replaces Muxy on another computer with this release.
 pub(crate) fn update_command(version: &str) -> String {
     format!(
-        "curl -fsSL {}/v{version}/install-muxy.sh | sh -s -- --version {version} --replace",
-        crate::updater::RELEASES
+        "curl -fsSL {}/install-muxy.sh | sh -s -- --version {version} --tag {} --replace",
+        crate::updater::release_base(version),
+        crate::updater::release_tag(version)
     )
 }
 
@@ -91,20 +92,26 @@ pub(crate) fn incompatible_guidance(name: &str, there: Option<&str>) -> String {
     let here = env!("CARGO_PKG_VERSION");
     if there == Some(here) {
         return tr!(
-            "Muxy on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server",
+            "Atur Terminal on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server",
             name,
             here
         )
         .to_string();
     }
     let there = there.map_or_else(
-        || tr!("Muxy on %@ is another version", name),
-        |version| tr!("Muxy on %@ is %@", name, version),
+        || tr!("Atur Terminal on %@ is another version", name),
+        |version| tr!("Atur Terminal on %@ is %@", name, version),
     );
     let protocol = muxy_protocol::CURRENT.0;
     let fix = released_version().map_or_else(
         || tr!("Install a matching build there by hand, from scripts/build-linux-dev.sh."),
-        |version| tr!("Update Muxy on %@: %@", name, update_command(version)),
+        |version| {
+            tr!(
+                "Update Atur Terminal on %@: %@",
+                name,
+                update_command(version)
+            )
+        },
     );
     tr!(
         "%@; this app needs a version that speaks protocol V%lld, like %@. %@",
@@ -286,7 +293,7 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) -> Result<ServerId, String> {
         if self.quitting != Quitting::Idle {
-            return Err(tr!("Muxy is quitting").to_string());
+            return Err(tr!("Atur Terminal is quitting").to_string());
         }
         if id.is_some_and(|id| self.settings.server(id).is_none()) {
             return Err(tr!("This remote server is no longer listed").to_string());
@@ -556,7 +563,7 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         if self.quitting != Quitting::Idle {
-            return Err(tr!("Muxy is quitting").to_string());
+            return Err(tr!("Atur Terminal is quitting").to_string());
         }
         let path = self.path.with_file_name("settings.toml");
         self.settings

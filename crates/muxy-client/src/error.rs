@@ -119,29 +119,34 @@ fn remote(
         ),
         RemoteReason::AuthenticationFailed => write!(
             formatter,
-            "SSH refused the login to {destination}. Muxy connects without prompts, so use ssh-agent, a key in ~/.ssh/config, or a certificate."
+            "SSH refused the login to {destination}. Atur Terminal connects without prompts, so use ssh-agent, a key in ~/.ssh/config, or a certificate."
         ),
         RemoteReason::Unreachable => write!(formatter, "Can't reach {destination}: {detail}"),
         RemoteReason::NotInstalled => write!(
             formatter,
-            "Muxy isn't installed on {destination} (looked on PATH and in ~/.local/bin)."
+            "Atur Terminal isn't installed on {destination} (looked on PATH and in ~/.local/bin)."
         ),
         RemoteReason::NotRunning => {
-            write!(formatter, "Muxy's server isn't running on {destination}.")
+            write!(
+                formatter,
+                "Atur Terminal's server isn't running on {destination}."
+            )
         }
         RemoteReason::SshMissing => write!(
             formatter,
-            "Muxy needs {detail} to reach {destination}, but it isn't installed."
+            "Atur Terminal needs {detail} to reach {destination}, but it isn't installed."
         ),
         RemoteReason::UnexpectedOutput if detail.is_empty() => write!(
             formatter,
-            "The shell on {destination} printed output before Muxy could start. Keep its startup files quiet when it isn't interactive."
+            "The shell on {destination} printed output before Atur Terminal could start. Keep its startup files quiet when it isn't interactive."
         ),
         RemoteReason::UnexpectedOutput => write!(
             formatter,
-            "The shell on {destination} printed \"{detail}\" before Muxy could start. Keep its startup files quiet when it isn't interactive."
+            "The shell on {destination} printed \"{detail}\" before Atur Terminal could start. Keep its startup files quiet when it isn't interactive."
         ),
-        RemoteReason::BridgeFailed => write!(formatter, "Muxy on {destination} failed: {detail}"),
+        RemoteReason::BridgeFailed => {
+            write!(formatter, "Atur Terminal on {destination} failed: {detail}")
+        }
         RemoteReason::Timeout if detail.is_empty() => {
             write!(formatter, "Timed out connecting to {destination}.")
         }
@@ -150,7 +155,7 @@ fn remote(
         }
         RemoteReason::Incompatible => write!(
             formatter,
-            "Muxy on {destination} can't accept connections from this version of Muxy ({detail}). Install the same version on both computers."
+            "Atur Terminal on {destination} can't accept connections from this version of Atur Terminal ({detail}). Install the same version on both computers."
         ),
     }
 }

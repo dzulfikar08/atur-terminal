@@ -265,7 +265,7 @@ fn app_language(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyEleme
     let unavailable =
         !selected.is_empty() && !pane.snapshot.languages.iter().any(|(id, _)| id == selected);
     let note = unavailable.then(|| {
-        tr!("The selected language extension is unavailable, so Muxy is temporarily using English.")
+        tr!("The selected language extension is unavailable, so Atur Terminal is temporarily using English.")
     });
     pane.row_with_description(
         "app-language",

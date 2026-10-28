@@ -395,7 +395,7 @@ impl AppModel {
             let project = self
                 .state
                 .project(event.project)
-                .map_or("Muxy", |project| project.name.as_str());
+                .map_or("Atur Terminal", |project| project.name.as_str());
             let title = match self.server_name(server) {
                 Some(name) if !server.is_local() => {
                     format!("{} · {project} · {name}", event.provider.name())

@@ -12,7 +12,7 @@ use crate::views::overlays::Overlay;
 /// Each one must describe current behavior and call customizable shortcuts defaults.
 pub(crate) const TIPS: &[&str] = &[
     tr_key!(
-        "Quitting Muxy never ends your terminals. To keep them when closing tabs or panes too, set Settings → General → Closing terminals → When closing tabs or panes to Detach."
+        "Quitting Atur Terminal never ends your terminals. To keep them when closing tabs or panes too, set Settings → General → Closing terminals → When closing tabs or panes to Detach."
     ),
     tr_key!(
         "Right-click a terminal and choose Detach Terminal to put it away without ending it. By default, ⌘⌥T opens Existing Terminals to bring it back."
@@ -45,10 +45,10 @@ pub(crate) const TIPS: &[&str] = &[
         "Working over SSH? Run muxy on that machine for tabs and splits in the terminal, and press Ctrl-B then ? to see its keys."
     ),
     tr_key!(
-        "Muxy recognizes AI agents like Claude Code and Codex, marks panes, tabs, and projects when they're working or need you, and notifies you when they're in the background."
+        "Atur Terminal recognizes AI agents like Claude Code and Codex, marks panes, tabs, and projects when they're working or need you, and notifies you when they're in the background."
     ),
     tr_key!(
-        "In a Git project, click Commit in the status bar. Choose the AI CLI, whether to include unstaged changes, and whether to push. The CLI writes the message and Muxy commits."
+        "In a Git project, click Commit in the status bar. Choose the AI CLI, whether to include unstaged changes, and whether to push. The CLI writes the message and Atur Terminal commits."
     ),
     tr_key!(
         "Browse extensions in Settings → Extensions. Each one lists the permissions it requests and runs only after you enable it."

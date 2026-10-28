@@ -15,7 +15,7 @@ fn the_form_offers_host_trust_and_retests_only_after_approval(cx: &mut TestAppCo
         recorded.lock().expect("answers").push(answer.clone());
         if answer == "yes" {
             Err(crate::boot::ProbeFailure::NotInstalled(
-                "Missing Muxy".into(),
+                "Missing Atur Terminal".into(),
             ))
         } else {
             Err("Host key verification failed".into())

@@ -105,7 +105,9 @@ fn status(pane: &SettingsView, state: &RemoteAccessState) -> AnyElement {
         (ListenerStatus::Failed(message), _) => (tr!("Not listening: %@", message), true),
         (ListenerStatus::Disabled, true) => (tr!("Starting"), false),
         (ListenerStatus::Disabled, false) => (tr!("Off"), false),
-        (ListenerStatus::Unrecognized(_), _) => (tr!("Update Muxy to see this status"), false),
+        (ListenerStatus::Unrecognized(_), _) => {
+            (tr!("Update Atur Terminal to see this status"), false)
+        }
     };
     div()
         .debug_selector(|| "settings-mobile-status".into())
@@ -141,7 +143,7 @@ fn pairing(
         .gap(px(10.0))
         .child(code(pairing.code.clone()))
         .child(div().text_color(pane.theme.fg_muted).child(tr!(
-            "Scan with the Muxy app. The code works once and expires in 5 minutes."
+            "Scan with the Atur/Muxy mobile app. The code works once and expires in 5 minutes."
         )))
         .child(
             div()

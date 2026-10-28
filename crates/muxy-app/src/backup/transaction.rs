@@ -52,7 +52,7 @@ pub(crate) fn apply_pending(profile: &Path) -> Result<Option<String>> {
         recover(profile)?;
         return Ok(Some(
             tr!(
-                "Could not restore backup: %@. Your previous configuration was kept. Cancel or replace the pending import in Settings → Backup & Restore, or reopen Muxy to retry.",
+                "Could not restore backup: %@. Your previous configuration was kept. Cancel or replace the pending import in Settings → Backup & Restore, or reopen Atur Terminal to retry.",
                 error.to_string()
             )
             .to_string(),

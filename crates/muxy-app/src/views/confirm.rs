@@ -189,13 +189,13 @@ pub(crate) async fn prompt_update(
     }
     let message = if scheduled {
         tr!(
-            "Muxy %@ will install and restart the app when all terminal sessions end. Currently %lld sessions are running, including idle shells and detached sessions.",
+            "Atur Terminal %@ will install and restart the app when all terminal sessions end. Currently %lld sessions are running, including idle shells and detached sessions.",
             version,
             sessions
         )
     } else {
         tr!(
-            "Muxy %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain.",
+            "Atur Terminal %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain.",
             version
         )
     };
@@ -217,7 +217,7 @@ pub(crate) async fn prompt_update(
         .update(cx, |_, window, cx| {
             window.prompt(
                 gpui::PromptLevel::Info,
-                &tr!("Muxy Update"),
+                &tr!("Atur Terminal Update"),
                 Some(&message),
                 &labels,
                 cx,
@@ -246,7 +246,7 @@ async fn prompt_install(
     cx: &mut AsyncApp,
 ) -> Result<UpdateChoice, String> {
     let message = tr!(
-        "Install Muxy %@ and restart the app? Running terminals will continue, and the server will update when all terminal sessions end. Restarting the server now ends all terminal sessions on this device, including sessions used by other clients.",
+        "Install Atur Terminal %@ and restart the app? Running terminals will continue, and the server will update when all terminal sessions end. Restarting the server now ends all terminal sessions on this device, including sessions used by other clients.",
         version
     );
     Ok(match install_prompt(window, &message, cx).await? {
@@ -269,7 +269,7 @@ async fn install_prompt(
             muxy_ui::dialog::confirm_with_checkbox(
                 window,
                 cx,
-                &tr!("Muxy Update"),
+                &tr!("Atur Terminal Update"),
                 message,
                 [&muxy_ui::l10n::translate(INSTALL), &tr!("Not Now")],
                 &tr!("Also restart the server"),
@@ -296,7 +296,7 @@ async fn install_prompt(
         .update(cx, |_, window, cx| {
             window.prompt(
                 gpui::PromptLevel::Info,
-                "Muxy Update",
+                "Atur Terminal Update",
                 Some(message),
                 &[INSTALL, "Not Now", INSTALL_AND_RESTART_SERVER],
                 cx,

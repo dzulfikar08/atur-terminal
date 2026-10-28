@@ -138,7 +138,11 @@ fn native_one_x_archive_and_manual_json_use_the_same_conversion() {
     let archive = directory.path().join("legacy.muxy");
     legacy_archive(&archive, "");
     let import = prepare(directory.path(), &archive).unwrap();
-    assert!(import.summary.contains("Not available in Muxy 2 (1)"));
+    assert!(
+        import
+            .summary
+            .contains("Not available in Atur Terminal (1)")
+    );
     stage(directory.path(), &import).unwrap();
     apply_pending(directory.path()).unwrap();
     let settings = Settings::load(&directory.path().join("settings.toml")).unwrap();

@@ -178,7 +178,7 @@ pub(super) fn lock_profile(root: &Path) -> io::Result<File> {
     rustix::fs::flock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive).map_err(
         |error| {
             io::Error::other(format!(
-                "Composer drafts are in use by another Muxy instance: {error}"
+                "Composer drafts are in use by another Atur Terminal instance: {error}"
             ))
         },
     )?;

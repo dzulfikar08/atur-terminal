@@ -32,7 +32,7 @@ impl ServerError {
     pub(crate) fn unsupported_request() -> Self {
         Self::new(
             ErrorCode::Unsupported,
-            "This server doesn't support the request. Update Muxy.",
+            "This server doesn't support the request. Update Atur Terminal.",
         )
     }
 

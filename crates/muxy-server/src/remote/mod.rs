@@ -318,7 +318,7 @@ impl RemoteAccess {
             Some(paired)
         } else {
             Some(Paired {
-                name: "Muxy".into(),
+                name: "Atur Terminal".into(),
                 ..paired
             })
         }

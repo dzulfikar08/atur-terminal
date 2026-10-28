@@ -332,7 +332,7 @@ impl AppModel {
                 let Ok(reply) = model.update_in(cx, |model, window, cx| {
                     model.browser_call(&verb, &args, window, cx)
                 }) else {
-                    incoming.reply(Err("Muxy is closing".into()));
+                    incoming.reply(Err("Atur Terminal is closing".into()));
                     break;
                 };
                 cx.foreground_executor()

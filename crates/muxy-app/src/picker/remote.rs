@@ -174,7 +174,7 @@ fn home_folders(
 ) -> Result<Vec<DirectoryItem>, String> {
     let relative = inside(root, path).ok_or_else(|| {
         tr!(
-            "%@ runs an older Muxy that lists only folders inside %@. Update it there to browse others, or type a full path.",
+            "%@ runs an older Atur Terminal that lists only folders inside %@. Update it there to browse others, or type a full path.",
             name,
             root
         )

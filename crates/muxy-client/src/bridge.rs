@@ -305,9 +305,9 @@ fn explain(exit: &BridgeExit, printed: &[u8]) -> (RemoteReason, String) {
         RemoteReason::UnexpectedOutput => last_line(printed),
         RemoteReason::BridgeFailed if last.is_empty() => match exit.status {
             Some(status) => {
-                format!("the connection closed before Muxy started (exit status {status})")
+                format!("the connection closed before Atur Terminal started (exit status {status})")
             }
-            None => "the connection closed before Muxy started".into(),
+            None => "the connection closed before Atur Terminal started".into(),
         },
         RemoteReason::BridgeFailed => last.strip_prefix("muxy: ").unwrap_or(&last).into(),
         _ => last,

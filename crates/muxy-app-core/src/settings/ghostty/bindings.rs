@@ -114,7 +114,7 @@ impl TerminalBindings {
         if value == "clear" || value.is_empty() {
             self.bindings.clear();
             self.clear_defaults = value == "clear";
-            return Ok((value == "clear").then(|| "keybind = clear clears terminal bindings; Muxy application shortcuts remain in settings.toml".into()));
+            return Ok((value == "clear").then(|| "keybind = clear clears terminal bindings; Atur Terminal application shortcuts remain in settings.toml".into()));
         }
         let (trigger, action) = value
             .split_once('=')
@@ -184,7 +184,7 @@ fn parse_action(action: &str) -> Result<ParsedAction> {
         )
     {
         return Ok(ParsedAction::Unsupported(format!(
-            "keybind action {name:?} with parameters is not supported by Muxy"
+            "keybind action {name:?} with parameters is not supported by Atur Terminal"
         )));
     }
     Ok(ParsedAction::Supported(match name {
@@ -207,7 +207,7 @@ fn parse_action(action: &str) -> Result<ParsedAction> {
         "reset_font_size" => TerminalAction::ResetFontSize,
         _ => {
             return Ok(ParsedAction::Unsupported(format!(
-                "keybind action {name:?} is not supported by Muxy"
+                "keybind action {name:?} is not supported by Atur Terminal"
             )));
         }
     }))

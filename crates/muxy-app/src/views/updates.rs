@@ -42,7 +42,7 @@ pub(crate) fn render(model: &AppModel, window: &Window, cx: &mut Context<AppMode
         .child(
             popover::header(theme, m)
                 .justify_between()
-                .child(tr!("Muxy updates"))
+                .child(tr!("Atur Terminal updates"))
                 .child(controls::button(
                     Style { theme, metrics: &m },
                     "close-updates",

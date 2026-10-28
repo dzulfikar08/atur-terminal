@@ -43,7 +43,7 @@ pub(crate) fn listen(path: &Path) -> io::Result<(AppSocket, async_channel::Recei
     if UnixStream::connect(path).is_ok() {
         return Err(io::Error::new(
             io::ErrorKind::AddrInUse,
-            "another Muxy app answers browser commands",
+            "another Atur Terminal app answers browser commands",
         ));
     }
     let _ = std::fs::remove_file(path);
@@ -92,11 +92,11 @@ fn answer(mut stream: UnixStream, requests: &async_channel::Sender<Incoming>) ->
         Ok(request) => {
             let (reply, replied) = async_channel::bounded(1);
             if requests.send_blocking(Incoming { request, reply }).is_err() {
-                Err("Muxy is closing".to_owned())
+                Err("Atur Terminal is closing".to_owned())
             } else {
                 replied
                     .recv_blocking()
-                    .unwrap_or_else(|_| Err("Muxy is closing".to_owned()))
+                    .unwrap_or_else(|_| Err("Atur Terminal is closing".to_owned()))
             }
         }
         Err(error) => Err(format!("invalid request: {error}")),

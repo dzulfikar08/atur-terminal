@@ -62,7 +62,8 @@ impl Permission {
     fn capability(denied: bool) -> Capability {
         if denied {
             Capability::Unavailable(
-                crate::tr!("Notifications are turned off for Muxy in System Settings.").to_string(),
+                crate::tr!("Notifications are turned off for Atur Terminal in System Settings.")
+                    .to_string(),
             )
         } else {
             Capability::Supported
@@ -143,7 +144,7 @@ impl Service {
     pub(super) fn start() -> Result<(Self, Receiver<Event>), Capability> {
         if NSBundle::mainBundle().bundleIdentifier().is_none() {
             return Err(Capability::Unavailable(
-                crate::tr!("Desktop notifications need Muxy to run from its app bundle.")
+                crate::tr!("Desktop notifications need Atur Terminal to run from its app bundle.")
                     .to_string(),
             ));
         }

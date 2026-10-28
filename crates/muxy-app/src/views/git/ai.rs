@@ -36,10 +36,10 @@ impl AiConfirmation {
     fn message(&self) -> String {
         match self.action {
             Action::Commit => {
-                tr!("Muxy will ask the AI provider for a commit message, then commit.").into()
+                tr!("Atur Terminal will ask the AI provider for a commit message, then commit.").into()
             }
             Action::CreatePullRequest => tr!(
-                "Muxy will stage all changes, ask %@ for a branch name, title, and summary, then create the branch, commit, push, and open the pull request on GitHub.",
+                "Atur Terminal will stage all changes, ask %@ for a branch name, title, and summary, then create the branch, commit, push, and open the pull request on GitHub.",
                 self.provider.name
             )
             .into(),

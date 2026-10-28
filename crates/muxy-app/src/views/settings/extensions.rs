@@ -1375,7 +1375,7 @@ impl ExtensionsView {
             return if installed.is_empty() {
                 self.empty_state(
                     &tr!("No extensions installed"),
-                    &tr!("Browse extensions to add tools to Muxy, or load an unpacked extension folder."),
+                    &tr!("Browse extensions to add tools to Atur Terminal, or load an unpacked extension folder."),
                 )
                 .child(self.button(
                     "extension-browse",

@@ -27,7 +27,7 @@ pub(crate) use macos::{CAPABILITY, Installation, PreparedUpdate};
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-pub(crate) const RELEASES: &str = "https://github.com/muxy-app/muxy/releases/download";
+pub(crate) const RELEASES: &str = "https://github.com/dzulfikar08/muxy/releases/download";
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -35,9 +35,48 @@ const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn feed(channel: Channel) -> &'static str {
     match channel {
-        Channel::Beta => "https://github.com/muxy-app/muxy/releases/download/beta-2.x/update.json",
-        Channel::Stable => "https://github.com/muxy-app/muxy/releases/latest/download/update.json",
+        Channel::Beta => {
+            "https://github.com/dzulfikar08/muxy/releases/download/atur-beta/update.json"
+        }
+        Channel::Stable => {
+            "https://github.com/dzulfikar08/muxy/releases/latest/download/update.json"
+        }
     }
+}
+
+/// Whether `tag` is the release tag of `version`: `atur-v{version}`, optionally
+/// followed by a numeric `-N` revision.
+fn is_release_tag(tag: &str, version: &str) -> bool {
+    tag.strip_prefix("atur-v")
+        .and_then(|tag| tag.strip_prefix(version))
+        .is_some_and(|revision| {
+            revision.is_empty()
+                || revision.strip_prefix('-').is_some_and(|digits| {
+                    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+                })
+        })
+}
+
+/// The tag of this app's `version` release. CI stamps the exact tag, including
+/// its revision, as `ATUR_RELEASE_TAG` at build time; without it the tag has none.
+pub(crate) fn release_tag(version: &str) -> String {
+    option_env!("ATUR_RELEASE_TAG")
+        .filter(|tag| is_release_tag(tag, version))
+        .map_or_else(|| format!("atur-v{version}"), str::to_owned)
+}
+
+/// Where the assets of this app's `version` release are downloaded from.
+pub(crate) fn release_base(version: &str) -> String {
+    format!("{RELEASES}/{}", release_tag(version))
+}
+
+/// Whether `url` is `filename` in a release of `version`, with no other path segments.
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
+fn is_release_download(url: &str, version: &str, filename: &str) -> bool {
+    url.strip_prefix(RELEASES)
+        .and_then(|rest| rest.strip_prefix('/'))
+        .and_then(|rest| rest.split_once('/'))
+        .is_some_and(|(tag, name)| is_release_tag(tag, version) && name == filename)
 }
 
 #[derive(Debug, PartialEq)]
@@ -84,13 +123,13 @@ impl Release {
             .as_str()
             .ok_or_else(|| tr!("No update for this platform").to_string())?;
         let filename = match platform {
-            "macos-aarch64" | "macos-x86_64" => format!("Muxy-{version}-{arch}.dmg"),
+            "macos-aarch64" | "macos-x86_64" => format!("AturTerminal-{version}-{arch}.dmg"),
             "linux-aarch64" | "linux-x86_64" => {
                 format!("muxy-desktop-{version}-linux-{arch}.tar.gz")
             }
             _ => return Err(tr!("No update for this platform").to_string().into()),
         };
-        if url != format!("{RELEASES}/v{version}/{filename}") {
+        if !is_release_download(url, version, &filename) {
             return Err(tr!("Unexpected update download location")
                 .to_string()
                 .into());
@@ -121,7 +160,7 @@ impl Release {
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn client() -> Result<reqwest::blocking::Client> {
     Ok(reqwest::blocking::Client::builder()
-        .user_agent(concat!("Muxy/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("AturTerminal/", env!("CARGO_PKG_VERSION")))
         .https_only(true)
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(600))
@@ -192,7 +231,7 @@ mod tests {
 
     fn feed(version: &str) -> serde_json::Value {
         serde_json::json!({"schema": 1, "version": version, "platforms": {
-            "macos-aarch64": {"url": format!("{RELEASES}/v{version}/Muxy-{version}-arm64.dmg"), "size": 123}
+            "macos-aarch64": {"url": format!("{RELEASES}/atur-v{version}-1/AturTerminal-{version}-arm64.dmg"), "size": 123}
         }})
     }
 
@@ -246,7 +285,13 @@ mod tests {
         for url in [
             "http://github.com/file.dmg",
             "https://example.com/file.dmg",
-            "https://github.com/muxy-app/muxy/releases/download/v2.0.0-beta.9/Muxy-2.0.0-beta.9-arm64.dmg",
+            "https://github.com/muxy-app/muxy/releases/download/v2.0.0-beta.10/Muxy-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.9-1/AturTerminal-2.0.0-beta.9-arm64.dmg",
+            "https://github.com/dzulfikar08/muxy/releases/download/v2.0.0-beta.10/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-x/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-1/extra/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-1/Muxy-2.0.0-beta.10-arm64.dmg",
         ] {
             let mut data = feed("2.0.0-beta.10");
             data["platforms"]["macos-aarch64"]["url"] = url.into();
@@ -269,9 +314,30 @@ mod tests {
     }
 
     #[test]
+    fn release_tags_are_the_version_with_an_optional_numeric_revision() {
+        assert!(is_release_tag("atur-v2.2.0", "2.2.0"));
+        assert!(is_release_tag("atur-v2.2.0-1", "2.2.0"));
+        assert!(is_release_tag("atur-v2.2.0-beta.7-12", "2.2.0-beta.7"));
+        for tag in [
+            "v2.2.0",
+            "atur-v2.2.1-1",
+            "atur-v2.2.0-",
+            "atur-v2.2.0-x",
+            "atur-v2.2.0-1/extra",
+            "atur-v2.2.0-beta.7",
+        ] {
+            assert!(!is_release_tag(tag, "2.2.0"), "{tag}");
+        }
+        assert_eq!(
+            release_base("2.2.0"),
+            format!("{RELEASES}/{}", release_tag("2.2.0"))
+        );
+    }
+
+    #[test]
     fn linux_updates_require_the_desktop_archive_and_checksum() {
         let version = "2.0.0-beta.10";
-        let url = format!("{RELEASES}/v{version}/muxy-desktop-{version}-linux-arm64.tar.gz");
+        let url = format!("{RELEASES}/atur-v{version}-2/muxy-desktop-{version}-linux-arm64.tar.gz");
         let mut data = serde_json::json!({"schema": 1, "version": version, "platforms": {
             "linux-aarch64": {"url": url, "size": 100, "sha256": "a".repeat(64)}
         }});
@@ -294,7 +360,7 @@ mod tests {
         }
         data["platforms"]["linux-aarch64"]["sha256"] = "a".repeat(64).into();
         data["platforms"]["linux-aarch64"]["url"] =
-            format!("{RELEASES}/v{version}/muxy-{version}-linux-arm64.tar.gz").into();
+            format!("{RELEASES}/atur-v{version}-2/muxy-{version}-linux-arm64.tar.gz").into();
         assert!(parse(&data).is_err());
     }
 }

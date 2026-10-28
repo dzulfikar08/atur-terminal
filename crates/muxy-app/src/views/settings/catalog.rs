@@ -94,7 +94,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "backup-files",
         label: tr_key!("Configuration files"),
         description: tr_key!(
-            "Open configuration files in the system editor. Restart Muxy after editing app settings. Terminal settings reload when Muxy or Settings becomes active."
+            "Open configuration files in the system editor. Restart Atur Terminal after editing app settings. Terminal settings reload when Atur Terminal or Settings becomes active."
         ),
         category: Category::Backup,
         section: tr_key!("Configuration"),
@@ -112,7 +112,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "ai-commit-prompt",
         label: tr_key!("Commit prompt"),
         description: tr_key!(
-            "AI drafts only the commit message. Muxy commits, and pushes when you choose to. An empty prompt uses the default. Do not include secrets."
+            "AI drafts only the commit message. Atur Terminal commits, and pushes when you choose to. An empty prompt uses the default. Do not include secrets."
         ),
         category: Category::Ai,
         section: tr_key!("Commit"),
@@ -130,7 +130,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "ai-create-pr-prompt",
         label: tr_key!("Pull request prompt"),
         description: tr_key!(
-            "AI drafts the title, summary, branch name, and target branch. You review them before Muxy commits, pushes, and opens the pull request. An empty prompt uses the default."
+            "AI drafts the title, summary, branch name, and target branch. You review them before Atur Terminal commits, pushes, and opens the pull request. An empty prompt uses the default."
         ),
         category: Category::Ai,
         section: tr_key!("Create Pull Request"),
@@ -373,7 +373,7 @@ pub(super) const SETTINGS: &[Setting] = &[
     Setting {
         id: "tips",
         label: tr_key!("Show tips"),
-        description: tr_key!("Show Muxy tips at the bottom of the built-in sidebar."),
+        description: tr_key!("Show Atur Terminal tips at the bottom of the built-in sidebar."),
         category: Category::Appearance,
         section: tr_key!("Interface"),
     },
@@ -770,7 +770,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "keybind-clear-defaults",
         label: tr_key!("Disable built-in bindings"),
         description: tr_key!(
-            "Turn off Muxy's built-in terminal keys, such as Command-K to clear the screen, and keep only yours."
+            "Turn off Atur Terminal's built-in terminal keys, such as Command-K to clear the screen, and keep only yours."
         ),
         category: Category::Terminal,
         section: tr_key!("Key bindings"),
@@ -871,7 +871,7 @@ pub(super) const SETTINGS: &[Setting] = &[
     Setting {
         id: "mobile-pair",
         label: tr_key!("Pair a phone"),
-        description: tr_key!("Show a one-time code to scan with the Muxy app."),
+        description: tr_key!("Show a one-time code to scan with the Atur/Muxy mobile app."),
         category: Category::Mobile,
         section: tr_key!("Pairing"),
     },

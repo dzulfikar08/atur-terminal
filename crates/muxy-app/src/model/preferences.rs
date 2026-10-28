@@ -111,7 +111,7 @@ impl AppModel {
             window_background: gpui::WindowBackgroundAppearance::Transparent,
             is_movable: !cfg!(target_os = "macos"),
             titlebar: Some(TitlebarOptions {
-                title: Some(tr!("Muxy Settings")),
+                title: Some(tr!("Atur Terminal Settings")),
                 appears_transparent: true,
                 traffic_light_position: Some(point(px(14.0), px(16.0))),
             }),
@@ -119,7 +119,7 @@ impl AppModel {
         };
         match cx.open_window(options, move |window, cx| {
             #[cfg(target_os = "linux")]
-            window.set_window_title(&tr!("Muxy Settings"));
+            window.set_window_title(&tr!("Atur Terminal Settings"));
             let model = weak.clone();
             window.on_window_should_close(cx, move |_, cx| {
                 let _ = model.update(cx, |model, cx| {

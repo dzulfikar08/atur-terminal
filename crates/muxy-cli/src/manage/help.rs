@@ -1,4 +1,4 @@
-pub(crate) const ROOT: &str = "Muxy - terminal client and server management
+pub(crate) const ROOT: &str = "Atur Terminal - terminal client and server management
 
 Usage: muxy [--host DESTINATION] [COMMAND]
 
@@ -25,13 +25,13 @@ Run muxy <command> --help or muxy help <command> for usage. Management
 commands accept --json.
 Commands connect directly to the server, starting it if needed, except server
 status/stop, which never start it. --host uses the server on another computer
-over SSH (user@host, an ssh_config alias or ssh://user@host:port); Muxy must be
+over SSH (user@host, an ssh_config alias or ssh://user@host:port); Atur Terminal must be
 installed there, and directories are absolute paths on that computer.
 MUXY_DIR selects the local profile, which also keeps the terminal UI layouts
 for other computers. No desktop app is required, except by browser commands.
 Tabs, panes and workspaces belong to UI clients.
 Project selectors accept an exact ID, unique name or directory path.
-Inside a Muxy terminal, session commands default to that terminal.
+Inside an Atur Terminal terminal, session commands default to that terminal.
 Use ./NAME to open a folder named like a command.
 Use -- before literal arguments that start with a dash, or before the command
 of session create.";
@@ -80,7 +80,7 @@ pub(crate) const BROWSER: &str = "Usage: muxy browser <action>
   cookies delete <tab-id> <name> [domain]
   cookies clear <tab-id>
 
-Browser commands talk to the Muxy desktop app on this computer, not to the
+Browser commands talk to the Atur Terminal desktop app on this computer, not to the
 server, so they don't take --host. Open starts the app if it isn't running.
 Tabs open in the current project, or the one named by --project and
 --worktree; --split opens the tab beside the current pane instead.
@@ -124,7 +124,7 @@ Create prints the new session ID and types COMMAND into it, then Return.
 COMMAND words are joined with spaces without shell quoting; quote the whole
 command to preserve its quotes and shell syntax.
 Sessions outlive this command; the apps list them under Existing Terminals.
-Inside a Muxy terminal, the ID defaults to that terminal and the project to its
+Inside an Atur Terminal terminal, the ID defaults to that terminal and the project to its
 project. Wait prints the first visible line containing TEXT, or how the session
 ended; it fails after the timeout (default 30000ms, maximum 3600000ms).
 Use exec in COMMAND when --exit should wait for that program to finish.

@@ -263,7 +263,7 @@ impl ComposerStore {
     fn require_lock(&self) -> std::io::Result<()> {
         if self.profile_lock.is_none() {
             return Err(std::io::Error::other(
-                "Composer draft storage is unavailable or in use by another Muxy instance",
+                "Composer draft storage is unavailable or in use by another Atur Terminal instance",
             ));
         }
         Ok(())

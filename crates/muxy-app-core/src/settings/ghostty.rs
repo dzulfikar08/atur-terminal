@@ -320,7 +320,7 @@ impl TerminalSettings {
                 && key != "keybind"
             {
                 self.diagnostics
-                    .push(format!("{note}: {key} is not supported by Muxy"));
+                    .push(format!("{note}: {key} is not supported by Atur Terminal"));
                 continue;
             }
             if key != "config-file"

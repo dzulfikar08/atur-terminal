@@ -54,7 +54,11 @@ pub(crate) fn init(directory: &Path) {
         started: Instant::now(),
         sender,
     });
-    let _ = writeln!(std::io::stderr(), "Muxy diagnostics: {}", path.display());
+    let _ = writeln!(
+        std::io::stderr(),
+        "Atur Terminal diagnostics: {}",
+        path.display()
+    );
     event("startup", format_args!("pid={}", std::process::id()));
 }
 

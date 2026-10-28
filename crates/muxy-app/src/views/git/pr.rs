@@ -166,7 +166,7 @@ impl AppModel {
             GitPullRequestAction::Merge { method, .. } if can_merge(pr) && remove_worktree => (
                 tr!("Merge pull request?"),
                 tr!(
-                    "Apply %@ to pull request #%lld (%@) at its reviewed commit %@? Afterwards Muxy asks to remove this worktree and switches to the primary checkout.",
+                    "Apply %@ to pull request #%lld (%@) at its reviewed commit %@? Afterwards Atur Terminal asks to remove this worktree and switches to the primary checkout.",
                     &merge_action_label(*method),
                     number,
                     &pr.title,
@@ -177,7 +177,7 @@ impl AppModel {
             GitPullRequestAction::Merge { method, .. } if can_merge(pr) => (
                 tr!("Merge pull request?"),
                 tr!(
-                    "Apply %@ to pull request #%lld (%@) at its reviewed commit %@? Afterwards Muxy switches this repository to %@ and fast-forwards it, unless another worktree has it checked out.",
+                    "Apply %@ to pull request #%lld (%@) at its reviewed commit %@? Afterwards Atur Terminal switches this repository to %@ and fast-forwards it, unless another worktree has it checked out.",
                     &merge_action_label(*method),
                     number,
                     &pr.title,

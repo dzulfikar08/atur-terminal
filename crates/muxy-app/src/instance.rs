@@ -116,7 +116,7 @@ fn hand_over(socket: &Path, asked: &[PathBuf], patience: Duration) -> io::Result
 fn unanswered(error: &dyn std::fmt::Display) -> io::Error {
     io::Error::other(
         tr!(
-            "Muxy is already running but did not answer: %@",
+            "Atur Terminal is already running but did not answer: %@",
             error.to_string()
         )
         .to_string(),

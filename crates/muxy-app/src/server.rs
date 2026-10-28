@@ -153,7 +153,8 @@ pub(crate) fn check_update(
         let installed = read_build_info(&executable)?;
         if installed != muxy_protocol::BuildInfo::current() {
             return Err(io::Error::other(
-                tr!("The installed app changed. Reopen Muxy to update the server.").to_string(),
+                tr!("The installed app changed. Reopen Atur Terminal to update the server.")
+                    .to_string(),
             )
             .into());
         }

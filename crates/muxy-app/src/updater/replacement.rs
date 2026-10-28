@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn failed_replacement_restores_the_whole_previous_bundle() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        let current = dir.path().join("Muxy Beta.app");
+        let current = dir.path().join("Atur Terminal Beta.app");
         let backup = dir.path().join("previous.app");
         std::fs::create_dir(&current)?;
         std::fs::write(current.join("server"), b"old server")?;

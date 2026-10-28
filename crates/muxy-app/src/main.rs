@@ -20,6 +20,7 @@ mod server;
 mod theme;
 mod updater;
 mod views {
+    pub(crate) mod about;
     pub(crate) mod agents_panel;
     pub(crate) mod banners;
     pub(crate) mod browser;
@@ -92,9 +93,9 @@ use views::workspace::{
     FocusPaneUp, HideApp, HideOthers, IncreaseFontSize, InstallCommandLineTool, Minimize,
     NewBrowserTab, NewHomeTab, NewTab, NewTabInProject, NewWorktree, NextProject, NextPrompt,
     NextTab, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit, SelectCommandOutput,
-    SelectProject, SelectTab, ShowAll, SplitDown, SplitRight, SwitchWorktree, ToggleAgentsPanel,
-    ToggleCommandPalette, ToggleComposer, ToggleFullScreen, ToggleSidebar, ToggleThemePicker,
-    ToggleVoiceRecording, ToggleZoomPane, Zoom, bind_keys,
+    SelectProject, SelectTab, ShowAbout, ShowAll, SplitDown, SplitRight, SwitchWorktree,
+    ToggleAgentsPanel, ToggleCommandPalette, ToggleComposer, ToggleFullScreen, ToggleSidebar,
+    ToggleThemePicker, ToggleVoiceRecording, ToggleZoomPane, Zoom, bind_keys,
 };
 
 fn main() -> ExitCode {
@@ -296,7 +297,11 @@ fn menus() -> Vec<Menu> {
         .extend((0..9).map(|index| {
             MenuItem::action(tr!("Project %lld", index + 1), SelectProject { index })
         }));
-    let mut app_items = vec![MenuItem::action(tr!("Settings…"), OpenSettings)];
+    let mut app_items = vec![
+        MenuItem::action(tr!("About %@", app_name()), ShowAbout),
+        MenuItem::separator(),
+        MenuItem::action(tr!("Settings…"), OpenSettings),
+    ];
     if backends.has_backend(Feature::Updates) {
         app_items.push(MenuItem::action(tr!("Check for Updates…"), CheckForUpdates));
     }

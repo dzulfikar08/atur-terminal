@@ -20,15 +20,15 @@ impl Channel {
 
     pub const fn app_name(self) -> &'static str {
         match self {
-            Self::Beta => "Muxy Beta",
-            Self::Stable => "Muxy",
+            Self::Beta => "Atur Terminal Beta",
+            Self::Stable => "Atur Terminal",
         }
     }
 
     pub const fn bundle_identifier(self) -> &'static str {
         match self {
-            Self::Beta => "com.muxy-beta.app",
-            Self::Stable => "com.muxy.app",
+            Self::Beta => "com.joyodigitama.atur-terminal-beta",
+            Self::Stable => "com.joyodigitama.atur-terminal",
         }
     }
 }

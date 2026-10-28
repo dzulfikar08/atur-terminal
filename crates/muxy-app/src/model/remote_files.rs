@@ -91,7 +91,7 @@ impl RemoteFiles {
         match self.client.upload(session, name, bytes) {
             Ok(path) => Ok(local_path(&path)),
             Err(ClientError::Server(error)) if error.code == ErrorCode::Unsupported => Err(tr!(
-                "Muxy on %@ can't receive files. Update Muxy there.",
+                "Atur Terminal on %@ can't receive files. Update Atur Terminal there.",
                 &self.name
             )
             .to_string()),
@@ -184,7 +184,7 @@ impl RemoteFiles {
     pub(crate) fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
         let Some((project, relative)) = self.locate(path) else {
             return Err(tr!(
-                "Muxy can open copies only of files in %@'s projects and Home.",
+                "Atur Terminal can open copies only of files in %@'s projects and Home.",
                 &self.name
             )
             .to_string());
@@ -204,7 +204,7 @@ impl RemoteFiles {
 
 fn too_large(name: &str, server: &str) -> String {
     tr!(
-        "%@ is larger than 100 MiB, the most Muxy sends to %@.",
+        "%@ is larger than 100 MiB, the most Atur Terminal sends to %@.",
         name,
         server
     )
@@ -301,7 +301,7 @@ pub(crate) fn save_copy(bytes: &[u8], original: &Path, server: &str) -> io::Resu
     };
     let server = server.replace(['/', '\0'], "-");
     let folder = std::env::temp_dir()
-        .join("Muxy Copies")
+        .join("Atur Terminal Copies")
         .join(muxy_protocol::OperationId::new().to_string());
     DirBuilder::new()
         .recursive(true)

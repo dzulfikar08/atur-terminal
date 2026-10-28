@@ -124,7 +124,7 @@ fn pair(client: &Client, addresses: Vec<String>) -> Result {
     print_code(&mut stdout, &code)?;
     writeln!(
         stdout,
-        "\nScan with the Muxy app, or open this link on the phone:\n{link}\n\nWaiting for the phone. The code expires in 5 minutes; Ctrl-C cancels it."
+        "\nScan with the Atur/Muxy mobile app, or open this link on the phone:\n{link}\n\nWaiting for the phone. The code expires in 5 minutes; Ctrl-C cancels it."
     )?;
     stdout.flush()?;
     drop(stdout);

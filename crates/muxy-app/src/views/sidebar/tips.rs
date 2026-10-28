@@ -54,7 +54,7 @@ pub(super) fn footer(model: &AppModel, cx: &mut Context<AppModel>) -> Option<Any
                                 theme.fg,
                             )
                             .tooltip(
-                                tr!("Show Muxy Tip"),
+                                tr!("Show Atur Terminal Tip"),
                                 theme.raised(),
                                 theme.fg,
                                 theme.border,

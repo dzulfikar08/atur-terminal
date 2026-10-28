@@ -443,12 +443,12 @@ fn server_command(server: &RemoteServer, model: gpui::WeakEntity<AppModel>) -> C
             actions.register(
                 Command::new(
                     "install",
-                    tr!("Install Muxy…"),
+                    tr!("Install Atur Terminal…"),
                     handler(|model, id, window, cx| {
                         model.confirm_install_server(id, window.window_handle(), cx);
                     }),
                 )
-                .keywords("Install Muxy"),
+                .keywords("Install Atur Terminal"),
             );
         }
         if server.incompatible && crate::model::released_version().is_some() {
@@ -1001,12 +1001,12 @@ fn connection_status(
         None if finding_identity => (tr!("Finding SSH key…"), theme.fg_muted),
         None if custom_command => (
             tr!(
-                "Runs a local program with Muxy's remote command appended. It must connect without prompts or a TTY. Use an absolute program path if it isn't on Muxy's PATH."
+                "Runs a local program with Atur Terminal's remote command appended. It must connect without prompts or a TTY. Use an absolute program path if it isn't on Atur Terminal's PATH."
             ),
             theme.fg_muted,
         ),
         None => (
-            tr!("Muxy uses your SSH config, keys, and agent. A password is never saved."),
+            tr!("Atur Terminal uses your SSH config, keys, and agent. A password is never saved."),
             theme.fg_muted,
         ),
         Some(ConnectionTest::Testing) => (tr!("Testing connection…"), theme.fg_muted),
@@ -1027,9 +1027,10 @@ fn connection_status(
             tr!("Installing muxy-server, then testing connection…"),
             theme.fg_muted,
         ),
-        Some(ConnectionTest::Succeeded(version)) => {
-            (tr!("Connection succeeded · Muxy %@", version), theme.accent)
-        }
+        Some(ConnectionTest::Succeeded(version)) => (
+            tr!("Connection succeeded · Atur Terminal %@", version),
+            theme.accent,
+        ),
         Some(ConnectionTest::NotInstalled(_)) => (
             tr!("SSH connected. Install muxy-server to finish setting up this server."),
             theme.fg_muted,
@@ -1350,7 +1351,7 @@ pub(crate) fn render_password(
                 .text_size(m.font_footnote())
                 .text_color(theme.fg_muted)
                 .child(tr!(
-                    "%@ · Muxy keeps it in memory until it quits.",
+                    "%@ · Atur Terminal keeps it in memory until it quits.",
                     &destination
                 )),
         )

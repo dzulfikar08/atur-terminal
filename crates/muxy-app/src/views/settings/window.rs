@@ -738,6 +738,9 @@ impl Render for SettingsWindow {
             .on_action(cx.listener(|root, _: &workspace::Quit, _, cx| {
                 let _ = root.model.update(cx, AppModel::quit);
             }))
+            .on_action(cx.listener(|root, _: &workspace::ShowAbout, _, cx| {
+                let _ = root.model.update(cx, AppModel::show_about);
+            }))
             .on_action(cx.listener(|root, _: &workspace::CheckForUpdates, _, cx| {
                 let _ = root
                     .model

@@ -102,7 +102,7 @@ pub(super) fn start(language: String, _model: String) -> Result<Recorder, String
             .is_none()
         {
             return Err(tr!(
-                "Open the packaged Muxy app to enable microphone and speech permissions."
+                "Open the packaged Atur Terminal app to enable microphone and speech permissions."
             )
             .to_string());
         }
@@ -139,7 +139,7 @@ fn authorize(shared: &Shared) -> Result<(), String> {
         );
     }
     if !permission(&receiver, shared)? {
-        return Err(tr!("Microphone access is disabled. Enable Muxy in System Settings → Privacy & Security → Microphone.").to_string());
+        return Err(tr!("Microphone access is disabled. Enable Atur Terminal in System Settings → Privacy & Security → Microphone.").to_string());
     }
     if shared.cancelled.load(Ordering::Acquire) {
         return Err(tr!("Dictation cancelled").to_string());
@@ -152,7 +152,7 @@ fn authorize(shared: &Shared) -> Result<(), String> {
         SFSpeechRecognizer::requestAuthorization(&speech);
     }
     if !permission(&receiver, shared)? {
-        return Err(tr!("Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition.").to_string());
+        return Err(tr!("Speech recognition access is disabled. Enable Atur Terminal in System Settings → Privacy & Security → Speech Recognition.").to_string());
     }
     Ok(())
 }

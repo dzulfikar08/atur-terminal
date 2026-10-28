@@ -449,7 +449,7 @@ impl Core {
             (None, _) => {}
             (Some(store), Target::Ssh { host, .. }) if store.state.server != catalog.server => {
                 return Err(format!(
-                    "A different Muxy server now runs on {host}. Run muxy --host {host} again to use it."
+                    "A different Atur Terminal server now runs on {host}. Run muxy --host {host} again to use it."
                 ));
             }
             (Some(_), _) => return Ok(()),

@@ -192,7 +192,7 @@ fn install_link(target: &Path, destination: &Path) -> io::Result<()> {
             {
                 return Err(io::Error::other(
                     tr!(
-                        "%@ is an unrelated link; move it before installing Muxy.",
+                        "%@ is an unrelated link; move it before installing Atur Terminal.",
                         destination.display().to_string()
                     )
                     .to_string(),
@@ -203,7 +203,7 @@ fn install_link(target: &Path, destination: &Path) -> io::Result<()> {
         Ok(_) => {
             return Err(io::Error::other(
                 tr!(
-                    "%@ already exists; move it before installing Muxy.",
+                    "%@ already exists; move it before installing Atur Terminal.",
                     destination.display().to_string()
                 )
                 .to_string(),

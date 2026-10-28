@@ -40,7 +40,7 @@ pub(super) fn display_name() -> String {
     let name = node_name();
     let name = name.strip_suffix(".local").unwrap_or(&name);
     if name.is_empty() {
-        "Muxy".into()
+        "Atur Terminal".into()
     } else {
         name.into()
     }

@@ -24,8 +24,9 @@ impl Source {
     pub(crate) fn command(&self) -> String {
         match self {
             Self::Release(version) => format!(
-                "sh -c 'curl -fsSL {}/v{version}/install-muxy.sh | sh -s -- --version {version}'",
-                crate::updater::RELEASES
+                "sh -c 'curl -fsSL {}/install-muxy.sh | sh -s -- --version {version} --tag {}'",
+                crate::updater::release_base(version),
+                crate::updater::release_tag(version)
             ),
             Self::Development(_) => {
                 let installer = include_str!("../../../scripts/install-muxy.sh");
@@ -47,7 +48,7 @@ impl Source {
     pub(crate) fn description(&self, name: &str) -> String {
         match self {
             Self::Release(version) => tr!(
-                "Muxy %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there.",
+                "Atur Terminal %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there.",
                 version,
                 name
             ),

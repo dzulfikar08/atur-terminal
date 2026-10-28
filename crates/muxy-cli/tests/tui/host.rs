@@ -183,7 +183,7 @@ fn a_different_server_answering_after_a_reconnect_ends_the_tui_with_advice() -> 
     let text = tui.text()?.join("\n");
     assert!(
         text.contains(
-            "muxy: A different Muxy server now runs on box. Run muxy --host box again to use it."
+            "muxy: A different Atur Terminal server now runs on box. Run muxy --host box again to use it."
         ),
         "{text}"
     );

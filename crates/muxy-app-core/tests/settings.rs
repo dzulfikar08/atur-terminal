@@ -164,7 +164,7 @@ fn ghostty_theme_is_ignored_because_the_settings_theme_colors_terminals() -> Res
         settings
             .diagnostics
             .iter()
-            .any(|warning| warning.contains("theme is not supported by Muxy"))
+            .any(|warning| warning.contains("theme is not supported by Atur Terminal"))
     );
     Ok(())
 }

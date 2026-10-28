@@ -51,7 +51,7 @@ impl AppModel {
         if self.quitting == Quitting::Update {
             return Some(UpdateDetails::new(
                 tr!("Updating app…"),
-                tr!("Installing the app update and restarting Muxy."),
+                tr!("Installing the app update and restarting Atur Terminal."),
             ));
         }
         let waiting_for_sessions = self.updates.phase == ServerUpdatePhase::Replacing
@@ -60,7 +60,7 @@ impl AppModel {
         if self.updates.replacing() && !waiting_for_sessions {
             return Some(UpdateDetails::new(
                 tr!("Restarting server…"),
-                tr!("Starting the server and reconnecting to Muxy."),
+                tr!("Starting the server and reconnecting to Atur Terminal."),
             ));
         }
         if self.updates.phase == ServerUpdatePhase::Failed {
@@ -109,12 +109,12 @@ impl AppModel {
         if self.updates.retry_preparation.is_some() {
             return Some(UpdateDetails::new(
                 tr!("App update waiting"),
-                tr!("Another update is in progress. Muxy will retry when it finishes."),
+                tr!("Another update is in progress. Atur Terminal will retry when it finishes."),
             ));
         }
         if let Some(update) = &self.updates.ready {
             if self.connection(ServerId::local()) != ConnectionState::Ready {
-                return Some(UpdateDetails::new(tr!("App update ready"), tr!("Connect to the server so Muxy can check whether terminal sessions can be preserved."))
+                return Some(UpdateDetails::new(tr!("App update ready"), tr!("Connect to the server so Atur Terminal can check whether terminal sessions can be preserved."))
                     .action(UpdateAction::Connect, tr_key!("Connect to server")));
             }
             let compatible = self
@@ -262,7 +262,7 @@ fn scheduled_details(sessions: usize) -> UpdateDetails {
         (
             tr!("App update waiting for %lld session", sessions),
             tr!(
-                "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update.",
+                "Atur Terminal will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Atur Terminal open to finish the update.",
                 sessions
             ),
         )
@@ -270,7 +270,7 @@ fn scheduled_details(sessions: usize) -> UpdateDetails {
         (
             tr!("App update waiting for %lld sessions", sessions),
             tr!(
-                "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update.",
+                "Atur Terminal will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Atur Terminal open to finish the update.",
                 sessions
             ),
         )

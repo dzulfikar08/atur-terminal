@@ -611,7 +611,7 @@ impl Registry {
         let project_name = self
             .catalog
             .project_name(info.project)
-            .unwrap_or_else(|| "Muxy".to_owned());
+            .unwrap_or_else(|| "Atur Terminal".to_owned());
         let backing = herdr.create(&crate::herdr::NewTerminal {
             info,
             project_name: &project_name,

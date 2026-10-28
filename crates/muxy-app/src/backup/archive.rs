@@ -164,7 +164,7 @@ pub(super) fn read(source: &Path) -> Result<(Files, bool, Restore)> {
         Some(2) if manifest["format"].as_str() == Some("muxy.configuration") => false,
         _ => {
             return Err(failure(&tr!(
-                "This backup format is not supported by this version of Muxy"
+                "This backup format is not supported by this version of Atur Terminal"
             )));
         }
     };

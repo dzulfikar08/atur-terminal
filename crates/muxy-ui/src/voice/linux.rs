@@ -267,7 +267,7 @@ fn capture(
                 "--channels=1",
                 "--device=@DEFAULT_SOURCE@",
                 "--latency-msec=100",
-                "--client-name=Muxy",
+                "--client-name=Atur Terminal",
                 "--stream-name=Dictation",
             ]);
             capture = Some(Process::spawn(command, false)?);

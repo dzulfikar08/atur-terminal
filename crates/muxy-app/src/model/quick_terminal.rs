@@ -248,7 +248,7 @@ impl AppModel {
             };
             let panel = cx
                 .open_window(options, |window, cx| {
-                    window.set_window_title(&tr!("Muxy Quick Terminal"));
+                    window.set_window_title(&tr!("Atur Quick Terminal"));
                     let closing_owner = owner.clone();
                     window.on_window_should_close(cx, move |_, cx| {
                         let owner = closing_owner.clone();

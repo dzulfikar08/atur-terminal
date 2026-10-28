@@ -177,7 +177,7 @@ fn commands_other_than_open_need_the_app_running() -> Result {
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(
         std::str::from_utf8(&output.stderr)?,
-        "muxy: the Muxy desktop app is not running\n"
+        "muxy: the Atur Terminal desktop app is not running\n"
     );
     Ok(())
 }

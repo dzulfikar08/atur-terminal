@@ -19,6 +19,7 @@ use crate::model::browsers::BrowserAction;
 actions!(
     muxy,
     [
+        ShowAbout,
         OpenSettings,
         CheckForUpdates,
         InstallCommandLineTool,
@@ -398,6 +399,9 @@ fn action_handlers(cx: &mut Context<AppModel>) -> gpui::Div {
         .on_action(cx.listener(|model, _: &InstallCommandLineTool, _, cx| {
             model.install_command_line(cx);
         }))
+        .on_action(cx.listener(|model, _: &ShowAbout, _, cx| {
+            model.show_about(cx);
+        }))
         .on_action(cx.listener(|model, _: &CheckForUpdates, _, cx| {
             model.check_for_updates(true, cx);
         }))
@@ -658,6 +662,14 @@ fn register_app_commands(
     ] {
         registry.register(command);
     }
+    registry.register(
+        Command::new(
+            "about",
+            tr!("About %@", crate::app_name()),
+            dispatch(ShowAbout),
+        )
+        .keywords("About Credits License"),
+    );
     if model.capabilities.has_backend(Feature::Updates) {
         registry.register(
             Command::new(

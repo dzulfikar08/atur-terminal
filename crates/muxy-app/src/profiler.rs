@@ -133,7 +133,10 @@ pub(crate) fn init() -> Option<Session> {
     match start(&parent) {
         Ok(session) => Some(session),
         Err(error) => {
-            let _ = writeln!(io::stderr(), "Muxy profiler could not start: {error}");
+            let _ = writeln!(
+                io::stderr(),
+                "Atur Terminal profiler could not start: {error}"
+            );
             None
         }
     }
@@ -162,7 +165,11 @@ fn start(parent: &Path) -> io::Result<Session> {
         }
         return Err(error);
     }
-    let _ = writeln!(io::stderr(), "Muxy profiler: {}", directory.display());
+    let _ = writeln!(
+        io::stderr(),
+        "Atur Terminal profiler: {}",
+        directory.display()
+    );
     Ok(Session { stop, done })
 }
 
@@ -173,7 +180,7 @@ fn collect(
     finished: &Sender<()>,
 ) {
     if let Err(error) = capture.run(profile, stop) {
-        let _ = writeln!(io::stderr(), "Muxy profiler stopped: {error}");
+        let _ = writeln!(io::stderr(), "Atur Terminal profiler stopped: {error}");
     }
     profile.active.store(false, Ordering::Relaxed);
     drop(capture);

@@ -20,7 +20,7 @@ fn signed_bundle(path: &Path, server: &Path, identity: &str) -> Result<()> {
     std::fs::write(
         path.join("Contents/Info.plist"),
         r#"<?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.muxy-beta.app</string>
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.joyodigitama.atur-terminal-beta</string>
 <key>CFBundleExecutable</key><string>muxy-app</string><key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>"#,
     )?;
@@ -74,7 +74,7 @@ fn another_profiles_server_retains_its_bundle_without_a_tui() -> Result<()> {
     let identity = std::env::var("MUXY_TEST_SIGN_IDENTITY")?;
     let binary = PathBuf::from(std::env::var("MUXY_TEST_SERVER")?);
     let directory = tempfile::tempdir()?;
-    let bundle = directory.path().join("Muxy Beta.app");
+    let bundle = directory.path().join("Atur Terminal Beta.app");
     signed_bundle(&bundle, &binary, &identity)?;
     let installation = Installation {
         bundle: bundle.clone(),
@@ -125,7 +125,7 @@ fn signed_bundle_updates_preserve_shell_and_retire_only_unused_bundles() -> Resu
     let team = std::env::var("MUXY_TEST_SIGN_TEAM")?;
     let binary = PathBuf::from(std::env::var("MUXY_TEST_SERVER")?);
     let directory = tempfile::tempdir()?;
-    let bundle = directory.path().join("Muxy Beta.app");
+    let bundle = directory.path().join("Atur Terminal Beta.app");
     signed_bundle(&bundle, &binary, &identity)?;
     let installation = Installation {
         bundle: bundle.clone(),
@@ -227,7 +227,7 @@ fn replace_bundle(
         .prefix(".muxy-beta-update-")
         .tempdir_in(installation.bundle.parent().ok_or("parent")?)?
         .keep();
-    let candidate = staging.join("Muxy Beta.app");
+    let candidate = staging.join("Atur Terminal Beta.app");
     signed_bundle(&candidate, binary, identity)?;
     installation.verify_signature(&candidate, true)?;
     let update = PreparedUpdate {

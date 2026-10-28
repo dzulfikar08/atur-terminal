@@ -114,8 +114,9 @@ pub(super) fn run(command: Session, client: &Client, output: &Output, paths: Pat
 fn calling(client: &Client, session: Option<SessionId>) -> Result<SessionId> {
     match session {
         Some(session) => Ok(session),
-        None => crate::worker::hosting_session(client.catalog_page(None, None)?.server)
-            .ok_or_else(|| "give a session ID; this isn't a Muxy terminal on that server".into()),
+        None => crate::worker::hosting_session(client.catalog_page(None, None)?.server).ok_or_else(
+            || "give a session ID; this isn't an Atur Terminal terminal on that server".into(),
+        ),
     }
 }
 
@@ -145,7 +146,7 @@ fn screen(
 /// The project of the terminal this command runs in.
 fn own_project(client: &Client) -> Result<ProjectDescriptor> {
     let session = crate::worker::hosting_session(client.catalog_page(None, None)?.server)
-        .ok_or("give a project; this isn't a Muxy terminal on that server")?;
+        .ok_or("give a project; this isn't an Atur Terminal terminal on that server")?;
     let project = client
         .list_sessions()?
         .into_iter()

@@ -509,14 +509,14 @@ mod tests {
     #[test]
     fn native_verification_checks_literal_requirement_and_nested_code() -> Result<()> {
         let directory = tempfile::tempdir()?;
-        let app = directory.path().join("Muxy Beta.app");
+        let app = directory.path().join("Atur Terminal Beta.app");
         let binaries = app.join("Contents/MacOS");
         std::fs::create_dir_all(&binaries)?;
         std::fs::write(
             app.join("Contents/Info.plist"),
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>com.muxy-beta.app</string>
+<key>CFBundleIdentifier</key><string>com.joyodigitama.atur-terminal-beta</string>
 <key>CFBundleExecutable</key><string>muxy-app</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>"#,
@@ -531,15 +531,15 @@ mod tests {
         run(Command::new("/usr/bin/codesign")
             .args(["--force", "--sign", "-"])
             .arg(&app))?;
-        verify_code(&app, "identifier \"com.muxy-beta.app\"")?;
-        assert!(verify_code(&app, "identifier \"com.muxy.app\"").is_err());
+        verify_code(&app, "identifier \"com.joyodigitama.atur-terminal-beta\"")?;
+        assert!(verify_code(&app, "identifier \"com.joyodigitama.atur-terminal\"").is_err());
         let installation = Installation {
             bundle: app.clone(),
             team: "TESTTEAM00".into(),
         };
         assert!(installation.verify_signature(&app, true).is_err());
         std::fs::write(binaries.join("muxy"), b"changed helper")?;
-        assert!(verify_code(&app, "identifier \"com.muxy-beta.app\"").is_err());
+        assert!(verify_code(&app, "identifier \"com.joyodigitama.atur-terminal-beta\"").is_err());
         Ok(())
     }
 }
@@ -572,7 +572,7 @@ mod retirement_tests {
         let update = PreparedUpdate {
             version: "2.0.0-beta.10".into(),
             installation: Installation {
-                bundle: root.path().join("Muxy Beta.app"),
+                bundle: root.path().join("Atur Terminal Beta.app"),
                 team: "TESTTEAM00".into(),
             },
             staging: staging.clone(),
@@ -600,7 +600,7 @@ mod retirement_tests {
     fn only_committed_unused_bundles_are_retired() -> Result<()> {
         let root = tempfile::tempdir()?;
         let installation = Installation {
-            bundle: root.path().join("Muxy Beta.app"),
+            bundle: root.path().join("Atur Terminal Beta.app"),
             team: "TESTTEAM00".into(),
         };
         let server = muxy_protocol::ServerInfo::current();

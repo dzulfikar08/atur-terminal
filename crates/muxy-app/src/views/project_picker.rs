@@ -702,7 +702,7 @@ impl AppModel {
             };
             if current(cx) && allow_create && result == Ok(Some(TypedPathState::Missing)) {
                 let message = tr!(
-                    "Muxy will create \"%@\" on %@ and add it as a project.",
+                    "Atur Terminal will create \"%@\" on %@ and add it as a project.",
                     &path,
                     &folders.name
                 )
@@ -796,7 +796,7 @@ impl AppModel {
         if !path.exists() && create_if_missing {
             let window = self.window;
             let message = tr!(
-                "Muxy will create \"%@\" and add it as a project.",
+                "Atur Terminal will create \"%@\" and add it as a project.",
                 path.display().to_string()
             )
             .to_string();
@@ -1040,7 +1040,7 @@ async fn folder_prompt(
             muxy_ui::dialog::choose_folder(
                 cx,
                 &if search_location {
-                    tr!("Select where Muxy searches for project folders")
+                    tr!("Select where Atur Terminal searches for project folders")
                 } else {
                     tr!("Select a project folder")
                 },

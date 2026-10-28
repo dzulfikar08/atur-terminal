@@ -139,7 +139,7 @@ impl SettingsWindow {
         });
         match action {
             Action::Export => {
-                let prompt = cx.prompt_for_new_path(&profile, Some("Muxy-backup.muxy"));
+                let prompt = cx.prompt_for_new_path(&profile, Some("AturTerminal-backup.muxy"));
                 cx.spawn(async move |root, cx| {
                     let result = async {
                         let Some(mut path) = prompt
@@ -170,7 +170,7 @@ impl SettingsWindow {
                     files: true,
                     directories: false,
                     multiple: false,
-                    prompt: Some(tr!("Choose Muxy backup or 1.x settings.json")),
+                    prompt: Some(tr!("Choose Atur Terminal backup or 1.x settings.json")),
                 });
                 cx.spawn(async move |root, cx| {
                     let result = async {
@@ -239,7 +239,7 @@ impl SettingsWindow {
                         if matches!(action, Action::Cancel) {
                             crate::backup::cancel_pending(&profile).map(|()| Some(tr!("Import cancelled.").to_string()))
                         } else if let Some(import) = import {
-                                crate::backup::stage(&profile, &import).map(|()| Some(tr!("Import ready. Quit and reopen Muxy to restore it. A recovery copy will be saved in Backups. Restart the server from Settings to apply server settings.").to_string()))
+                                crate::backup::stage(&profile, &import).map(|()| Some(tr!("Import ready. Quit and reopen Atur Terminal to restore it. A recovery copy will be saved in Backups. Restart the server from Settings to apply server settings.").to_string()))
                         } else { Ok(None) }.map_err(|error| error.to_string())
                     }).await;
                     let _ = root.update(cx, |root, cx| root.backup_finished(result, cx));
@@ -281,7 +281,7 @@ impl SettingsWindow {
 impl SettingsView {
     pub(crate) fn set_backup_pending(&mut self, pending: bool) {
         if pending {
-            self.backup_status = tr!("An import is ready for the next launch. Quit and reopen Muxy to apply it, or cancel the import here.").to_string();
+            self.backup_status = tr!("An import is ready for the next launch. Quit and reopen Atur Terminal to apply it, or cancel the import here.").to_string();
         }
     }
 }

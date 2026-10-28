@@ -576,7 +576,7 @@ impl AppModel {
             return;
         }
         if !self.ready(ServerId::local()) {
-            self.fail(tr!("Connect to the server before installing so Muxy can check whether sessions can be preserved").to_string(), cx);
+            self.fail(tr!("Connect to the server before installing so Atur Terminal can check whether sessions can be preserved").to_string(), cx);
             return;
         }
         if self.updates.server.is_none() {

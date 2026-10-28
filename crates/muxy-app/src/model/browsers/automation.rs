@@ -251,7 +251,7 @@ fn wait_until(
                     view.upgrade()
                         .map(|view| run_script(&view, &condition, remaining.max(POLL_INTERVAL), cx))
                 })
-                .map_err(|_| "Muxy is closing".to_owned())?
+                .map_err(|_| "Atur Terminal is closing".to_owned())?
                 .ok_or("browser tab closed")?;
             if check.await == Ok(Value::Bool(true)) {
                 return Ok(true.into());

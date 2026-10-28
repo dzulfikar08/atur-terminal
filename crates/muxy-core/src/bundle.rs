@@ -35,7 +35,7 @@ pub fn acquire_runtime(
         let _replacement = wait_for_replacement(root)?;
         if crate::executable::build_metadata(executable)? != expected_metadata {
             return Err(io::Error::other(
-                "The installed Muxy changed during startup. Run the command again.",
+                "The installed Atur Terminal changed during startup. Run the command again.",
             ));
         }
         let file = OpenOptions::new()
@@ -68,7 +68,7 @@ pub fn acquire_runtime(
         || crate::executable::build_metadata(executable)? != expected_metadata
     {
         return Err(io::Error::other(
-            "The installed Muxy changed during startup. Run the command again.",
+            "The installed Atur Terminal changed during startup. Run the command again.",
         ));
     }
     let file = lease_file(&lease_directory()?, &identity)?;
@@ -144,8 +144,10 @@ mod tests {
     #[test]
     fn only_executables_inside_an_app_bundle_have_one() {
         assert_eq!(
-            containing(Path::new("/Applications/Muxy.app/Contents/MacOS/muxy-app")),
-            Some(Path::new("/Applications/Muxy.app"))
+            containing(Path::new(
+                "/Applications/Atur Terminal.app/Contents/MacOS/muxy-app"
+            )),
+            Some(Path::new("/Applications/Atur Terminal.app"))
         );
         assert_eq!(containing(Path::new("/repo/target/debug/muxy-app")), None);
     }
@@ -154,7 +156,7 @@ mod tests {
     fn leases_follow_bundle_identity_through_replacement_without_holding_installation_lock()
     -> io::Result<()> {
         let root = tempfile::tempdir()?;
-        let current = root.path().join("Muxy Beta.app");
+        let current = root.path().join("Atur Terminal Beta.app");
         let retired = root.path().join("previous.app");
         fs::create_dir(&current)?;
         let lease = lease_file(root.path(), &identity(&current)?)?;

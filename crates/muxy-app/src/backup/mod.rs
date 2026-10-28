@@ -368,7 +368,7 @@ fn describe_left_out(summary: &mut String, report: &ImportReport) -> Result<()> 
             summary,
             "\n\n{}",
             tr!(
-                "Not available in Muxy 2 (%lld): %@",
+                "Not available in Atur Terminal (%lld): %@",
                 report.skipped.len(),
                 names.join(", ")
             )

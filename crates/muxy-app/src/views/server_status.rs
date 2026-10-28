@@ -108,7 +108,7 @@ pub(crate) fn render(model: &AppModel, window: &Window, cx: &mut Context<AppMode
                 .text_color(theme.fg_muted)
                 .child(match version {
                     Some(version) => tr!(
-                        "Server for %@ · Muxy %@",
+                        "Server for %@ · Atur Terminal %@",
                         &model.state.current_project().name,
                         version
                     ),

@@ -150,6 +150,6 @@ fn next_event(
 fn unreadable_reply() -> ErrorReply {
     ErrorReply {
         code: ErrorCode::Unsupported,
-        message: "The server replied in a form this app can't read. Update Muxy.".into(),
+        message: "The server replied in a form this app can't read. Update Atur Terminal.".into(),
     }
 }
