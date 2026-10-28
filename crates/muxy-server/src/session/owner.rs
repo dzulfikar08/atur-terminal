@@ -15,6 +15,7 @@ use crate::archive::{Archive, bound_history_page, history_range};
 use crate::error::ServerError;
 use crate::search::Search;
 use crate::session::backing::{Backing, Fault};
+use crate::session::checkpoint::Checkpoint;
 use crate::session::metadata::Metadata;
 use crate::session::{
     AttachmentEvent, AttachmentId, AttachmentSink, SessionCommand, SessionHandle,
@@ -22,7 +23,6 @@ use crate::session::{
 
 const TICK: Duration = Duration::from_millis(16);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(1);
-const CHECKPOINT: Duration = Duration::from_secs(1);
 const METADATA_POLL: Duration = Duration::from_millis(100);
 /// How long an on-demand output stream stays open after the last client left.
 const STREAM_GRACE: Duration = Duration::from_secs(5);
@@ -136,12 +136,13 @@ struct Owner {
     archive: Archive,
     /// False when the backing keeps terminal content, which then saves only at exit.
     checkpoints: bool,
-    next_checkpoint: Option<Instant>,
+    checkpoint: Checkpoint,
     next_metadata: Instant,
 }
 
 #[allow(
     clippy::too_many_arguments,
+    clippy::too_many_lines,
     reason = "Session startup receives owned terminal resources and shared server services"
 )]
 pub(crate) fn start(
@@ -245,7 +246,11 @@ pub(crate) fn start(
                 output_state: OutputState::Open,
                 archive,
                 checkpoints,
-                next_checkpoint: checkpoints.then(|| Instant::now() + CHECKPOINT),
+                checkpoint: if checkpoints {
+                    Checkpoint::started(Instant::now())
+                } else {
+                    Checkpoint::idle()
+                },
                 next_metadata: Instant::now(),
             };
             on_exit(owner.run());
@@ -559,10 +564,7 @@ impl Owner {
         if self.next_tick.is_some_and(|tick| tick <= now) {
             return Wake::Tick;
         }
-        if self
-            .next_checkpoint
-            .is_some_and(|checkpoint| checkpoint <= now)
-        {
+        if self.checkpoint.due().is_some_and(|due| due <= now) {
             return Wake::Checkpoint;
         }
         if self.next_metadata <= now {
@@ -571,14 +573,14 @@ impl Owner {
         let deadline = self
             .next_tick
             .unwrap_or(self.next_metadata)
-            .min(self.next_checkpoint.unwrap_or(self.next_metadata))
+            .min(self.checkpoint.due().unwrap_or(self.next_metadata))
             .min(self.next_metadata);
         let received = self
             .events
             .recv_timeout(deadline.saturating_duration_since(now));
         match received {
             Ok(event) => Wake::Event(event),
-            Err(RecvTimeoutError::Timeout) if Some(deadline) == self.next_checkpoint => {
+            Err(RecvTimeoutError::Timeout) if Some(deadline) == self.checkpoint.due() => {
                 Wake::Checkpoint
             }
             Err(RecvTimeoutError::Timeout) if deadline == self.next_metadata => Wake::Metadata,
@@ -616,11 +618,11 @@ impl Owner {
         if !self.checkpoints {
             return;
         }
+        let now = Instant::now();
         if immediately {
-            self.next_checkpoint = Some(Instant::now());
+            self.checkpoint.immediately(now);
         } else {
-            self.next_checkpoint
-                .get_or_insert_with(|| Instant::now() + CHECKPOINT);
+            self.checkpoint.changed(now);
         }
     }
 
@@ -1099,7 +1101,7 @@ impl Owner {
     }
 
     fn checkpoint(&mut self, reason: Option<ExitReason>) {
-        self.next_checkpoint = None;
+        let started = Instant::now();
         self.compress_pending = true;
         let result = self
             .terminal
@@ -1112,6 +1114,7 @@ impl Owner {
                 self.info.id.get()
             );
         }
+        self.checkpoint.saved(started.elapsed());
     }
 }
 
@@ -1195,7 +1198,7 @@ mod tests {
             output_state: OutputState::Closed,
             archive: Archive::memory(1024),
             checkpoints: true,
-            next_checkpoint: None,
+            checkpoint: Checkpoint::idle(),
             next_metadata: Instant::now(),
         })
     }
@@ -1439,6 +1442,27 @@ mod tests {
                 .count();
         }
         assert_eq!(frames, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn output_and_resizes_schedule_a_checkpoint_that_saving_clears() -> Result<(), Fault> {
+        let mut owner = owner()?;
+        assert_eq!(owner.checkpoint.due(), None);
+        let before = Instant::now();
+        owner.feed(b"output")?;
+        let due = owner.checkpoint.due();
+        assert!(due.is_some_and(|due| due > before));
+        owner.checkpoint(None);
+        assert_eq!(owner.checkpoint.due(), None);
+        assert!(owner.compress_pending);
+        owner.resize(Size {
+            cols: owner.size.cols + 1,
+            ..owner.size
+        })?;
+        assert!(owner.checkpoint.due().is_some());
+        owner.checkpoint(Some(ExitReason::Ended));
+        assert_eq!(owner.checkpoint.due(), None);
         Ok(())
     }
 }

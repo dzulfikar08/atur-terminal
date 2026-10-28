@@ -1,4 +1,5 @@
 pub(crate) mod backing;
+mod checkpoint;
 mod metadata;
 mod owner;
 
