@@ -149,8 +149,7 @@ the Muxy catalog remembers, and a running control stream follows its pane id to 
   (`shell_pid`, `foreground_process_group_id`) – herdr must run on the same host as `muxy-server`.
 * Activity: herdr's `agent` label is mapped to a Muxy provider and `agent_status`
   (`working`, `blocked`, `idle|done`, `unknown`) is adopted instead of Muxy's screen detector, including
-  the "completed" notification when a working cycle ends. Agents herdr names but Muxy has no provider for
-  fall back to Muxy's own `/proc` identification and screen detection.
+  the "completed" notification when a working cycle ends. herdr is the only source of agent identity in this mode: Muxy's own `/proc` scan of the process table (the dearest part of an idle session's polling) is skipped, so an agent herdr does not name, or names but Muxy has no provider for, is not reported as an agent.
 
 ## Unsupported or limited
 
@@ -173,38 +172,37 @@ the Muxy catalog remembers, and a running control stream follows its pane id to 
 Lab: `muxy-fork-dist/lab-herdr` (isolated user-level sshd, delay proxy, stock `muxy` TUI over ssh, omp-like
 workload). `patched` is the 2.2.0-latency-ckpt build; `herdr` is this branch with herdr 0.9.5.
 
-CPU, % of one core, mean of 2 reps, 30 s windows, N concurrent omp-like sessions (stock TUI attached;
-without a client the numbers are within 1 point):
+CPU, % of one core, mean of 2 reps, 30 s windows, N concurrent omp-like sessions. "watching" is how many
+sessions have a client attached: one (the stock TUI) or all (a headless client per session, 80×24). The
+herdr rows stream only the watched sessions.
 
-| sessions | variant | muxy-server | herdr server | server total | per session |
-|---|---|---|---|---|---|
-| 1 | patched (ckpt) | 1.9 | – | 1.9 | 1.9 |
-| 1 | herdr | 3.8 | 2.5 | 6.3 | 6.3 |
-| 3 | patched (ckpt) | 2.9 | – | 2.9 | 1.0 |
-| 3 | herdr | 8.9 | 22.3 | 31.4 | 10.5 |
-| 6 | patched (ckpt) | 4.3 | – | 4.3 | 0.7 |
-| 6 | herdr | 15.9 | 49.1 | 65.3 | 10.9 |
+| N | watching | patched (ckpt) total | herdr: muxy-server + herdr server = total |
+|---|---|---|---|
+| 1 | 1 | 1.8 | 1.4 + 2.4 = 3.9 |
+| 3 | 1 | 3.0 | 1.7 + 3.3 = 5.1 |
+| 6 | 1 | 4.8 | 1.5 + 4.0 = 5.6 |
+| 1 | all | 1.5 | 1.4 + 1.5 = 2.9 |
+| 3 | all | 3.9 | 2.9 + 9.8 = 12.9 |
+| 6 | all | 7.5 | 4.2 + 14.1 = 18.6 |
 
-Stock TUI client: 4.0–4.6 % in all cases. `herdr terminal session control` children: 0.1–0.3 %.
+With nothing watched, six busy sessions cost 3.4 % (muxy-server 0.9, herdr 2.5), under the 4.2 % of the
+ckpt build. Before streaming on demand the same six sessions with one TUI cost 65 % (herdr 49 %).
+herdr's own cost comes from rendering ANSI for each observed pane (about 2.5 % per watched busy pane
+plus about 0.4 % per unwatched busy pane for reading and parsing its PTY), so watching all panes is
+still 2–3 times the ckpt build.
 
-Echo latency (ms, median of per-run p50 / p90, n = 30 per run) and fps of a 100 Hz source, through the
-TUI over ssh and the delay proxy:
+Time to first frame of an attach (headless client, spawn to snapshot, 6 attaches, 3 busy sessions):
 
-| RTT | variant | idle p50 / p90 | busy same terminal p50 / p90 | busy, 3 other sessions p50 / p90 | fps |
-|---|---|---|---|---|---|
-| 0 | patched (ckpt) | 5 / 6 | 13 / 17 | 4 / 6 | 61.9 |
-| 0 | herdr | 5 / 21 | 21 / 34 | 10 / 24 | 57.6 |
-| 50 | patched (ckpt) | 53 / 56 | 62 / 67 | 54 / 56 | 62.1 |
-| 50 | herdr | 55 / 71 | 73 / 90 | 66 / 75 | 58.1 |
+| variant | stream closed | stream open (1 s after the last attach) |
+|---|---|---|
+| patched (ckpt) | p50 43 ms, max 62 | – |
+| herdr | p50 89 ms, max 162 | p50 45 ms, max 157 |
 
-Reading: the herdr backend works but is **not cheaper** than local PTYs on this build of herdr. herdr
-spends about 2.5 % (one session) to 8 % (six sessions) of a core per observed busy session rendering its
-ANSI frames on its single event-loop thread, which grows with the number of sessions; `muxy-server`
-additionally keeps a mirror terminal and costs 2–4 times what the ckpt build costs per session
-(it re-parses frames that already are a diff, and skips only the checkpoint work). Latency is
-+10 to +20 ms at the tail and fps about 4 lower. The point of the backend is the process lifetime
-(restarts, handoff), not CPU. The remaining lever is on herdr's side (render cost per observer).
-Raw results: `/tmp/herdrlab/results/{cpu,latency}.jsonl`, harness `muxy-fork-dist/lab-herdr/README.md`.
+Echo latency and fps through the TUI over ssh were measured while other builds loaded the machine
+(load average 18–57 on 12 cores), so that run is not usable; the unloaded numbers of the eager design
+(streaming every session; the attached pane's path is unchanged) were: RTT 0, idle p50/p90 5/21 ms against
+5/6 for patched, busy same terminal 21/34 against 13/17, fps 57.6 against 61.9; RTT 50, 55/71 and 73/90
+against 53/56 and 62/67. These should be repeated on a quiet machine.
 
 ## Proof of restart survival (isolated instances)
 
