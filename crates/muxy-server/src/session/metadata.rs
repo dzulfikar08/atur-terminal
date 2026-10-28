@@ -7,17 +7,37 @@ use linux::{agent_provider, foreground_member, process_directory};
 #[cfg(target_os = "macos")]
 use macos::{agent_provider, foreground_member, process_directory};
 
-use muxy_protocol::{ForegroundProcess, MetadataEvent, ServerPath};
+use std::time::{Duration, Instant};
+
+use muxy_protocol::{AgentProvider, ForegroundProcess, MetadataEvent, ServerPath};
 use muxy_terminal::TerminalEvent;
 use muxy_terminal::pty::Pty;
+
+/// Finding the agent walks every process on the computer, which costs about
+/// 15 ms of the session thread. A foreground group that has just started may
+/// still exec into an agent, so it is checked often at first.
+const AGENT_SCAN_STARTING: Duration = Duration::from_millis(500);
+const AGENT_STARTING: Duration = Duration::from_secs(5);
+/// Later checks only catch a program that changes in place. A different
+/// foreground group is always checked at once.
+const AGENT_SCAN_SETTLED: Duration = Duration::from_secs(5);
+
+fn agent_scan_interval(agent: Option<AgentProvider>, group_age: Duration) -> Duration {
+    if agent.is_none() && group_age < AGENT_STARTING {
+        AGENT_SCAN_STARTING
+    } else {
+        AGENT_SCAN_SETTLED
+    }
+}
 
 pub(super) struct Metadata {
     pub(super) title: String,
     pub(super) directory: ServerPath,
     pub(super) process: Option<ForegroundProcess>,
-    pub(super) agent: Option<muxy_protocol::AgentProvider>,
-    next_agent: std::time::Instant,
+    pub(super) agent: Option<AgentProvider>,
+    next_agent: Instant,
     agent_group: Option<u32>,
+    group_since: Instant,
     observed_directory: Option<ServerPath>,
 }
 
@@ -28,8 +48,9 @@ impl Metadata {
             directory,
             process: None,
             agent: None,
-            next_agent: std::time::Instant::now(),
+            next_agent: Instant::now(),
             agent_group: None,
+            group_since: Instant::now(),
             observed_directory: None,
         }
     }
@@ -39,8 +60,11 @@ impl Metadata {
         let previous_directory = self.directory.clone();
         let group = pty.foreground_pid();
         let member = group.and_then(foreground_member);
-        if self.next_agent <= std::time::Instant::now() || self.agent_group != group {
-            self.next_agent = std::time::Instant::now() + std::time::Duration::from_millis(500);
+        let now = Instant::now();
+        if self.agent_group != group {
+            self.group_since = now;
+        }
+        if self.next_agent <= now || self.agent_group != group {
             self.agent_group = group;
             let session_shell = group == Some(pty.child_pid())
                 && member.as_ref().is_some_and(|(_, name)| {
@@ -54,6 +78,7 @@ impl Metadata {
             } else {
                 group.and_then(agent_provider)
             };
+            self.next_agent = now + agent_scan_interval(self.agent, now - self.group_since);
         }
         if let Some(group) = group {
             let process = ForegroundProcess {
@@ -122,4 +147,24 @@ fn terminal_directory(value: &str) -> Option<ServerPath> {
         path.push(byte);
     }
     Some(ServerPath(path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_settled_group_is_scanned_rarely_unless_it_is_still_starting() {
+        let second = Duration::from_secs(1);
+        assert_eq!(
+            agent_scan_interval(None, Duration::ZERO),
+            AGENT_SCAN_STARTING
+        );
+        assert_eq!(agent_scan_interval(None, 4 * second), AGENT_SCAN_STARTING);
+        assert_eq!(agent_scan_interval(None, 5 * second), AGENT_SCAN_SETTLED);
+        assert_eq!(
+            agent_scan_interval(Some(AgentProvider::OhMyPi), Duration::ZERO),
+            AGENT_SCAN_SETTLED
+        );
+    }
 }
