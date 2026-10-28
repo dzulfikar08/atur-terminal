@@ -4,7 +4,6 @@ use std::fmt;
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -62,11 +61,10 @@ impl Connection {
     }
 }
 
-/// One shared connection; requests are serialized, so replies cannot interleave.
+/// herdr answers one request per connection, so each call opens its own.
 #[derive(Debug)]
 pub(crate) struct Api {
     socket: PathBuf,
-    connection: Mutex<Option<Connection>>,
     next: AtomicU64,
 }
 
@@ -80,7 +78,6 @@ impl Api {
     pub(crate) fn new(socket: PathBuf) -> Self {
         Self {
             socket,
-            connection: Mutex::new(None),
             next: AtomicU64::new(1),
         }
     }
@@ -95,29 +92,7 @@ impl Api {
         let mut line = serde_json::to_vec(&json!({"id": id, "method": method, "params": params}))
             .map_err(|error| ApiError::Malformed(error.to_string()))?;
         line.push(b'\n');
-        let mut slot = self
-            .connection
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // A herdr restart leaves the cached connection dead; one retry reopens it.
-        for attempt in 0..2 {
-            let connection = match slot.as_mut() {
-                Some(connection) => connection,
-                None => slot.insert(Connection::open(&self.socket)?),
-            };
-            match exchange(connection, &line, &id) {
-                Err(ApiError::Io(error)) if attempt == 0 => {
-                    log::debug!("herdr connection dropped: {error}");
-                    *slot = None;
-                }
-                Err(ApiError::Io(error)) => {
-                    *slot = None;
-                    return Err(error.into());
-                }
-                other => return other,
-            }
-        }
-        Err(ApiError::Malformed("no reply".into()))
+        exchange(&mut Connection::open(&self.socket)?, &line, &id)
     }
 }
 
