@@ -385,3 +385,42 @@ impl Shared {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shared(terminal: &str) -> Shared {
+        Shared {
+            launch: Launch {
+                bin: PathBuf::from("herdr"),
+                socket: PathBuf::from("/nonexistent"),
+            },
+            terminal: Mutex::new(terminal.to_owned()),
+            pane: Mutex::new(None),
+            api: Arc::new(Api::new(PathBuf::from("/nonexistent"))),
+            expected: AtomicU32::new(0),
+            slot: Mutex::new(Slot {
+                stdin: None,
+                child: None,
+            }),
+            connected: Condvar::new(),
+            gone: AtomicBool::new(false),
+            detached: AtomicBool::new(false),
+        }
+    }
+
+    #[test]
+    fn a_terminal_is_followed_through_its_pane_when_herdr_renumbers_it() {
+        let shared = shared("term_a");
+        let before = [json!({"pane_id": "w1:p2", "terminal_id": "term_a"})];
+        assert!(shared.locate(&before));
+        let after = [
+            json!({"pane_id": "w1:p1", "terminal_id": "term_x"}),
+            json!({"pane_id": "w1:p2", "terminal_id": "term_b"}),
+        ];
+        assert!(shared.locate(&after));
+        assert_eq!(shared.terminal(), "term_b");
+        assert!(!shared.locate(&[json!({"pane_id": "w1:p1", "terminal_id": "term_x"})]));
+    }
+}
