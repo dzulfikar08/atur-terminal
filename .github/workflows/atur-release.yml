@@ -164,13 +164,12 @@ jobs:
             gh release edit "$TAG" "${flags[@]}" --draft=false --prerelease=false --latest
           fi
 
-  # The Intel Mac build is cross-compiled and verified under Rosetta. It runs after
-  # the release is published and must never block it: Apple silicon runners are
-  # sometimes slow to start, and the release is complete without it.
+  # The Intel Mac build runs natively on an Intel runner, after the release is
+  # published, and must never block it: the release is complete without it.
   macos-intel:
     name: Add the macOS Intel build
     needs: [prepare, release]
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 90
     continue-on-error: true
     permissions:
@@ -191,8 +190,6 @@ jobs:
         with:
           toolchain: 1.92.0
           targets: x86_64-apple-darwin
-      - name: Install Rosetta to run the x86_64 build on Apple silicon
-        run: arch -x86_64 /usr/bin/true || sudo softwareupdate --install-rosetta --agree-to-license
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
@@ -209,10 +206,8 @@ jobs:
           bash scripts/build-release.sh --arch "$ARCH" --version "$VERSION"
           --build-number "${{ needs.prepare.outputs.revision }}"
       - name: Verify packaged pair, desktop bytes and standalone installation
-        # The universal system Python runs as the packaged architecture, so the
-        # x86_64 pair is installed and exercised under Rosetta.
         run: >-
-          arch "-$ARCH" /usr/bin/python3 scripts/verify-release-package.py
+          python3 scripts/verify-release-package.py
           "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip"
           --version "$VERSION" --dmg "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
       - name: Attach the Intel assets and refresh the update feed and checksums

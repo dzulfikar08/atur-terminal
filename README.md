@@ -55,7 +55,7 @@ xattr -dr com.apple.quarantine "/Applications/Atur Terminal.app"
 ```
 
 In-app updates on macOS require a Developer ID signature, so they are unavailable; download the new
-DMG instead. The Intel build is cross-compiled and only exercised under Rosetta in CI.
+DMG instead. The Intel build is made on a native Intel runner after the release is published.
 
 ## Releases and CI
 
