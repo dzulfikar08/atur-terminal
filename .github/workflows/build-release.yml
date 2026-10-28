@@ -42,8 +42,8 @@ env:
 jobs:
   macos:
     name: Build (macOS, arm64)
-    # macos-15 runners have been slow to start; macos-latest (macOS 26) starts at once.
-    runs-on: macos-latest
+    # Zig 0.15.2 cannot link against the macOS 26 SDK of macos-latest.
+    runs-on: macos-15
     timeout-minutes: 90
     env:
       VERSION: ${{ inputs.version }}
