@@ -3,6 +3,7 @@
 `muxy-server` can hand its terminals to a [herdr](https://github.com/herdrdev/herdr) server. Muxy's
 apps (desktop, TUI, CLI, phones) connect to `muxy-server` exactly as before. herdr owns the PTYs and
 shells, so restarting `muxy-server`, or handing herdr itself to a new binary, does not end a terminal.
+Like herdr's own UI, it streams only the panes somebody is looking at (see "Streaming only watched sessions").
 
 ```mermaid
 flowchart LR
@@ -52,18 +53,18 @@ process or bytes go to herdr; everything else is the existing server code.
 | `ReadCatalog`, `MutateProject`, `ListProjectSessions`, `CancelCreation` | muxy-server catalog, unchanged |
 | `ListSessions` | muxy-server session table; sessions are adopted from herdr at start |
 | `CreateSession` | herdr: `workspace.create` (first session of a project) or `tab.create`, with the project directory, `MUXY_*` environment and a tab label `muxy-<id>`; then a control stream |
-| `Attach`, `Detach`, `Resize` (+ `ScreenFrame`, `FrameAck`, `Snapshot`, `Resized`) | muxy-server owner; its terminal is fed by herdr's frames (see below); resize goes to the control stream (`terminal.resize`) |
-| `WriteInput`, `Input`, `TerminalInput`, `Paste` | muxy-server encodes keys, bytes go to `terminal.input`; pastes are always bracketed because herdr re-wraps for the application's own mode |
+| `Attach`, `Detach`, `Resize` (+ `ScreenFrame`, `FrameAck`, `Snapshot`, `Resized`) | muxy-server owner. The first attach opens herdr's control stream and is answered when its first frame has painted the owner's terminal; the last detach closes the stream after 5 s. Resize goes to the control stream (`terminal.resize`) while it is open and is applied when it opens otherwise |
+| `WriteInput`, `Input`, `TerminalInput`, `Paste` | muxy-server encodes keys. Bytes go to `terminal.input` while the stream is open and to `pane.send_text` otherwise (no stream is opened for input alone). Pastes are always bracketed because herdr re-wraps for the application's own mode |
 | `Mouse` | `terminal.mouse` / `terminal.scroll` on the control stream |
 | `CellSize` | `terminal.resize` carries `cell_width_px`/`cell_height_px` |
-| `HistoryPage`, `Search` | herdr `pane.read` (`recent`, `visible`, ANSI) rendered to rows with a scratch libghostty terminal; the row count comes from `pane.list` `scroll.max_offset_from_bottom` |
-| `ReadSavedScreen`, `SavedHistoryPage`, `DiscardSession` | muxy-server archive. A herdr terminal is not checkpointed while it runs (herdr holds the content); the archive is written when the session ends |
+| `HistoryPage`, `Search` | herdr `pane.read` (`recent`, `visible`, ANSI) rendered to rows with a scratch libghostty terminal; the row count comes from `pane.list` `scroll.max_offset_from_bottom`. The screen part of a page of an unwatched session is read the same way (`pane.read visible`) and replaces the owner's terminal content first |
+| `ReadSavedScreen`, `SavedHistoryPage`, `DiscardSession` | muxy-server archive. A herdr terminal is not checkpointed while it runs (herdr holds the content); the archive is written when the session ends, from `pane.read visible` if nobody was watching |
 | `EndSession`, `CloseSession` | herdr `pane.close` |
 | `StopServer`, `StopServerIfIdle` | muxy-server stops; terminals keep running in herdr and are adopted again. `SessionEnded` is **not** sent to clients for them (the stock TUI and app would close the pane and discard the session) |
 | `SetTerminalColors`, `ReadServerSettings`, `WriteServerSettings`, `SyncSessionReferences` | muxy-server, unchanged |
 | `Git`, `Files`, `Exec`, `CancelExec` and their watch events | muxy-server code, unchanged |
 | `ReadActivity`, `AcknowledgeActivity`, `ClaimActivity`, activity events | muxy-server; provider and state come from herdr's `agent` / `agent_status` (see below) |
-| Metadata events: title, directory, foreground process, bell, clipboard, input modes, links, prompts, cursor blinking | title: `pane.list`; directory and foreground process: `/proc` of herdr's `pane.process_info` pids (same host); the rest from the mirror terminal (limits below) |
+| Metadata events: title, directory, foreground process, bell, clipboard, input modes, links, prompts, cursor blinking | title: `pane.list`; directory and foreground process: `/proc` (the shell pid from `pane.process_info` once, then the shell's `tpgid`; same host); the rest from the mirror terminal (limits below) |
 
 ## Frame source: re-parse herdr's ANSI, not semantic frames
 
@@ -94,6 +95,21 @@ herdr server's own cost is what makes the herdr variant dearer overall; see the 
 What the ANSI stream lacks, because herdr renders it from its grid: OSC titles, OSC 133 prompt marks,
 OSC 52, bells, DECCKM/bracketed-paste state, scrollback beyond the screen. Those are filled from the API
 (title, scrollback) or are limits (below).
+
+## Streaming only watched sessions
+
+herdr itself renders only the panes a client views. `muxy-server` does the same:
+
+* No `terminal session control` child and no mirror-terminal parsing exist for a session nobody is attached to.
+* The first `Attach` opens the stream (`--takeover` at the client's size) and is answered when the first
+  frame, a full repaint, has arrived (1.5 s at most). The last `Detach` starts a 5 s grace; then the
+  stream is closed with `terminal.release`.
+* Unwatched sessions need only cheap API calls: `pane.list` (one shared copy, 200 ms TTL) for title, agent,
+  `agent_status`, scrollback size and liveness; `/proc` for directory and foreground process; `pane.read`
+  for history, search and the saved screen; `pane.send_text` for input. A terminal that vanished from
+  herdr while unwatched is noticed within about a second and the session ends.
+* Whatever the owner's terminal holds for an unwatched session is stale; it is reseeded from
+  `pane.read visible` before anything reads it (history/search pages, the checkpoint when the session ends).
 
 ## Identity mapping
 

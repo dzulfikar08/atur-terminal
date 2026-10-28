@@ -639,6 +639,10 @@ impl Backing for HerdrBacking {
         self.state()?.title
     }
 
+    fn detects_agents(&self) -> bool {
+        true
+    }
+
     fn agent(&self) -> Option<(AgentProvider, AgentState)> {
         let pane = self.state()?;
         let provider = provider(pane.agent.as_deref()?)?;

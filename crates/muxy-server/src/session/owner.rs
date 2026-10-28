@@ -533,7 +533,6 @@ impl Owner {
                         self.output_state = OutputState::Closed;
                     }
                 }
-                self.next_metadata = self.next_metadata.min(self.next_alive);
             }
         }
         Ok(())

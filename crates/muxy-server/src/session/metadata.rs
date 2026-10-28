@@ -53,13 +53,13 @@ impl Metadata {
                         "sh" | "bash" | "zsh" | "fish" | "dash" | "ksh"
                     )
                 });
-            self.agent = pty.agent().map(|(provider, _)| provider).or_else(|| {
-                if session_shell {
-                    None
-                } else {
-                    group.and_then(agent_provider)
-                }
-            });
+            self.agent = if pty.detects_agents() {
+                pty.agent().map(|(provider, _)| provider)
+            } else if session_shell {
+                None
+            } else {
+                group.and_then(agent_provider)
+            };
         }
         if let Some(group) = group {
             let process = ForegroundProcess {

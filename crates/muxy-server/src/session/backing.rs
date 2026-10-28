@@ -102,6 +102,12 @@ pub(crate) trait Backing: Send {
         None
     }
 
+    /// Whether `agent` is authoritative, so the server need not identify agents
+    /// itself by scanning the process table.
+    fn detects_agents(&self) -> bool {
+        false
+    }
+
     /// The agent the process's owner recognised and what it is doing.
     fn agent(&self) -> Option<(AgentProvider, AgentState)> {
         None
