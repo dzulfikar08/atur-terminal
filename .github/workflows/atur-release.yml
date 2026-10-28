@@ -163,3 +163,69 @@ jobs:
           else
             gh release edit "$TAG" "${flags[@]}" --draft=false --prerelease=false --latest
           fi
+
+  # The Intel Mac build is cross-compiled and verified under Rosetta. It runs after
+  # the release is published and must never block it: Apple silicon runners are
+  # sometimes slow to start, and the release is complete without it.
+  macos-intel:
+    name: Add the macOS Intel build
+    needs: [prepare, release]
+    runs-on: macos-15
+    timeout-minutes: 90
+    continue-on-error: true
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      ARCH: x86_64
+      PACKAGE_DIR: target/packages/${{ needs.prepare.outputs.version }}/x86_64
+      CARGO_TERM_COLOR: always
+      LIBGHOSTTY_VT_SYS_OPTIMIZE: ReleaseFast
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+      ATUR_RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+          targets: x86_64-apple-darwin
+      - name: Install Rosetta to run the x86_64 build on Apple silicon
+        run: arch -x86_64 /usr/bin/true || sudo softwareupdate --install-rosetta --agree-to-license
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: atur-release-x86_64-apple-darwin
+      - name: Stamp the build version without committing a bump
+        run: |
+          rm -rf target/packages
+          python3 scripts/release.py stamp "$VERSION"
+      - name: Build the ad-hoc signed app, DMG and standalone client/server pair
+        run: >-
+          bash scripts/build-release.sh --arch "$ARCH" --version "$VERSION"
+          --build-number "${{ needs.prepare.outputs.revision }}"
+      - name: Verify packaged pair, desktop bytes and standalone installation
+        # The universal system Python runs as the packaged architecture, so the
+        # x86_64 pair is installed and exercised under Rosetta.
+        run: >-
+          arch "-$ARCH" /usr/bin/python3 scripts/verify-release-package.py
+          "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip"
+          --version "$VERSION" --dmg "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+      - name: Attach the Intel assets and refresh the update feed and checksums
+        run: |
+          mkdir assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets
+          cp "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip" assets/
+          rm -f assets/SHA256SUMS
+          python3 scripts/release.py update "$VERSION" "$GITHUB_REPOSITORY" assets "$TAG"
+          (cd assets && ls -1 | LC_ALL=C sort | xargs -d '\n' shasum -a 256 > SHA256SUMS)
+          cat assets/SHA256SUMS
+          (cd assets && gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "AturTerminal-$VERSION-$ARCH.dmg" "muxy-$VERSION-macos-$ARCH.zip" update.json SHA256SUMS)
+      - name: Keep packaged output out of the build cache
+        if: always()
+        run: rm -rf target/packages

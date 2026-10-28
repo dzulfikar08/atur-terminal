@@ -63,8 +63,9 @@ DMG instead. The Intel build is cross-compiled and only exercised under Rosetta 
   `atur-terminal` and `feat/herdr-backend`, and on pull requests.
 - `.github/workflows/atur-release.yml` (with `.github/workflows/build-release.yml`): pushing a tag
   `atur-vX.Y.Z-N` (or running the workflow manually with that tag) builds Linux x86_64 and macOS
-  arm64 and x86_64, stamps `X.Y.Z` into the binaries (`N` is the release revision), and attaches the
-  archives, installers, `update.json` and `SHA256SUMS` to a GitHub Release.
+  arm64, stamps `X.Y.Z` into the binaries (`N` is the release revision), and attaches the archives,
+  installers, `update.json` and `SHA256SUMS` to a GitHub Release. The macOS Intel build is added
+  after publishing and never blocks the release.
 
 ```bash
 git tag atur-v2.2.0-1 && git push origin atur-v2.2.0-1

@@ -1,10 +1,12 @@
 name: Build release
 
 # Builds and verifies one Atur Terminal release for Linux x86_64 and macOS
-# (arm64 and x86_64). Called by the "Atur Terminal release" workflow.
+# arm64. Called by the "Atur Terminal release" workflow, which adds the
+# optional Intel Mac build after publishing.
 #
 # Adapted from upstream Muxy's release build. Removed: Developer ID signing,
-# notarization, the Sparkle update for Muxy 1.x, arm64 Linux and the mobile SDK.
+# notarization, the Sparkle update for Muxy 1.x, arm64 Linux, the Intel Mac
+# build (now a non-blocking job of the release workflow) and the mobile SDK.
 # macOS bundles are ad-hoc signed, so Gatekeeper asks before the first launch
 # (see README.md, "macOS").
 on:
@@ -39,26 +41,13 @@ env:
 
 jobs:
   macos:
-    name: Build (macOS, ${{ matrix.arch }})
+    name: Build (macOS, arm64)
     runs-on: macos-15
     timeout-minutes: 90
-    # An Intel build is a bonus: its failure must not block the release.
-    continue-on-error: ${{ matrix.optional }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            target: aarch64-apple-darwin
-            optional: false
-          # Cross-compiled and verified through Rosetta: Intel runners are far slower.
-          - arch: x86_64
-            target: x86_64-apple-darwin
-            optional: true
     env:
       VERSION: ${{ inputs.version }}
-      ARCH: ${{ matrix.arch }}
-      PACKAGE_DIR: target/packages/${{ inputs.version }}/${{ matrix.arch }}
+      ARCH: arm64
+      PACKAGE_DIR: target/packages/${{ inputs.version }}/arm64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,17 +55,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.92.0
-          targets: ${{ matrix.target }}
-      - name: Install Rosetta to run the x86_64 build on Apple silicon
-        if: matrix.arch == 'x86_64'
-        run: arch -x86_64 /usr/bin/true || sudo softwareupdate --install-rosetta --agree-to-license
+          targets: aarch64-apple-darwin
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          key: atur-release-${{ matrix.target }}
+          key: atur-release-aarch64-apple-darwin
       - name: Stamp the build version without committing a bump
         run: |
           rm -rf target/packages
@@ -86,25 +72,23 @@ jobs:
           bash scripts/build-release.sh --arch "$ARCH" --version "$VERSION"
           --build-number "${{ inputs.revision }}"
       - name: Verify packaged pair, desktop bytes and standalone installation
-        # The universal system Python runs as the packaged architecture, so the
-        # x86_64 pair is installed and exercised under Rosetta.
         run: >-
-          arch "-$ARCH" /usr/bin/python3 scripts/verify-release-package.py
+          python3 scripts/verify-release-package.py
           "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip"
           --version "$VERSION" --dmg "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
       - name: Upload distribution archives
         uses: actions/upload-artifact@v4
         with:
-          name: distribution-macos-${{ matrix.arch }}
+          name: distribution-macos-arm64
           path: |
-            ${{ env.PACKAGE_DIR }}/AturTerminal-${{ env.VERSION }}-${{ matrix.arch }}.dmg
-            ${{ env.PACKAGE_DIR }}/muxy-${{ env.VERSION }}-macos-${{ matrix.arch }}.zip
+            ${{ env.PACKAGE_DIR }}/AturTerminal-${{ env.VERSION }}-arm64.dmg
+            ${{ env.PACKAGE_DIR }}/muxy-${{ env.VERSION }}-macos-arm64.zip
           if-no-files-found: error
           retention-days: 7
       - name: Upload debug symbols and dependency audits
         uses: actions/upload-artifact@v4
         with:
-          name: symbols-macos-${{ matrix.arch }}
+          name: symbols-macos-arm64
           path: |
             ${{ env.PACKAGE_DIR }}/*-symbols.zip
             ${{ env.PACKAGE_DIR }}/*-dependencies.txt
