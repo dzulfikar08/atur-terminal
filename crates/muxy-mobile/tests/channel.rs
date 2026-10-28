@@ -234,7 +234,7 @@ fn a_computer_without_muxy_is_named_and_the_channel_closed() -> TestResult {
             .ok_or("connected without a bridge")?;
     assert_eq!(
         error.to_string(),
-        "The server is unreachable: Muxy isn't installed on dev@box (looked on PATH and in ~/.local/bin)."
+        "The server is unreachable: Atur Terminal isn't installed on dev@box (looked on PATH and in ~/.local/bin)."
     );
     fed.closed.recv_timeout(TIMEOUT)?;
 
