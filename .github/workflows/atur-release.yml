@@ -1,0 +1,165 @@
+name: Atur Terminal release
+
+# Builds Atur Terminal for Linux x86_64 and macOS and attaches the archives,
+# the installers and SHA256SUMS to a GitHub Release.
+#
+#   git tag atur-v2.2.0-1 && git push origin atur-v2.2.0-1
+#
+# A tag is atur-vX.Y.Z or atur-vX.Y.Z-N: X.Y.Z is the version stamped into the
+# binaries, N the revision of that version (default 1). Run manually to publish
+# a tag from any branch; the release creates the tag on that commit when missing.
+on:
+  push:
+    tags: ['atur-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (atur-vX.Y.Z or atur-vX.Y.Z-N)"
+        required: true
+        type: string
+      draft:
+        description: "Leave the release as a draft"
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: "Mark the release as a prerelease (not the latest release)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atur-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Resolve the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      revision: ${{ steps.tag.outputs.revision }}
+    steps:
+      - name: Parse and validate the tag
+        id: tag
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^atur-v([0-9]+\.[0-9]+\.[0-9]+)(-([1-9][0-9]*))?$ ]]; then
+            echo "Error: tag must be atur-vX.Y.Z or atur-vX.Y.Z-N, got: $TAG" >&2
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=${BASH_REMATCH[1]}"
+            echo "revision=${BASH_REMATCH[3]:-1}"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/build-release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      tag: ${{ needs.prepare.outputs.tag }}
+      revision: ${{ needs.prepare.outputs.revision }}
+      source: ${{ github.sha }}
+
+  release:
+    name: Publish the GitHub Release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      DRAFT: ${{ inputs.draft || false }}
+      PRERELEASE: ${{ inputs.prerelease || false }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: distribution-*
+          merge-multiple: true
+          path: artifacts
+      - name: Add the installers the app and the docs refer to
+        run: |
+          cp scripts/install-muxy.sh scripts/install-desktop-linux.py artifacts/
+          cp packaging/linux/muxy-desktop.apparmor artifacts/
+      - name: Check the expected assets and write the update feed and checksums
+        working-directory: artifacts
+        run: |
+          required=(
+            "muxy-$VERSION-linux-x86_64.tar.gz"
+            "muxy-desktop-$VERSION-linux-x86_64.tar.gz"
+            "AturTerminal-$VERSION-linux-x86_64.AppImage"
+            "muxy-desktop_${VERSION}_amd64.deb"
+            "AturTerminal-$VERSION-arm64.dmg"
+            "muxy-$VERSION-macos-arm64.zip"
+            install-muxy.sh install-desktop-linux.py muxy-desktop.apparmor
+          )
+          for asset in "${required[@]}"; do
+            if [[ ! -s "$asset" || -L "$asset" ]]; then
+              echo "Error: missing release asset: $asset" >&2
+              exit 1
+            fi
+          done
+          python3 ../scripts/release.py update "$VERSION" "$GITHUB_REPOSITORY" . "$TAG"
+          ls -1 | LC_ALL=C sort > /tmp/assets.txt
+          xargs -d '\n' sha256sum < /tmp/assets.txt > SHA256SUMS
+          cat SHA256SUMS
+      - name: Write the release notes
+        run: |
+          {
+            echo "Atur Terminal $VERSION (release $TAG), part of Atur by Joyo Digitama."
+            echo
+            echo "Based on [Muxy](https://github.com/muxy-app/muxy) (MIT). Terminals can run on [herdr](https://github.com/herdrdev/herdr) (Apache-2.0, external runtime)."
+            echo
+            echo "| Platform | Download |"
+            echo "| --- | --- |"
+            echo "| macOS (Apple silicon) | \`AturTerminal-$VERSION-arm64.dmg\` |"
+            echo "| macOS (Intel) | \`AturTerminal-$VERSION-x86_64.dmg\`, when attached |"
+            echo "| Linux x86_64 desktop (Ubuntu 24.04) | \`muxy-desktop_${VERSION}_amd64.deb\`, \`AturTerminal-$VERSION-linux-x86_64.AppImage\` or \`muxy-desktop-$VERSION-linux-x86_64.tar.gz\` |"
+            echo "| Linux x86_64 CLI and server only (glibc 2.35+) | \`muxy-$VERSION-linux-x86_64.tar.gz\` |"
+            echo "| macOS CLI and server only | \`muxy-$VERSION-macos-<arch>.zip\` |"
+            echo
+            echo "Verify downloads against \`SHA256SUMS\`."
+            echo
+            echo "**macOS:** the app is ad-hoc signed, not notarized by Apple. After copying it to Applications, open it once with Control-click > Open, or run \`xattr -dr com.apple.quarantine \"/Applications/Atur Terminal.app\"\`. In-app updates on macOS need a Developer ID signature and are unavailable for this build."
+            echo
+            echo "Binary names (\`muxy\`, \`muxy-server\`, \`muxy-app\`), socket paths, \`MUXY_*\` variables and the Muxy protocol are unchanged, so existing installs, the Atur bridge and stock Muxy clients keep working."
+          } > notes.md
+      - name: Create the draft release, upload every asset and publish
+        run: |
+          flags=(--repo "$GITHUB_REPOSITORY")
+          mapfile -t assets < <(cd artifacts && ls -1 | LC_ALL=C sort)
+          if ! gh release view "$TAG" "${flags[@]}" > /dev/null 2>&1; then
+            gh release create "$TAG" "${flags[@]}" --target "$GITHUB_SHA" --draft \
+              --title "Atur Terminal $VERSION (${TAG#atur-v})" --notes-file notes.md
+          fi
+          # A failed upload leaves a resumable draft, never a half-populated public release.
+          (cd artifacts && gh release upload "$TAG" "${flags[@]}" --clobber "${assets[@]}")
+          gh release view "$TAG" "${flags[@]}" --json assets > uploaded.json
+          python3 - uploaded.json artifacts "${assets[@]}" <<'PY'
+          import json, pathlib, sys
+          remote = json.loads(pathlib.Path(sys.argv[1]).read_text())["assets"]
+          for name in sys.argv[3:]:
+              matches = [asset for asset in remote if asset["name"] == name]
+              size = (pathlib.Path(sys.argv[2]) / name).stat().st_size
+              if len(matches) != 1 or matches[0]["size"] != size:
+                  sys.exit(f"Error: missing or incomplete uploaded asset: {name}")
+          PY
+          if [[ "$DRAFT" == true ]]; then
+            echo "$TAG is a complete draft."
+          elif [[ "$PRERELEASE" == true ]]; then
+            gh release edit "$TAG" "${flags[@]}" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$TAG" "${flags[@]}" --draft=false --prerelease=false --latest
+          fi

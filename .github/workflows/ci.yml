@@ -1,8 +1,11 @@
 name: ci
 
+# Checks Atur Terminal on Linux x86_64 (headless and desktop) and macOS arm64.
+# Adapted from upstream Muxy's CI: the arm64 Linux runners are dropped because
+# releases do not ship them.
 on:
   push:
-    branches: [main, linux, linux-platform, 'linux/**']
+    branches: [main, atur-terminal, feat/herdr-backend]
   pull_request:
   workflow_call:
 
@@ -38,7 +41,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' }}
       - run: python3 scripts/check-desktop-macos.py
       - run: python3 scripts/protocol_fixtures.py last-release
       - run: python3 scripts/smoke-desktop-tui.py
@@ -50,8 +53,6 @@ jobs:
         include:
           - runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-          - runner: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
@@ -67,7 +68,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' }}
       - run: python3 scripts/check-headless.py --target "${{ matrix.target }}"
 
   linux-desktop:
@@ -77,8 +78,6 @@ jobs:
         include:
           - runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-          - runner: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
@@ -99,5 +98,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' }}
       - run: xvfb-run -a python3 scripts/check-desktop-linux.py --target "${{ matrix.target }}"
