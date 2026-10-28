@@ -19,7 +19,8 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use muxy_protocol::{
-    AgentProvider, AgentState, ErrorCode, ExitReason, MouseEvent, SessionId, SessionInfo, Size,
+    AgentProvider, AgentState, ErrorCode, ExitReason, MouseEvent, ProjectId, SessionId,
+    SessionInfo, Size,
 };
 use muxy_terminal::pty::ExitStatus;
 use muxy_terminal::{CellSize, Row};
@@ -172,8 +173,14 @@ impl Herdr {
             .is_ok()
     }
 
-    /// The sessions this server created that herdr still runs, with their size.
-    pub(crate) fn survivors(self: &Arc<Self>) -> Vec<(SessionId, HerdrBacking)> {
+    /// The sessions that herdr still runs, with their size. `known` are the
+    /// sessions the catalog remembers with their projects; a terminal is found by
+    /// the mapping this server saved, or else by its tab's label, so the mapping
+    /// can be rebuilt from herdr alone.
+    pub(crate) fn survivors(
+        self: &Arc<Self>,
+        known: &[(SessionId, ProjectId)],
+    ) -> Vec<(SessionId, HerdrBacking)> {
         let panes = match self.api.call("pane.list", &json!({})) {
             Ok(list) => list["panes"].as_array().cloned().unwrap_or_default(),
             Err(error) => {
@@ -188,10 +195,20 @@ impl Herdr {
             .and_then(|list| list["tabs"].as_array().cloned())
             .unwrap_or_default();
         let mut found = Vec::new();
-        for (session, entry) in self.store.sessions() {
-            let by_terminal = panes
+        let mut candidates: std::collections::BTreeMap<SessionId, (ProjectId, Option<String>)> =
+            known
                 .iter()
-                .find(|pane| pane["terminal_id"].as_str() == Some(entry.terminal.as_str()));
+                .map(|(session, project)| (*session, (*project, None)))
+                .collect();
+        for (session, entry) in self.store.sessions() {
+            candidates.insert(session, (entry.project, Some(entry.terminal)));
+        }
+        for (session, (project, saved)) in candidates {
+            let by_terminal = saved.as_deref().and_then(|saved| {
+                panes
+                    .iter()
+                    .find(|pane| pane["terminal_id"].as_str() == Some(saved))
+            });
             // herdr numbers terminals afresh after it restarts; the tab label survives.
             let by_label = || {
                 let label = tab_label(session);
@@ -215,8 +232,13 @@ impl Herdr {
                     cols: 120,
                     rows: 40,
                 });
-            if terminal != entry.terminal {
-                self.store.set_session(session, entry.project, terminal);
+            if saved.as_deref() != Some(terminal) {
+                self.store.set_session(session, project, terminal);
+            }
+            if self.store.workspace(project).is_none()
+                && let Some(workspace) = pane["workspace_id"].as_str()
+            {
+                self.store.set_workspace(project, workspace);
             }
             found.push((
                 session,
@@ -302,12 +324,21 @@ impl HerdrBacking {
             .ok_or_else(|| io::Error::other("herdr terminal is not started"))
     }
 
+    /// The terminal's id now; herdr renumbers terminals when it hands them over.
+    fn terminal(&self) -> String {
+        self.control.get().map_or_else(
+            || self.terminal.clone(),
+            |control| control.shared().terminal(),
+        )
+    }
+
     fn pane(&self) -> Option<String> {
+        let terminal = self.terminal();
         let list = self.herdr.api.call("pane.list", &json!({})).ok()?;
         list["panes"]
             .as_array()?
             .iter()
-            .find(|pane| pane["terminal_id"].as_str() == Some(self.terminal.as_str()))?["pane_id"]
+            .find(|pane| pane["terminal_id"].as_str() == Some(terminal.as_str()))?["pane_id"]
             .as_str()
             .map(str::to_owned)
     }
@@ -371,7 +402,7 @@ const GONE: ExitStatus = ExitStatus {
 
 impl HerdrBacking {
     fn state(&self) -> Option<PaneState> {
-        self.herdr.panes.get(&self.herdr.api, &self.terminal)
+        self.herdr.panes.get(&self.herdr.api, &self.terminal())
     }
 }
 
@@ -412,6 +443,9 @@ impl Backing for HerdrBacking {
             sink,
         )
         .map_err(ServerError::spawn_failed)?;
+        if let Some(pane) = self.pane() {
+            control.shared().remember_pane(pane);
+        }
         self.control
             .set(control)
             .map_err(|_| ServerError::spawn_failed("herdr terminal already started"))

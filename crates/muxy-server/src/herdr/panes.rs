@@ -57,26 +57,35 @@ pub(super) struct Panes {
 
 impl Panes {
     /// The state of `terminal`; `None` when herdr no longer lists it or does not answer.
+    /// A terminal missing from a cached list may be new, so the list is read once more.
     pub(super) fn get(&self, api: &Api, terminal: &str) -> Option<PaneState> {
         let mut cache = self
             .cache
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if cache.as_ref().is_none_or(|(at, _)| at.elapsed() > TTL) {
-            let list = api.call("pane.list", &json!({})).ok()?;
-            let panes = list["panes"]
-                .as_array()?
+        let mut fresh = false;
+        loop {
+            if cache.as_ref().is_none_or(|(at, _)| at.elapsed() > TTL) {
+                let list = api.call("pane.list", &json!({})).ok()?;
+                let panes = list["panes"]
+                    .as_array()?
+                    .iter()
+                    .filter_map(PaneState::parse)
+                    .collect();
+                *cache = Some((Instant::now(), panes));
+                fresh = true;
+            }
+            let found = cache
+                .as_ref()?
+                .1
                 .iter()
-                .filter_map(PaneState::parse)
-                .collect();
-            *cache = Some((Instant::now(), panes));
+                .find(|pane| pane.terminal == terminal)
+                .cloned();
+            if found.is_some() || fresh {
+                return found;
+            }
+            *cache = None;
         }
-        cache
-            .as_ref()?
-            .1
-            .iter()
-            .find(|pane| pane.terminal == terminal)
-            .cloned()
     }
 }
 

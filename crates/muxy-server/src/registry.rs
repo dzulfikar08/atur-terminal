@@ -561,7 +561,7 @@ impl Registry {
         move |reason| {
             // Only a stopping server leaves its herdr terminal running.
             if reason != ExitReason::ServerStopped
-                && let Some(herdr) = herdr
+                && let Some(herdr) = &herdr
             {
                 herdr.forget(id);
             }
@@ -574,7 +574,11 @@ impl Registry {
             let mut state = lock(&listing);
             state.sessions.remove(&id);
             state.starting.remove(&id);
-            let _ = events.send(ServerEvent::SessionEnded { id, reason });
+            // A herdr terminal outlives this server, so its clients must not
+            // treat the stop as the end of the session: they reattach.
+            if !(reason == ExitReason::ServerStopped && herdr.is_some()) {
+                let _ = events.send(ServerEvent::SessionEnded { id, reason });
+            }
             completed.notify_all();
         }
     }
@@ -630,7 +634,12 @@ impl Registry {
         self.herdr = Some(Arc::clone(&herdr));
         let known = self.catalog.sessions();
         let budget = usize::try_from(self.settings().history_budget_bytes).unwrap_or(usize::MAX);
-        for (id, backing) in herdr.survivors() {
+        let remembered: Vec<_> = known
+            .iter()
+            .filter_map(|id| self.catalog.session_info(*id))
+            .map(|info| (info.id, info.project))
+            .collect();
+        for (id, backing) in herdr.survivors(&remembered) {
             let Some(info) = self
                 .catalog
                 .session_info(id)

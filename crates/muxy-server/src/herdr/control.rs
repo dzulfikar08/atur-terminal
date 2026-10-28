@@ -22,6 +22,8 @@ use crate::session::OwnerEvent;
 
 /// How long a write waits for a reconnecting control stream.
 const RECONNECT_WAIT: Duration = Duration::from_secs(3);
+/// How long an unreachable herdr is waited for before its terminals count as gone.
+const HERDR_RESTART_WAIT: Duration = Duration::from_secs(60);
 const RECONNECT_DELAY: Duration = Duration::from_millis(300);
 /// Control streams that die this often within `STORM_WINDOW` stop being retried.
 const STORM_LIMIT: usize = 8;
@@ -42,7 +44,10 @@ struct Slot {
 #[derive(Debug)]
 pub(super) struct Shared {
     launch: Launch,
-    terminal: String,
+    /// herdr gives its terminals new ids when it hands them to a new server, so
+    /// the id is followed through the pane that holds the terminal.
+    terminal: Mutex<String>,
+    pane: Mutex<Option<String>>,
     api: Arc<Api>,
     /// The size herdr was last asked for, packed as columns << 16 | rows. A frame of
     /// another size predates the last resize and would corrupt the owner's terminal.
@@ -75,7 +80,8 @@ impl Control {
     ) -> io::Result<Self> {
         let shared = Arc::new(Shared {
             launch,
-            terminal,
+            terminal: Mutex::new(terminal),
+            pane: Mutex::new(None),
             api,
             expected: AtomicU32::new(pack(size)),
             slot: Mutex::new(Slot {
@@ -89,7 +95,7 @@ impl Control {
         let first = shared.connect()?;
         let worker = Arc::clone(&shared);
         thread::Builder::new()
-            .name(format!("herdr-{}", shared.terminal))
+            .name(format!("herdr-{}", shared.terminal()))
             .spawn(move || worker.run(first, &sink))?;
         Ok(Self { shared })
     }
@@ -184,7 +190,7 @@ impl Shared {
                 "terminal",
                 "session",
                 "control",
-                &self.terminal,
+                &self.terminal(),
                 "--takeover",
             ])
             .args(["--cols", &(expected >> 16).to_string()])
@@ -234,18 +240,63 @@ impl Shared {
         }
     }
 
+    pub(super) fn remember_pane(&self, pane: String) {
+        *self.pane.lock().unwrap_or_else(PoisonError::into_inner) = Some(pane);
+    }
+
+    pub(super) fn terminal(&self) -> String {
+        self.terminal
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Finds the terminal in herdr's pane list, by id or else by the pane that held
+    /// it, and follows a changed id. False when the terminal is no longer there.
+    fn locate(&self, panes: &[Value]) -> bool {
+        let terminal = self.terminal();
+        let mut hint = self.pane.lock().unwrap_or_else(PoisonError::into_inner);
+        let found = panes
+            .iter()
+            .find(|pane| pane["terminal_id"].as_str() == Some(terminal.as_str()))
+            .or_else(|| {
+                let hint = hint.as_deref()?;
+                panes
+                    .iter()
+                    .find(|pane| pane["pane_id"].as_str() == Some(hint))
+            });
+        let Some(pane) = found else {
+            return false;
+        };
+        *hint = pane["pane_id"].as_str().map(str::to_owned);
+        if let Some(current) = pane["terminal_id"].as_str()
+            && current != terminal
+        {
+            log::info!("herdr terminal {terminal} is now {current}");
+            current.clone_into(&mut self.terminal.lock().unwrap_or_else(PoisonError::into_inner));
+        }
+        true
+    }
+
+    /// Whether herdr still lists the terminal. A herdr that does not answer is
+    /// restarting or handing its terminals to a new server, so it is waited for
+    /// rather than taken as the terminal's end.
     fn alive(&self) -> bool {
-        self.api
-            .call("pane.list", &json!({}))
-            .ok()
-            .and_then(|list| {
-                list["panes"].as_array().map(|panes| {
-                    panes
-                        .iter()
-                        .any(|pane| pane["terminal_id"].as_str() == Some(self.terminal.as_str()))
-                })
-            })
-            .unwrap_or(false)
+        let deadline = Instant::now() + HERDR_RESTART_WAIT;
+        loop {
+            let listed = self
+                .api
+                .call("pane.list", &json!({}))
+                .ok()
+                .and_then(|list| list["panes"].as_array().map(|panes| self.locate(panes)));
+            match listed {
+                Some(listed) => return listed,
+                None if Instant::now() >= deadline || self.detached.load(Ordering::Acquire) => {
+                    return false;
+                }
+                None => thread::sleep(RECONNECT_DELAY),
+            }
+        }
     }
 
     fn run(&self, first: BufReader<std::process::ChildStdout>, sink: &Sender<OwnerEvent>) {
@@ -265,7 +316,7 @@ impl Shared {
             deaths.retain(|death| now.duration_since(*death) < STORM_WINDOW);
             deaths.push(now);
             if !self.alive() || deaths.len() > STORM_LIMIT {
-                log::info!("herdr terminal {} is gone", self.terminal);
+                log::info!("herdr terminal {} is gone", self.terminal());
                 self.gone.store(true, Ordering::Release);
                 self.connected.notify_all();
                 let _ = sink.send(PtyEvent::Closed.into());
@@ -275,7 +326,10 @@ impl Shared {
             match self.connect() {
                 Ok(stdout) => stream = Some(stdout),
                 Err(error) => {
-                    log::error!("herdr control for {} did not start: {error}", self.terminal);
+                    log::error!(
+                        "herdr control for {} did not start: {error}",
+                        self.terminal()
+                    );
                     self.gone.store(true, Ordering::Release);
                     let _ = sink.send(PtyEvent::Closed.into());
                     return;

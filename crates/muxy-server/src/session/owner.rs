@@ -256,7 +256,8 @@ fn start_input(
 
 impl Owner {
     fn run(mut self) -> ExitReason {
-        let reason = self.serve().unwrap_or_else(|_| {
+        let reason = self.serve().unwrap_or_else(|error| {
+            log::error!("session {} stopped: {error}", self.info.id.get());
             self.pty
                 .release(ExitReason::Ended)
                 .map_or(ExitReason::Ended, exit_reason)
