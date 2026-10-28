@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 use super::api::Api;
+use super::target::Target;
 
 const TTL: Duration = Duration::from_millis(200);
 
@@ -50,15 +51,36 @@ impl PaneState {
     }
 }
 
+/// The answer to where a terminal stands.
+pub(super) enum Lookup {
+    Found(PaneState),
+    /// herdr answers and no longer lists the terminal.
+    Missing,
+    /// herdr does not answer: restarting or handing over.
+    Unreachable,
+}
+
 #[derive(Debug, Default)]
 pub(super) struct Panes {
     cache: Mutex<Option<(Instant, Vec<PaneState>)>>,
 }
 
 impl Panes {
-    /// The state of `terminal`; `None` when herdr no longer lists it or does not answer.
-    /// A terminal missing from a cached list may be new, so the list is read once more.
-    pub(super) fn get(&self, api: &Api, terminal: &str) -> Option<PaneState> {
+    /// Reads herdr's pane list; `None` when herdr does not answer.
+    pub(super) fn fetch(api: &Api) -> Option<Vec<PaneState>> {
+        let list = api.call("pane.list", &json!({})).ok()?;
+        Some(
+            list["panes"]
+                .as_array()?
+                .iter()
+                .filter_map(PaneState::parse)
+                .collect(),
+        )
+    }
+
+    /// Where `target` stands. A terminal missing from a cached list may be new, so
+    /// the list is read once more before it counts as gone.
+    pub(super) fn lookup(&self, api: &Api, target: &Target) -> Lookup {
         let mut cache = self
             .cache
             .lock()
@@ -66,25 +88,28 @@ impl Panes {
         let mut fresh = false;
         loop {
             if cache.as_ref().is_none_or(|(at, _)| at.elapsed() > TTL) {
-                let list = api.call("pane.list", &json!({})).ok()?;
-                let panes = list["panes"]
-                    .as_array()?
-                    .iter()
-                    .filter_map(PaneState::parse)
-                    .collect();
+                let Some(panes) = Self::fetch(api) else {
+                    return Lookup::Unreachable;
+                };
                 *cache = Some((Instant::now(), panes));
                 fresh = true;
             }
             let found = cache
-                .as_ref()?
-                .1
-                .iter()
-                .find(|pane| pane.terminal == terminal)
-                .cloned();
-            if found.is_some() || fresh {
-                return found;
+                .as_ref()
+                .and_then(|(_, panes)| target.locate(panes).cloned());
+            match found {
+                Some(pane) => return Lookup::Found(pane),
+                None if fresh => return Lookup::Missing,
+                None => *cache = None,
             }
-            *cache = None;
+        }
+    }
+
+    /// The state of `target`, if herdr lists it.
+    pub(super) fn state(&self, api: &Api, target: &Target) -> Option<PaneState> {
+        match self.lookup(api, target) {
+            Lookup::Found(pane) => Some(pane),
+            Lookup::Missing | Lookup::Unreachable => None,
         }
     }
 }

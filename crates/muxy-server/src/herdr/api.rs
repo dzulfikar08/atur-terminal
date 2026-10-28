@@ -22,12 +22,6 @@ pub(crate) enum ApiError {
     Malformed(String),
 }
 
-impl ApiError {
-    pub(crate) fn is_missing(&self) -> bool {
-        matches!(self, Self::Rejected { code, .. } if code.ends_with("_not_found"))
-    }
-}
-
 impl fmt::Display for ApiError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -189,7 +183,6 @@ mod tests {
         let error = api
             .call("pane.get", &json!({"pane_id": "w1:p1"}))
             .expect_err("rejected");
-        assert!(error.is_missing());
         assert_eq!(error.to_string(), "herdr pane_not_found: gone");
         server.join().expect("server");
     }

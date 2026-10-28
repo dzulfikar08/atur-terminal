@@ -24,6 +24,12 @@ const TICK: Duration = Duration::from_millis(16);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(1);
 const CHECKPOINT: Duration = Duration::from_secs(1);
 const METADATA_POLL: Duration = Duration::from_millis(100);
+/// How long an on-demand output stream stays open after the last client left.
+const STREAM_GRACE: Duration = Duration::from_secs(5);
+/// How long an attach waits for the first frame of a newly opened stream.
+const STREAM_OPEN_WAIT: Duration = Duration::from_millis(1500);
+/// How often a session without a stream checks that its process still exists.
+const ALIVE_POLL: Duration = Duration::from_secs(1);
 
 struct InputWrite {
     bytes: Vec<u8>,
@@ -63,6 +69,25 @@ enum OutputState {
     Closed,
 }
 
+/// Whether the backing's output reaches the owner's terminal. Only on-demand
+/// backings ever leave `Always`.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Stream {
+    Always,
+    Closed,
+    /// Opened for a client that waits for the first frame.
+    Opening(Instant),
+    /// Open; the time the last client left, if none is attached.
+    Open(Option<Instant>),
+}
+
+struct WaitingAttach {
+    id: AttachmentId,
+    channel: ChannelId,
+    size: Option<Size>,
+    sink: AttachmentSink,
+}
+
 struct Attachment {
     sink: AttachmentSink,
     seq: u64,
@@ -89,6 +114,10 @@ struct Owner {
     events: Receiver<OwnerEvent>,
     input: Sender<InputWrite>,
     attachments: HashMap<AttachmentId, Attachment>,
+    sender: Sender<OwnerEvent>,
+    stream: Stream,
+    waiting: Vec<WaitingAttach>,
+    next_alive: Instant,
     output_pending: bool,
     resize_pending: bool,
     compress_pending: bool,
@@ -128,7 +157,11 @@ pub(crate) fn start(
     let id = info.id.get();
     let (sender, receiver) = mpsc::channel();
     let (ready_sender, ready) = mpsc::channel();
-    pty.start_reader(sender.clone())?;
+    let on_demand = pty.on_demand();
+    if !on_demand {
+        pty.start_reader(sender.clone())?;
+    }
+    let wake = sender.clone();
 
     let progress = super::SharedProgress::default();
     let session_progress = progress.clone();
@@ -187,6 +220,14 @@ pub(crate) fn start(
                 events: receiver,
                 input,
                 attachments: HashMap::new(),
+                sender: wake,
+                stream: if on_demand {
+                    Stream::Closed
+                } else {
+                    Stream::Always
+                },
+                waiting: Vec::new(),
+                next_alive: Instant::now() + ALIVE_POLL,
                 output_pending: false,
                 resize_pending: false,
                 compress_pending: false,
@@ -279,7 +320,10 @@ impl Owner {
     fn serve(&mut self) -> Result<ExitReason, Fault> {
         loop {
             match self.next_wake() {
-                Wake::Event(OwnerEvent::Pty(PtyEvent::Output(bytes))) => self.feed(&bytes)?,
+                Wake::Event(OwnerEvent::Pty(PtyEvent::Output(bytes))) => {
+                    self.feed(&bytes)?;
+                    self.stream_output()?;
+                }
                 Wake::Event(OwnerEvent::Pty(PtyEvent::Closed)) => {
                     self.output_state = OutputState::Closed;
                 }
@@ -339,12 +383,12 @@ impl Owner {
                     channel,
                     size,
                     sink,
-                })) => self.attach(id, channel, size, sink)?,
+                })) => self.request_attach(id, channel, Some(size), sink)?,
                 Wake::Event(OwnerEvent::Command(SessionCommand::AttachWithoutResize {
                     id,
                     channel,
                     sink,
-                })) => self.attach(id, channel, self.size, sink)?,
+                })) => self.request_attach(id, channel, None, sink)?,
                 Wake::Event(OwnerEvent::Command(SessionCommand::HistoryPage {
                     before,
                     max_rows,
@@ -354,6 +398,7 @@ impl Owner {
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::Detach(id))) => {
                     self.attachments.remove(&id);
+                    self.waiting.retain(|waiting| waiting.id != id);
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::Search {
                     query,
@@ -375,6 +420,7 @@ impl Owner {
                 Wake::Metadata => self.update_metadata(),
                 Wake::Orphaned => return self.terminate(ExitReason::ServerStopped),
             }
+            self.service_stream()?;
             if self.output_state == OutputState::Closed
                 && let Some(status) = self.pty.try_wait()
             {
@@ -384,6 +430,129 @@ impl Owner {
                 self.next_tick = Some(tick_deadline(self.last_tick, Instant::now()));
             }
         }
+    }
+
+    /// Attaches a client. An on-demand backing first opens its output stream and
+    /// the client is attached when the first frame has painted the terminal.
+    fn request_attach(
+        &mut self,
+        id: AttachmentId,
+        channel: ChannelId,
+        size: Option<Size>,
+        sink: AttachmentSink,
+    ) -> Result<(), Fault> {
+        match self.stream {
+            Stream::Always => self.attach(id, channel, size.unwrap_or(self.size), sink),
+            Stream::Open(_) => {
+                self.stream = Stream::Open(None);
+                self.attach(id, channel, size.unwrap_or(self.size), sink)
+            }
+            Stream::Opening(_) => {
+                self.waiting.push(WaitingAttach {
+                    id,
+                    channel,
+                    size,
+                    sink,
+                });
+                Ok(())
+            }
+            Stream::Closed => {
+                if let Some(size) = size
+                    && size != self.size
+                {
+                    self.resize(size)?;
+                }
+                self.pty.set_streaming(true, &self.sender)?;
+                self.stream = Stream::Opening(Instant::now());
+                self.waiting.push(WaitingAttach {
+                    id,
+                    channel,
+                    size,
+                    sink,
+                });
+                Ok(())
+            }
+        }
+    }
+
+    fn attach_waiting(&mut self) -> Result<(), Fault> {
+        for waiting in std::mem::take(&mut self.waiting) {
+            let size = waiting.size.unwrap_or(self.size);
+            self.attach(waiting.id, waiting.channel, size, waiting.sink)?;
+        }
+        Ok(())
+    }
+
+    /// The first output of a newly opened stream has arrived.
+    fn stream_output(&mut self) -> Result<(), Fault> {
+        if matches!(self.stream, Stream::Opening(_)) {
+            self.stream = Stream::Open(None);
+            self.attach_waiting()?;
+        }
+        Ok(())
+    }
+
+    /// Closes an unwatched stream after a grace period, gives up waiting for a
+    /// slow first frame, and notices a process that ended while nobody watched.
+    fn service_stream(&mut self) -> Result<(), Fault> {
+        let now = Instant::now();
+        match self.stream {
+            Stream::Opening(since) => {
+                if now.duration_since(since) >= STREAM_OPEN_WAIT {
+                    log::warn!(
+                        "session {}: no first frame from the backing",
+                        self.info.id.get()
+                    );
+                    self.stream = Stream::Open(None);
+                    self.attach_waiting()?;
+                } else {
+                    self.next_metadata = self.next_metadata.min(since + STREAM_OPEN_WAIT);
+                }
+            }
+            Stream::Open(None) if self.attachments.is_empty() && self.waiting.is_empty() => {
+                self.stream = Stream::Open(Some(now));
+                self.next_metadata = self.next_metadata.min(now + STREAM_GRACE);
+            }
+            Stream::Open(Some(_)) if !self.attachments.is_empty() => {
+                self.stream = Stream::Open(None);
+            }
+            Stream::Open(Some(since)) => {
+                if now.duration_since(since) >= STREAM_GRACE {
+                    self.pty.set_streaming(false, &self.sender)?;
+                    self.stream = Stream::Closed;
+                    self.next_alive = now + ALIVE_POLL;
+                } else {
+                    self.next_metadata = self.next_metadata.min(since + STREAM_GRACE);
+                }
+            }
+            Stream::Always | Stream::Open(None) => {}
+            Stream::Closed => {
+                if now >= self.next_alive {
+                    self.next_alive = now + ALIVE_POLL;
+                    if self.output_state == OutputState::Open && self.pty.try_wait().is_some() {
+                        self.output_state = OutputState::Closed;
+                    }
+                }
+                self.next_metadata = self.next_metadata.min(self.next_alive);
+            }
+        }
+        Ok(())
+    }
+
+    /// Replaces the terminal's content with the process's visible screen, read
+    /// from the backing, while no stream keeps it current.
+    fn seed_mirror(&mut self) {
+        if self.stream != Stream::Closed {
+            return;
+        }
+        let Some((size, bytes)) = self.pty.screen() else {
+            return;
+        };
+        let _ = self.terminal.resize(size);
+        self.terminal.feed(b"\x1bc");
+        self.terminal.feed(&bytes);
+        let _ = self.terminal.take_pty_output();
+        let _ = self.terminal.resize(self.size);
     }
 
     fn next_wake(&self) -> Wake {
@@ -580,6 +749,9 @@ impl Owner {
                 format!("terminal history: {error}"),
             )
         }
+        if before.0 == 0 {
+            self.seed_mirror();
+        }
         let (generation, total) = self.history_state().map_err(terminal_error)?;
         let (range, next) = history_range(self.info.id, generation, before, max_rows, total)?;
         self.compress_pending = true;
@@ -696,6 +868,9 @@ impl Owner {
             screen_rows: usize::from(self.size.rows),
         };
         let range = search.range()?;
+        if range.end > history_rows {
+            self.seed_mirror();
+        }
         self.compress_pending = true;
         let rows = range.start.min(history_rows)..range.end.min(history_rows);
         let history = if self.pty.history_rows().is_some() {
@@ -898,11 +1073,15 @@ impl Owner {
     }
 
     fn terminate(&mut self, reason: ExitReason) -> Result<ExitReason, Fault> {
+        self.seed_mirror();
         self.pty.release(reason)?;
         Ok(reason)
     }
 
     fn drain_output(&mut self) {
+        if self.stream == Stream::Closed {
+            return;
+        }
         let deadline = Instant::now() + Duration::from_secs(1);
         while self.output_state == OutputState::Open {
             match self
@@ -997,6 +1176,10 @@ mod tests {
             events: mpsc::channel().1,
             input: mpsc::channel().0,
             attachments: HashMap::new(),
+            sender: mpsc::channel().0,
+            stream: Stream::Always,
+            waiting: Vec::new(),
+            next_alive: Instant::now(),
             output_pending: false,
             resize_pending: false,
             compress_pending: false,

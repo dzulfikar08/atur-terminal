@@ -11,11 +11,12 @@ mod control;
 mod panes;
 mod scrollback;
 mod store;
+mod target;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use muxy_protocol::{
@@ -28,8 +29,9 @@ use serde_json::{Value, json};
 
 use api::Api;
 use control::{Control, Launch};
-use panes::{PaneState, Panes};
+use panes::{Lookup, PaneState, Panes};
 use store::Store;
+use target::Target;
 
 use crate::error::ServerError;
 use crate::session::backing::Fault;
@@ -164,7 +166,13 @@ impl Herdr {
             .ok_or_else(|| unavailable("a new pane without a terminal id"))?
             .to_owned();
         self.store.set_session(request.info.id, project, &terminal);
-        Ok(HerdrBacking::new(Arc::clone(self), terminal, request.size))
+        let pane = reply["root_pane"]["pane_id"].as_str().map(str::to_owned);
+        Ok(HerdrBacking::new(
+            Arc::clone(self),
+            terminal,
+            pane,
+            request.size,
+        ))
     }
 
     fn workspace_exists(&self, workspace: &str) -> bool {
@@ -242,7 +250,12 @@ impl Herdr {
             }
             found.push((
                 session,
-                HerdrBacking::new(Arc::clone(self), terminal.to_owned(), size),
+                HerdrBacking::new(
+                    Arc::clone(self),
+                    terminal.to_owned(),
+                    pane["pane_id"].as_str().map(str::to_owned),
+                    size,
+                ),
             ));
         }
         found
@@ -272,19 +285,26 @@ impl Herdr {
 struct ProcessInfo {
     shell: Option<u32>,
     foreground: Option<u32>,
-    pane: Option<String>,
     fetched: Option<Instant>,
 }
 
 /// How long a foreground-process answer is reused. The owner asks on every tick.
 const PROCESS_TTL: Duration = Duration::from_millis(250);
 
+type SharedControl = Arc<Mutex<Option<Control>>>;
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// A herdr terminal as a session's process. The output stream is opened only while
+/// someone watches the session; everything else goes through herdr's socket API.
 pub(crate) struct HerdrBacking {
     herdr: Arc<Herdr>,
-    terminal: String,
+    target: Arc<Target>,
     size: Size,
     cell: CellSize,
-    control: OnceLock<Control>,
+    control: SharedControl,
     process: Mutex<ProcessInfo>,
 }
 
@@ -292,23 +312,22 @@ impl std::fmt::Debug for HerdrBacking {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("HerdrBacking")
-            .field("terminal", &self.terminal)
+            .field("terminal", &self.target.terminal())
             .finish_non_exhaustive()
     }
 }
 
 impl HerdrBacking {
-    fn new(herdr: Arc<Herdr>, terminal: String, size: Size) -> Self {
+    fn new(herdr: Arc<Herdr>, terminal: String, pane: Option<String>, size: Size) -> Self {
         Self {
             herdr,
-            terminal,
+            target: Arc::new(Target::new(terminal, pane)),
             size,
             cell: CellSize::default(),
-            control: OnceLock::new(),
+            control: Arc::new(Mutex::new(None)),
             process: Mutex::new(ProcessInfo {
                 shell: None,
                 foreground: None,
-                pane: None,
                 fetched: None,
             }),
         }
@@ -318,49 +337,63 @@ impl HerdrBacking {
         self.size
     }
 
-    fn control(&self) -> io::Result<&Control> {
-        self.control
-            .get()
-            .ok_or_else(|| io::Error::other("herdr terminal is not started"))
+    fn control(&self) -> Option<Control> {
+        lock(&self.control).clone()
     }
 
-    /// The terminal's id now; herdr renumbers terminals when it hands them over.
-    fn terminal(&self) -> String {
-        self.control.get().map_or_else(
-            || self.terminal.clone(),
-            |control| control.shared().terminal(),
-        )
+    fn state(&self) -> Option<PaneState> {
+        self.herdr.panes.state(&self.herdr.api, &self.target)
     }
 
     fn pane(&self) -> Option<String> {
-        let terminal = self.terminal();
-        let list = self.herdr.api.call("pane.list", &json!({})).ok()?;
-        list["panes"]
-            .as_array()?
-            .iter()
-            .find(|pane| pane["terminal_id"].as_str() == Some(terminal.as_str()))?["pane_id"]
-            .as_str()
-            .map(str::to_owned)
+        self.state().map(|pane| pane.pane)
+    }
+
+    fn open(&self, sink: Sender<OwnerEvent>) -> Result<(), ServerError> {
+        let mut slot = lock(&self.control);
+        if slot.is_some() {
+            return Ok(());
+        }
+        let control = Control::start(
+            self.herdr.launch(),
+            Arc::clone(&self.herdr.api),
+            Arc::clone(&self.target),
+            self.size,
+            sink,
+        )
+        .map_err(ServerError::spawn_failed)?;
+        if self.cell != CellSize::default() {
+            let _ = control.resize(self.size, self.cell);
+        }
+        *slot = Some(control);
+        Ok(())
+    }
+
+    fn close(&self) {
+        if let Some(control) = lock(&self.control).take() {
+            control.detach();
+        }
     }
 
     fn refresh(&self, process: &mut ProcessInfo) {
-        let info = loop {
-            let Some(pane) = process.pane.clone().or_else(|| self.pane()) else {
-                return;
-            };
-            match self
-                .herdr
-                .api
-                .call("pane.process_info", &json!({"pane_id": pane}))
-            {
-                Ok(reply) => {
-                    process.pane = Some(pane);
-                    break reply;
-                }
-                // The pane was moved or renumbered: look it up once more.
-                Err(error) if error.is_missing() && process.pane.take().is_some() => {}
-                Err(_) => return,
-            }
+        // The foreground group of the shell's terminal is in /proc: no request needed.
+        #[cfg(target_os = "linux")]
+        if let Some(shell) = process.shell
+            && let Some(group) = foreground_group(shell)
+        {
+            process.foreground = Some(group);
+            process.fetched = Some(Instant::now());
+            return;
+        }
+        let Some(pane) = self.pane() else {
+            return;
+        };
+        let Ok(info) = self
+            .herdr
+            .api
+            .call("pane.process_info", &json!({"pane_id": pane}))
+        else {
+            return;
         };
         let info = &info["process_info"];
         process.shell = info["shell_pid"]
@@ -373,7 +406,7 @@ impl HerdrBacking {
     }
 
     fn process(&self) -> (Option<u32>, Option<u32>) {
-        let mut process = self.process.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut process = lock(&self.process);
         if process.fetched.is_none_or(|at| at.elapsed() > PROCESS_TTL) {
             self.refresh(&mut process);
             process.fetched.get_or_insert_with(Instant::now);
@@ -382,11 +415,47 @@ impl HerdrBacking {
     }
 }
 
-struct InputWriter(Control);
+/// The terminal's foreground process group, the `tpgid` of the shell's `stat`.
+#[cfg(target_os = "linux")]
+fn foreground_group(shell: u32) -> Option<u32> {
+    let stat = std::fs::read(format!("/proc/{shell}/stat")).ok()?;
+    let rest = &stat[stat.iter().rposition(|byte| *byte == b')')? + 1..];
+    let group: i64 = std::str::from_utf8(rest)
+        .ok()?
+        .split_ascii_whitespace()
+        .nth(5)?
+        .parse()
+        .ok()?;
+    u32::try_from(group).ok().filter(|group| *group > 0)
+}
+
+/// Writes to the output stream while one is open and to herdr's API otherwise.
+struct InputWriter {
+    herdr: Arc<Herdr>,
+    target: Arc<Target>,
+    control: SharedControl,
+}
 
 impl Write for InputWriter {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.0.input(bytes)?;
+        if let Some(control) = lock(&self.control).clone()
+            && control.input(bytes).is_ok()
+        {
+            return Ok(bytes.len());
+        }
+        let pane = self
+            .herdr
+            .panes
+            .state(&self.herdr.api, &self.target)
+            .map(|pane| pane.pane)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
+        self.herdr
+            .api
+            .call(
+                "pane.send_text",
+                &json!({"pane_id": pane, "text": String::from_utf8_lossy(bytes)}),
+            )
+            .map_err(io::Error::other)?;
         Ok(bytes.len())
     }
 
@@ -399,12 +468,6 @@ const GONE: ExitStatus = ExitStatus {
     code: None,
     signal: None,
 };
-
-impl HerdrBacking {
-    fn state(&self) -> Option<PaneState> {
-        self.herdr.panes.get(&self.herdr.api, &self.terminal())
-    }
-}
 
 /// The provider herdr names by its agent label.
 fn provider(label: &str) -> Option<AgentProvider> {
@@ -434,48 +497,59 @@ fn agent_state(status: &str) -> AgentState {
 }
 
 impl Backing for HerdrBacking {
+    fn on_demand(&self) -> bool {
+        true
+    }
+
     fn start_reader(&self, sink: Sender<OwnerEvent>) -> Result<(), ServerError> {
-        let control = Control::start(
-            self.herdr.launch(),
-            Arc::clone(&self.herdr.api),
-            self.terminal.clone(),
-            self.size,
-            sink,
-        )
-        .map_err(ServerError::spawn_failed)?;
-        if let Some(pane) = self.pane() {
-            control.shared().remember_pane(pane);
+        self.open(sink)
+    }
+
+    fn set_streaming(&mut self, on: bool, sink: &Sender<OwnerEvent>) -> Result<(), Fault> {
+        if on {
+            self.open(sink.clone())?;
+        } else {
+            self.close();
         }
-        self.control
-            .set(control)
-            .map_err(|_| ServerError::spawn_failed("herdr terminal already started"))
+        Ok(())
     }
 
     fn take_writer(&mut self) -> Result<Box<dyn Write + Send>, ServerError> {
-        let control = self.control().map_err(ServerError::spawn_failed)?;
-        Ok(Box::new(InputWriter(control.clone())))
+        Ok(Box::new(InputWriter {
+            herdr: Arc::clone(&self.herdr),
+            target: Arc::clone(&self.target),
+            control: Arc::clone(&self.control),
+        }))
     }
 
     fn resize(&mut self, size: Size) -> Result<(), Fault> {
         self.size = size;
-        Ok(self.control()?.resize(size, self.cell)?)
+        if let Some(control) = self.control() {
+            control.resize(size, self.cell)?;
+        }
+        Ok(())
     }
 
     fn set_cell_size(&mut self, cell: CellSize) -> Result<(), Fault> {
         self.cell = cell;
-        Ok(self.control()?.resize(self.size, cell)?)
+        if let Some(control) = self.control() {
+            control.resize(self.size, cell)?;
+        }
+        Ok(())
     }
 
     fn try_wait(&mut self) -> Option<ExitStatus> {
-        self.control()
-            .ok()
-            .is_some_and(|control| {
-                control
-                    .shared()
-                    .gone
-                    .load(std::sync::atomic::Ordering::Acquire)
-            })
-            .then_some(GONE)
+        let gone = match self.control() {
+            Some(control) => control
+                .shared()
+                .gone
+                .load(std::sync::atomic::Ordering::Acquire),
+            None => matches!(
+                self.herdr.panes.lookup(&self.herdr.api, &self.target),
+                Lookup::Missing
+            ),
+        };
+        gone.then_some(GONE)
     }
 
     fn wait(&mut self) -> Result<ExitStatus, Fault> {
@@ -501,16 +575,12 @@ impl Backing for HerdrBacking {
     fn release(&mut self, reason: ExitReason) -> Result<ExitStatus, Fault> {
         if reason == ExitReason::ServerStopped {
             // The terminal belongs to herdr and keeps running without this server.
-            if let Ok(control) = self.control() {
-                control.detach();
-            }
+            self.close();
             return Ok(GONE);
         }
         let _ = self.kill();
         let status = self.wait();
-        if let Ok(control) = self.control() {
-            control.detach();
-        }
+        self.close();
         status
     }
 
@@ -523,11 +593,10 @@ impl Backing for HerdrBacking {
     }
 
     fn mouse(&mut self, event: &MouseEvent) -> Option<Result<(), Fault>> {
-        Some(
-            self.control()
-                .and_then(|control| control.mouse(event))
-                .map_err(Into::into),
-        )
+        Some(match self.control() {
+            Some(control) => control.mouse(event).map_err(Into::into),
+            None => Ok(()),
+        })
     }
 
     fn brackets_paste(&self) -> bool {
@@ -547,6 +616,25 @@ impl Backing for HerdrBacking {
         scrollback::read(&self.herdr.api, &pane, cols, range)
     }
 
+    fn screen(&self) -> Option<(Size, Vec<u8>)> {
+        let pane = self.state()?;
+        let size = self.herdr.pane_size(&pane.pane)?;
+        let reply = self
+            .herdr
+            .api
+            .call(
+                "pane.read",
+                &json!({
+                    "pane_id": pane.pane,
+                    "source": "visible",
+                    "format": "ansi",
+                    "strip_ansi": false,
+                }),
+            )
+            .ok()?;
+        Some((size, reply["read"]["text"].as_str()?.as_bytes().to_vec()))
+    }
+
     fn title(&self) -> Option<String> {
         self.state()?.title
     }
@@ -560,9 +648,7 @@ impl Backing for HerdrBacking {
 
 impl Drop for HerdrBacking {
     fn drop(&mut self) {
-        if let Some(control) = self.control.get() {
-            control.detach();
-        }
+        self.close();
     }
 }
 

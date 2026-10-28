@@ -66,6 +66,25 @@ pub(crate) trait Backing: Send {
         false
     }
 
+    /// Whether output is streamed only while a client watches the session. Such a
+    /// backing starts no reader at session start; the owner calls `set_streaming`.
+    fn on_demand(&self) -> bool {
+        false
+    }
+
+    /// Opens or closes the output stream of an on-demand backing. Opening ends
+    /// with a first `PtyEvent::Output` that repaints the whole screen.
+    fn set_streaming(&mut self, on: bool, sink: &Sender<OwnerEvent>) -> Result<(), Fault> {
+        let _ = (on, sink);
+        Ok(())
+    }
+
+    /// The visible screen as ANSI text with the size it has, read on demand while
+    /// no stream runs.
+    fn screen(&self) -> Option<(Size, Vec<u8>)> {
+        None
+    }
+
     /// How many rows of scrollback the process's owner keeps, when that is not
     /// the owner's own terminal.
     fn history_rows(&self) -> Option<usize> {

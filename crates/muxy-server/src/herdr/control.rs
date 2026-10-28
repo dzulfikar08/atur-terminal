@@ -18,6 +18,8 @@ use serde_json::{Value, json};
 
 use super::api::Api;
 use super::base64;
+use super::panes::Panes;
+use super::target::Target;
 use crate::session::OwnerEvent;
 
 /// How long a write waits for a reconnecting control stream.
@@ -44,10 +46,7 @@ struct Slot {
 #[derive(Debug)]
 pub(super) struct Shared {
     launch: Launch,
-    /// herdr gives its terminals new ids when it hands them to a new server, so
-    /// the id is followed through the pane that holds the terminal.
-    terminal: Mutex<String>,
-    pane: Mutex<Option<String>>,
+    target: Arc<Target>,
     api: Arc<Api>,
     /// The size herdr was last asked for, packed as columns << 16 | rows. A frame of
     /// another size predates the last resize and would corrupt the owner's terminal.
@@ -74,14 +73,13 @@ impl Control {
     pub(super) fn start(
         launch: Launch,
         api: Arc<Api>,
-        terminal: String,
+        target: Arc<Target>,
         size: Size,
         sink: Sender<OwnerEvent>,
     ) -> io::Result<Self> {
         let shared = Arc::new(Shared {
             launch,
-            terminal: Mutex::new(terminal),
-            pane: Mutex::new(None),
+            target,
             api,
             expected: AtomicU32::new(pack(size)),
             slot: Mutex::new(Slot {
@@ -95,7 +93,7 @@ impl Control {
         let first = shared.connect()?;
         let worker = Arc::clone(&shared);
         thread::Builder::new()
-            .name(format!("herdr-{}", shared.terminal()))
+            .name(format!("herdr-{}", shared.target.terminal()))
             .spawn(move || worker.run(first, &sink))?;
         Ok(Self { shared })
     }
@@ -190,7 +188,7 @@ impl Shared {
                 "terminal",
                 "session",
                 "control",
-                &self.terminal(),
+                &self.target.terminal(),
                 "--takeover",
             ])
             .args(["--cols", &(expected >> 16).to_string()])
@@ -240,55 +238,13 @@ impl Shared {
         }
     }
 
-    pub(super) fn remember_pane(&self, pane: String) {
-        *self.pane.lock().unwrap_or_else(PoisonError::into_inner) = Some(pane);
-    }
-
-    pub(super) fn terminal(&self) -> String {
-        self.terminal
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-
-    /// Finds the terminal in herdr's pane list, by id or else by the pane that held
-    /// it, and follows a changed id. False when the terminal is no longer there.
-    fn locate(&self, panes: &[Value]) -> bool {
-        let terminal = self.terminal();
-        let mut hint = self.pane.lock().unwrap_or_else(PoisonError::into_inner);
-        let found = panes
-            .iter()
-            .find(|pane| pane["terminal_id"].as_str() == Some(terminal.as_str()))
-            .or_else(|| {
-                let hint = hint.as_deref()?;
-                panes
-                    .iter()
-                    .find(|pane| pane["pane_id"].as_str() == Some(hint))
-            });
-        let Some(pane) = found else {
-            return false;
-        };
-        *hint = pane["pane_id"].as_str().map(str::to_owned);
-        if let Some(current) = pane["terminal_id"].as_str()
-            && current != terminal
-        {
-            log::info!("herdr terminal {terminal} is now {current}");
-            current.clone_into(&mut self.terminal.lock().unwrap_or_else(PoisonError::into_inner));
-        }
-        true
-    }
-
     /// Whether herdr still lists the terminal. A herdr that does not answer is
     /// restarting or handing its terminals to a new server, so it is waited for
     /// rather than taken as the terminal's end.
     fn alive(&self) -> bool {
         let deadline = Instant::now() + HERDR_RESTART_WAIT;
         loop {
-            let listed = self
-                .api
-                .call("pane.list", &json!({}))
-                .ok()
-                .and_then(|list| list["panes"].as_array().map(|panes| self.locate(panes)));
+            let listed = Panes::fetch(&self.api).map(|panes| self.target.locate(&panes).is_some());
             match listed {
                 Some(listed) => return listed,
                 None if Instant::now() >= deadline || self.detached.load(Ordering::Acquire) => {
@@ -316,7 +272,7 @@ impl Shared {
             deaths.retain(|death| now.duration_since(*death) < STORM_WINDOW);
             deaths.push(now);
             if !self.alive() || deaths.len() > STORM_LIMIT {
-                log::info!("herdr terminal {} is gone", self.terminal());
+                log::info!("herdr terminal {} is gone", self.target.terminal());
                 self.gone.store(true, Ordering::Release);
                 self.connected.notify_all();
                 let _ = sink.send(PtyEvent::Closed.into());
@@ -328,7 +284,7 @@ impl Shared {
                 Err(error) => {
                     log::error!(
                         "herdr control for {} did not start: {error}",
-                        self.terminal()
+                        self.target.terminal()
                     );
                     self.gone.store(true, Ordering::Release);
                     let _ = sink.send(PtyEvent::Closed.into());
@@ -375,6 +331,9 @@ impl Shared {
                         log::warn!("herdr control sent an unreadable frame");
                         continue;
                     };
+                    if self.detached.load(Ordering::Acquire) {
+                        return false;
+                    }
                     if sink.send(PtyEvent::Output(bytes).into()).is_err() {
                         return false;
                     }
@@ -383,44 +342,5 @@ impl Shared {
                 _ => {}
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn shared(terminal: &str) -> Shared {
-        Shared {
-            launch: Launch {
-                bin: PathBuf::from("herdr"),
-                socket: PathBuf::from("/nonexistent"),
-            },
-            terminal: Mutex::new(terminal.to_owned()),
-            pane: Mutex::new(None),
-            api: Arc::new(Api::new(PathBuf::from("/nonexistent"))),
-            expected: AtomicU32::new(0),
-            slot: Mutex::new(Slot {
-                stdin: None,
-                child: None,
-            }),
-            connected: Condvar::new(),
-            gone: AtomicBool::new(false),
-            detached: AtomicBool::new(false),
-        }
-    }
-
-    #[test]
-    fn a_terminal_is_followed_through_its_pane_when_herdr_renumbers_it() {
-        let shared = shared("term_a");
-        let before = [json!({"pane_id": "w1:p2", "terminal_id": "term_a"})];
-        assert!(shared.locate(&before));
-        let after = [
-            json!({"pane_id": "w1:p1", "terminal_id": "term_x"}),
-            json!({"pane_id": "w1:p2", "terminal_id": "term_b"}),
-        ];
-        assert!(shared.locate(&after));
-        assert_eq!(shared.terminal(), "term_b");
-        assert!(!shared.locate(&[json!({"pane_id": "w1:p1", "terminal_id": "term_x"})]));
     }
 }
