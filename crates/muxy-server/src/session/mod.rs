@@ -1,3 +1,4 @@
+mod checkpoint;
 mod metadata;
 mod owner;
 

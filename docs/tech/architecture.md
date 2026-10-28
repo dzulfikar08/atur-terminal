@@ -104,7 +104,11 @@ flowchart LR
   cursor. If nothing changed, nothing is sent.
 - When output goes quiet after a burst, history is compressed.
 - A background writer saves the screen and history, so they survive the program
-  and the server.
+  and the server. Saving walks every retained row on the session thread, so a
+  session saves two seconds after its output goes quiet, and at most every 30
+  seconds while output never pauses. It also saves when the program exits, the
+  server stops or the screen is cleared. Sessions whose saves are slow wait
+  longer, keeping saves under 1% of the session thread.
 
 ## Inside a connection
 

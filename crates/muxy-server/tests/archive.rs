@@ -133,6 +133,51 @@ fn checkpoint_exists_while_the_session_is_live_without_clients() -> TestResult {
     Ok(())
 }
 
+const STREAMING: &[u8] =
+    b"stty -echo; i=0; while :; do echo tick-$i; i=$((i+1)); sleep 0.05; done\n";
+
+#[test]
+fn output_that_never_pauses_is_not_saved_every_second_but_shutdown_saves_it() -> TestResult {
+    let fixture = Fixture::new()?;
+    let id = fixture.start(STREAMING)?;
+    thread::sleep(Duration::from_secs(3));
+    assert!(fixture.registry.read_saved_screen(id).is_err());
+    fixture.registry.shutdown();
+    let deadline = Instant::now() + TIMEOUT;
+    while !fixture.registry.is_stopped() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    let saved = fixture.registry.read_saved_screen(id)?;
+    assert!(text(&saved).contains("tick-"));
+    assert_eq!(saved.reason, Some(ExitReason::ServerStopped));
+    Ok(())
+}
+
+#[test]
+fn clearing_the_screen_saves_at_once_while_output_keeps_streaming() -> TestResult {
+    let fixture = Fixture::new()?;
+    let id = fixture.start(STREAMING)?;
+    thread::sleep(Duration::from_secs(2));
+    assert!(fixture.registry.read_saved_screen(id).is_err());
+    let (reply, cleared) = mpsc::channel();
+    fixture
+        .registry
+        .handle(id)
+        .ok_or("missing session")?
+        .send(SessionCommand::ClearScreen { reply })?;
+    cleared.recv_timeout(TIMEOUT)??;
+    let deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        if fixture.registry.read_saved_screen(id).is_ok() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err("clearing the screen did not save".into());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 #[test]
 fn discard_racing_checkpoints_and_exit_cannot_recreate_an_archive() -> TestResult {
     let fixture = Fixture::new()?;
