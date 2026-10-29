@@ -710,9 +710,81 @@ impl Direct {
                     })
                 }))
             }
+            "pasteImage" => paste_image(live, args),
             other => Err(Fail::Bad(format!("unknown method `{other}`"))),
         }
     }
+}
+
+const PASTE_LIMIT: usize = 5 * 1024 * 1024;
+const PASTE_DIRECTORY: [&str; 3] = [".cache", "atur", "pastes"];
+
+fn server_error(reason: &str) -> Fail {
+    Fail::Core(MobileError::Server {
+        reason: reason.into(),
+    })
+}
+
+/// Standard base64, padded or not; ASCII whitespace is ignored.
+fn base64_decode(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(text.len() / 4 * 3 + 3);
+    let (mut buffer, mut bits) = (0_u32, 0_u32);
+    for byte in text.bytes().filter(|byte| !byte.is_ascii_whitespace()) {
+        let value = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            b'=' => break,
+            _ => return None,
+        };
+        buffer = (buffer << 6) | u32::from(value);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(u8::try_from((buffer >> bits) & 0xFF).ok()?);
+        }
+    }
+    Some(out)
+}
+
+/// Writes a pasted image into the computer's Home project at `.cache/atur/pastes/<name>`, where
+/// the agent can read it, and answers with its absolute path.
+fn paste_image(live: &Live, args: &Value) -> Answer {
+    attached_arg(&live.shared, args)?;
+    let name = str_arg(args, "name")?;
+    if name.is_empty()
+        || name.contains(['/', '\\'])
+        || name.contains("..")
+        || name.chars().any(char::is_control)
+    {
+        return Err(bad("name"));
+    }
+    let bytes = base64_decode(&str_arg(args, "base64")?).ok_or_else(|| bad("base64"))?;
+    if bytes.len() > PASTE_LIMIT {
+        return Err(server_error("Image is larger than 5 MiB."));
+    }
+    let home = live
+        .connection
+        .projects()?
+        .into_iter()
+        .find(|project| project.is_home)
+        .ok_or_else(|| server_error("The computer has no Home project."))?;
+    let files = live.connection.files(home.id)?;
+    let mut folder = String::new();
+    for part in PASTE_DIRECTORY {
+        if !folder.is_empty() {
+            folder.push('/');
+        }
+        folder.push_str(part);
+        if files.stat(folder.clone()).is_err() {
+            files.create_directory(folder.clone())?;
+        }
+    }
+    files.write_bytes(format!("{folder}/{name}"), bytes)?;
+    let base = home.directory.trim_end_matches('/');
+    Ok(json!({ "path": format!("{base}/{folder}/{name}") }))
 }
 
 fn spawn(name: &str, work: impl FnOnce() + Send + 'static) -> Result<(), Fail> {

@@ -80,6 +80,9 @@ It exists so the Kotlin and Swift glue stays a few lines long and identical on b
 - The predictive echo (`muxy-client`'s `Predictor`) runs in the core: it sees every key sent and every
   frame received, and its guesses are drawn into the rows. A timer thread sleeps until the predictor's next
   deadline.
+- `pasteImage` (`session`, `name`, `base64`) writes a pasted image into the computer's Home project at
+  `.cache/atur/pastes/<name>` (5 MiB limit, plain file names only) through the project files API and answers
+  with its absolute path, so image paste works on a direct connection without the bridge.
 
 `.github/workflows/mobile.yml` checks the crate and builds the Android libraries and the iOS XCFramework on
 hosted runners; `cargo test -p atur-mobile --test sdk bench_facade -- --ignored --nocapture` prints attach

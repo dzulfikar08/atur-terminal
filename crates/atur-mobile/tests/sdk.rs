@@ -1014,3 +1014,44 @@ fn bench_facade_attach_and_echo() -> TestResult {
     direct.disconnect();
     Ok(())
 }
+
+#[test]
+fn the_facade_pastes_images_into_the_home_project() -> TestResult {
+    let (_server, _local, direct, _events) = direct_phone()?;
+    let session = home_session(&direct, 40, 6)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    let png: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0x00, 0x7F,
+    ];
+    let name = format!("paste-test-{}.png", std::process::id());
+    let base64 = "iVBORw0KGgr/AH8=";
+    let pasted = call(
+        &direct,
+        "pasteImage",
+        &json!({ "session": session, "name": name, "base64": base64 }),
+    )?;
+    let path = PathBuf::from(pasted["path"].as_str().ok_or("no path")?);
+    let written = std::fs::read(&path);
+    let _ = std::fs::remove_file(&path);
+    assert!(path.ends_with(format!(".cache/atur/pastes/{name}")));
+    assert_eq!(written?, png);
+
+    for bad in ["", "a/b.png", "a\\b.png", "..", "x..png", "a\nb.png"] {
+        let answer = direct.call(
+            "pasteImage".into(),
+            json!({ "session": session, "name": bad, "base64": base64 }).to_string(),
+        );
+        assert!(ok(&answer).is_err(), "accepted name {bad:?}");
+    }
+    let huge = "A".repeat(4 * (5 * 1024 * 1024 / 3 + 2));
+    let answer = direct.call(
+        "pasteImage".into(),
+        json!({ "session": session, "name": "huge.png", "base64": huge }).to_string(),
+    );
+    assert!(answer.contains("larger than 5 MiB"), "{answer}");
+    Ok(())
+}
