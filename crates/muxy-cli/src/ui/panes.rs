@@ -1,6 +1,8 @@
 //! The panes of the current tab: terminal content, frames, scrollback, and
 //! selection.
 
+use std::time::Instant;
+
 use muxy_client::RunGrid;
 use muxy_protocol::{Color as TerminalColor, Run, Style as TerminalStyle, Underline};
 use ratatui::{
@@ -39,7 +41,11 @@ pub(super) fn draw(frame: &mut Frame<'_>, shared: &Shared, state: &State, ui: &m
             .selection
             .filter(|selection| selection.pane == area.id && !selection.is_empty())
             .map(|selection| selection.range(view.scroll.grid(&view.grid)));
+        let now = Instant::now();
         content(frame.buffer_mut(), area.inner, view, selected);
+        if !view.scroll.is_active() {
+            guesses(frame.buffer_mut(), area.inner, view, now);
+        }
         if view.scroll.is_active() {
             scroll_position(frame, &area, view, focused);
         }
@@ -61,9 +67,13 @@ pub(super) fn draw(frame: &mut Frame<'_>, shared: &Shared, state: &State, ui: &m
             && view.grid.cursor.col < area.inner.width
             && view.grid.cursor.row < area.inner.height
         {
+            let (row, col) = view
+                .predict
+                .cursor(now)
+                .unwrap_or((view.grid.cursor.row, view.grid.cursor.col));
             frame.set_cursor_position((
-                area.inner.x + view.grid.cursor.col,
-                area.inner.y + view.grid.cursor.row,
+                area.inner.x + col.min(area.inner.width.saturating_sub(1)),
+                area.inner.y + row.min(area.inner.height.saturating_sub(1)),
             ));
         }
     }
@@ -238,6 +248,25 @@ fn content(buffer: &mut Buffer, inner: Rect, view: &View, selected: Option<(Poin
                 cell.set_style(style.add_modifier(Modifier::REVERSED));
             }
         }
+    }
+}
+
+/// Draws the local echo's guesses over what the server last said; guesses still waiting after
+/// a moment are underlined so a stalled link is visible.
+fn guesses(buffer: &mut Buffer, inner: Rect, view: &View, now: Instant) {
+    for guess in view.predict.cells(now) {
+        if guess.row >= inner.height || guess.col >= inner.width {
+            continue;
+        }
+        let Some(cell) = buffer.cell_mut((inner.x + guess.col, inner.y + guess.row)) else {
+            continue;
+        };
+        let mut shown = style(guess.style);
+        if guess.underline {
+            shown = shown.add_modifier(Modifier::UNDERLINED);
+        }
+        cell.reset();
+        cell.set_symbol(&guess.text).set_style(shown);
     }
 }
 

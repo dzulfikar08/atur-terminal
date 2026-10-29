@@ -258,6 +258,21 @@ fn backspace_erases_the_character_before_the_cursor() {
 }
 
 #[test]
+fn backspace_goes_back_over_typed_spaces_but_not_into_the_prompt() {
+    let mut session = Session::new(PredictMode::Always, "$ ");
+    session.trust();
+    session.type_bytes(b" b");
+    session.wait(100);
+    session.serve("$ a b", 5);
+    session.type_bytes(b"\x7f\x7f\x7f");
+    assert_eq!(session.shown(), "$", "a, the space and b are all erased");
+    assert_eq!(session.cursor(), Some((0, 2)));
+    session.type_bytes(b"\x7f");
+    assert_eq!(session.cursor(), None, "no guess about what the shell does at the prompt");
+    assert_eq!(session.shown(), "$", "and the prompt itself is untouched");
+}
+
+#[test]
 fn backspace_at_the_start_of_the_input_is_not_predicted() {
     let mut session = Session::new(PredictMode::Always, "$ ");
     session.trust();

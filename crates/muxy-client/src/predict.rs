@@ -163,12 +163,14 @@ struct Blocked {
     settled: Option<Instant>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Predictor {
     mode: PredictMode,
     cells: BTreeMap<Point, Cell>,
     cursor: Option<CursorGuess>,
     blocked: Option<Blocked>,
+    /// Where the line being typed began: backspace and left arrow stay right of it.
+    line_start: Option<Point>,
     epoch: u64,
     confirmed_epoch: u64,
     rtt_high: bool,
@@ -199,6 +201,7 @@ impl Predictor {
             cells: BTreeMap::new(),
             cursor: None,
             blocked: None,
+            line_start: None,
             epoch: 1,
             confirmed_epoch: 0,
             rtt_high: false,
@@ -260,6 +263,11 @@ impl Predictor {
             PredictMode::Never => false,
             PredictMode::Auto => self.rtt_high || self.slow_until.is_some_and(|until| now < until),
         }
+    }
+
+    /// Whether a ping answered after the latest input would help resolve something.
+    pub fn wants_barrier(&self) -> bool {
+        self.mode != PredictMode::Never && (self.pending() || self.blocked.is_some())
     }
 
     /// Whether anything is guessed and not yet resolved.
@@ -489,6 +497,7 @@ impl Predictor {
     fn control(&mut self, now: Instant) {
         self.epoch += 1;
         self.cursor = None;
+        self.line_start = None;
         self.blocked = Some(Blocked {
             since: now,
             settled: None,
@@ -506,6 +515,9 @@ impl Predictor {
         let at = (grid.cursor.row, grid.cursor.col);
         if at.0 >= grid.size.rows || at.1 >= grid.size.cols {
             return None;
+        }
+        if !self.line_start.is_some_and(|start| start.0 == at.0 && start.1 <= at.1) {
+            self.line_start = Some(at);
         }
         self.cursor = Some(CursorGuess {
             at,
@@ -615,6 +627,19 @@ impl Predictor {
         true
     }
 
+    /// Whether the cell is part of what is being typed, not a prompt or other fixed text:
+    /// right of where the line began, or visibly text.
+    fn deletable(&self, grid: &RunGrid, rows: &mut HashMap<u16, Vec<Glyph>>, at: Point) -> bool {
+        let glyph = self.shown(grid, rows, at);
+        if glyph.wide {
+            return false;
+        }
+        let typed = self
+            .line_start
+            .is_some_and(|start| start.0 == at.0 && start.1 <= at.1);
+        typed || !glyph.is_blank()
+    }
+
     fn backspace(
         &mut self,
         grid: &RunGrid,
@@ -627,9 +652,7 @@ impl Predictor {
         if col == 0 {
             return false;
         }
-        let left = self.shown(grid, rows, (row, col - 1));
-        if left.wide || (left.is_blank() && !self.cells.contains_key(&(row, col - 1))) {
-            // The start of the input line, or text we cannot tell is deletable.
+        if !self.deletable(grid, rows, (row, col - 1)) {
             return false;
         }
         let Some(tail) = self.tail(grid, rows, row, col) else {
@@ -666,8 +689,7 @@ impl Predictor {
         if col == 0 {
             return false;
         }
-        let left = self.shown(grid, rows, (row, col - 1));
-        if left.wide || (left.is_blank() && !self.cells.contains_key(&(row, col - 1))) {
+        if !self.deletable(grid, rows, (row, col - 1)) {
             return false;
         }
         self.advance((row, col - 1), now);
