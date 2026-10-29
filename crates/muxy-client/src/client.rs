@@ -48,10 +48,25 @@ impl Drop for Shared {
     }
 }
 
+/// What carries a connection, so that a user can be told when the faster path
+/// they asked for was not the one they got.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum Transport {
+    /// A local socket, ssh, or TLS.
+    #[default]
+    Stream,
+    /// Encrypted UDP, bootstrapped through ssh.
+    Udp,
+    /// UDP was asked for and did not connect, for this reason; ssh carries the
+    /// connection instead.
+    UdpFailed(String),
+}
+
 #[derive(Clone)]
 pub struct Client {
     shared: Arc<Shared>,
     timeout: Duration,
+    transport: Transport,
 }
 
 impl std::fmt::Debug for Client {
@@ -155,7 +170,18 @@ impl Client {
         Ok(Self {
             shared,
             timeout: DEFAULT_TIMEOUT,
+            transport: Transport::Stream,
         })
+    }
+
+    pub fn transport(&self) -> &Transport {
+        &self.transport
+    }
+
+    #[must_use]
+    pub(crate) fn with_transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
     }
 
     #[must_use]

@@ -136,6 +136,8 @@ pub(crate) struct DeviceForm {
     pub(crate) port: String,
     pub(crate) identity_file: String,
     pub(crate) password_login: bool,
+    /// Reaches the server over encrypted UDP, with ssh as the fallback.
+    pub(crate) udp: bool,
     /// Kept in memory until Muxy quits, so connecting doesn't ask; empty
     /// asks when connecting.
     pub(crate) password: String,
@@ -169,6 +171,7 @@ impl DeviceForm {
             entry.identity_file =
                 Some(self.identity_file.trim().to_owned()).filter(|path| !path.is_empty());
             entry.password_login = self.password_login;
+            entry.udp = self.udp;
         }
         if let Some(id) = id {
             entry.id = id;

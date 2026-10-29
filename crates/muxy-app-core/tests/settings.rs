@@ -535,6 +535,7 @@ fn servers_load_and_saves_keep_other_settings_and_hand_edits() -> Result {
             ssh_command: None,
             identity_file: None,
             password_login: false,
+            udp: false,
         }]
     );
     assert_eq!(
@@ -558,6 +559,7 @@ fn servers_load_and_saves_keep_other_settings_and_hand_edits() -> Result {
             name: "builder".into(),
             identity_file: Some("~/.ssh/build key".into()),
             password_login: true,
+            udp: false,
             ..build.clone()
         },
         &path,
@@ -619,6 +621,7 @@ fn custom_commands_round_trip_beside_legacy_ssh_and_reject_ambiguous_logins() ->
         },
         ServerEntry {
             password_login: true,
+            udp: false,
             ..custom.clone()
         },
         ServerEntry {

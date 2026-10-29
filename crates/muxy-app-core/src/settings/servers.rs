@@ -26,6 +26,11 @@ pub struct ServerEntry {
     /// Logs in with a password, which the app asks for and never saves.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub password_login: bool,
+    /// Moves the connection onto encrypted UDP once ssh has logged in, which
+    /// holds up on slow, lossy or changing networks. ssh carries it when UDP
+    /// does not connect.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub udp: bool,
 }
 
 impl ServerEntry {
@@ -37,6 +42,7 @@ impl ServerEntry {
             ssh_command: None,
             identity_file: None,
             password_login: false,
+            udp: false,
         }
     }
 

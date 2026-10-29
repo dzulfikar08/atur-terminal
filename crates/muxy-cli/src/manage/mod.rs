@@ -38,6 +38,9 @@ pub(crate) fn run(invocation: Invocation, host: Option<SshTarget>) -> Result {
     let client = target
         .connect(start)
         .map_err(|error| target.explain(error))?;
+    if let muxy_client::Transport::UdpFailed(reason) = client.transport() {
+        writeln!(io::stderr(), "note: UDP unavailable ({reason}); using SSH")?;
+    }
     let paths = match target {
         Target::Local { .. } => Paths::Local,
         Target::Ssh { .. } => Paths::Remote,

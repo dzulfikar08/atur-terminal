@@ -12,7 +12,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use muxy_app_core::{Direction, PaneId};
-use muxy_client::{Client, ClientError, Start};
+use muxy_client::{Client, ClientError, Start, Transport};
 use muxy_protocol::{
     CatalogPage, ChannelId, ErrorCode, MouseEvent, ProjectId, ProjectSession, ServerIdentity,
     SessionId, Size,
@@ -234,6 +234,7 @@ struct Core {
 impl Core {
     fn run(&mut self, mut first: Option<Client>, requests: &Receiver<Action>) {
         let mut failures = 0;
+        let mut told_about_udp = false;
         while !self.stop.load(Ordering::Acquire) {
             let client = if let Some(client) = first.take() {
                 client
@@ -257,6 +258,11 @@ impl Core {
                 }
             };
             failures = 0;
+            if let Transport::UdpFailed(reason) = client.transport()
+                && !std::mem::replace(&mut told_about_udp, true)
+            {
+                self.message(&format!("UDP unavailable ({reason}); using SSH"));
+            }
             *lock(&self.connection) = Some(client.clone());
             let reader = match io::reader(
                 client.clone(),

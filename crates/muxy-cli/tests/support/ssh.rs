@@ -28,6 +28,16 @@ impl FakeRemote {
     /// becomes the remote command, so its `$$` is the bridge's pid even where
     /// /bin/sh is dash, which forks a lone `-c` command instead of becoming it.
     pub(super) fn with_script(script: &str) -> Result<Self> {
+        Self::build(script, false)
+    }
+
+    /// Like [`FakeRemote::new`], but the remote command keeps running when
+    /// the fake ssh is killed, as it does under a real sshd.
+    pub(super) fn detached() -> Result<Self> {
+        Self::build("", true)
+    }
+
+    fn build(script: &str, detached: bool) -> Result<Self> {
         let directory = tempfile::Builder::new()
             .prefix("muxy-ssh-")
             .tempdir_in("/tmp")?;
@@ -43,7 +53,7 @@ impl FakeRemote {
              unset ATUR_TERM_SERVER_BIN ATUR_TERM_PANE_ID XDG_STATE_HOME\n\
              {script}\n\
              for last; do :; done\n\
-             exec /bin/sh -c \"exec $last\"\n",
+             {run}\n",
             home = quote(&remote.home()),
             profile = quote(remote.profile()),
             bin = quote(
@@ -51,6 +61,11 @@ impl FakeRemote {
                     .parent()
                     .ok_or("binary directory")?
             ),
+            run = if detached {
+                "/bin/sh -c \"exec $last\" <&0 &\nwait $!"
+            } else {
+                "exec /bin/sh -c \"exec $last\""
+            },
         );
         install(&remote.ssh(), &ssh)?;
         Ok(remote)

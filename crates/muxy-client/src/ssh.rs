@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fmt;
 use std::io::{self, Read};
+use std::net::{IpAddr, ToSocketAddrs};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStderr, Command, Stdio};
@@ -15,8 +16,9 @@ use std::time::Duration;
 
 use muxy_protocol::transport::ChildStream;
 
-use crate::bridge::{self, BridgeExit, Start};
-use crate::{Client, ClientError, RemoteReason};
+use crate::bridge::{self, BridgeExit, Start, UdpPlan};
+use crate::udp::{UdpRelay, UdpSettings};
+use crate::{Client, ClientError, RemoteReason, Transport};
 
 /// Covers ssh's 10 s connect timeout, logging in, and starting the server.
 const READY_TIMEOUT: Duration = Duration::from_secs(20);
@@ -46,6 +48,7 @@ pub struct SshTarget {
     identity: Option<PathBuf>,
     askpass: Option<Askpass>,
     host_key_prompt: bool,
+    udp: Option<UdpSettings>,
 }
 
 /// A program that answers ssh's prompts, such as for a saved password. ssh
@@ -81,6 +84,7 @@ impl SshTarget {
             identity: None,
             askpass: None,
             host_key_prompt: false,
+            udp: None,
         })
     }
 
@@ -96,6 +100,7 @@ impl SshTarget {
             identity: None,
             askpass: None,
             host_key_prompt: false,
+            udp: None,
         })
     }
 
@@ -118,6 +123,15 @@ impl SshTarget {
         self
     }
 
+    /// Reaches the server over encrypted UDP, which holds up on slow, lossy
+    /// and changing networks, falling back to ssh alone when UDP does not
+    /// connect. ssh still logs in and starts the bridge.
+    #[must_use]
+    pub fn with_udp(mut self, settings: UdpSettings) -> Self {
+        self.udp = Some(settings);
+        self
+    }
+
     #[must_use]
     pub fn with_host_key_prompt(mut self) -> Self {
         self.host_key_prompt = true;
@@ -133,6 +147,71 @@ impl SshTarget {
 
     pub fn destination(&self) -> &str {
         &self.destination
+    }
+
+    /// Whether this target asks for UDP, by its settings or by
+    /// `ATUR_TERM_UDP`.
+    pub fn wants_udp(&self) -> bool {
+        self.udp.is_some() || UdpSettings::requested_by_environment()
+    }
+
+    /// The UDP plan, or why there can be none. `None` when UDP is not asked
+    /// for.
+    fn udp_plan(&self) -> Option<Result<(UdpPlan, UdpRelay), String>> {
+        if !self.wants_udp() {
+            return None;
+        }
+        let settings = match &self.udp {
+            Some(settings) => settings.clone(),
+            None => UdpSettings::default().from_environment(),
+        };
+        Some(
+            self.udp_addresses(settings.host.as_deref())
+                .map(|addresses| {
+                    let relay = UdpRelay::from(&settings);
+                    (
+                        UdpPlan {
+                            addresses,
+                            settings,
+                        },
+                        relay,
+                    )
+                }),
+        )
+    }
+
+    /// The addresses of the host as ssh connects to it, from its resolved
+    /// configuration.
+    fn udp_addresses(&self, host: Option<&str>) -> Result<Vec<IpAddr>, String> {
+        let host = match host {
+            Some(host) => host.to_owned(),
+            None => {
+                if self.is_custom_command() {
+                    return Err("custom commands do not name a host to reach over UDP".into());
+                }
+                let config = self.config().map_err(|error| error.to_string())?;
+                config
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(' ')?;
+                        (name == "hostname").then(|| value.trim().to_owned())
+                    })
+                    .ok_or("ssh did not report a host name")?
+            }
+        };
+        let mut addresses: Vec<IpAddr> = Vec::new();
+        for address in (host.as_str(), 0)
+            .to_socket_addrs()
+            .map_err(|error| format!("could not look up {host}: {error}"))?
+        {
+            if !addresses.contains(&address.ip()) {
+                addresses.push(address.ip());
+            }
+        }
+        if addresses.is_empty() {
+            return Err(format!("{host} has no address"));
+        }
+        Ok(addresses)
     }
 
     pub fn askpass(&self) -> Option<&Askpass> {
@@ -367,7 +446,37 @@ impl Client {
     /// program, so logging in otherwise needs ssh-agent, a key, or a
     /// certificate. The host's key must already be trusted.
     pub fn connect_ssh(target: &SshTarget, start: Start) -> Result<Self, ClientError> {
-        let mut command = target.command(bridge::command(start))?;
+        let plan = match target.udp_plan() {
+            None => return Self::connect_ssh_with(target, bridge::command(start).into(), None),
+            Some(Err(reason)) => {
+                return Ok(
+                    Self::connect_ssh_with(target, bridge::command(start).into(), None)?
+                        .with_transport(Transport::UdpFailed(reason)),
+                );
+            }
+            Some(Ok(plan)) => plan,
+        };
+        let (plan, relay) = plan;
+        match Self::connect_ssh_with(target, bridge::udp_command(start, &relay), Some(&plan)) {
+            Err(ClientError::Remote { detail, .. })
+                if detail.contains("usage: atur-term stdio") =>
+            {
+                // An older Atur Terminal there does not know `--udp`.
+                let client = Self::connect_ssh_with(target, bridge::command(start).into(), None)?;
+                Ok(client.with_transport(Transport::UdpFailed(
+                    "the server's Atur Terminal is too old for UDP; update it".into(),
+                )))
+            }
+            other => other,
+        }
+    }
+
+    fn connect_ssh_with(
+        target: &SshTarget,
+        remote: String,
+        plan: Option<&UdpPlan>,
+    ) -> Result<Self, ClientError> {
+        let mut command = target.command(&remote)?;
         let program = PathBuf::from(command.get_program());
         command.stderr(Stdio::piped());
         let mut stream = ChildStream::spawn(command).map_err(|error| {
@@ -387,16 +496,20 @@ impl Client {
         })?;
         let stderr = ErrorTail::drain(stream.take_stderr())?;
         let process = stream.process();
-        Self::connect_bridge(Box::new(stream), &target.destination, READY_TIMEOUT, || {
-            BridgeExit {
+        Self::connect_bridge_with(
+            Box::new(stream),
+            &target.destination,
+            READY_TIMEOUT,
+            || BridgeExit {
                 status: process
                     .wait_timeout(EXIT_TIMEOUT)
                     .ok()
                     .flatten()
                     .and_then(|status| status.code()),
                 stderr: stderr.wait(EXIT_TIMEOUT),
-            }
-        })
+            },
+            plan,
+        )
     }
 }
 
