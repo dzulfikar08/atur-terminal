@@ -88,9 +88,14 @@ report() {
     # A bare word fused with neighbouring bytes (muxypeer, ;Muxyut) is a one-word legacy key; a
     # "Muxy" followed by another word stays visible.
     bare="$(grep -E -i '(^|[^[:alnum:]_./:-])[[:alnum:];]*muxy[[:alnum:];]*($|[^[:alnum:]_./:[:space:]-]|[[:space:]]*$)' <<<"$outer" | grep -v -E -i 'muxy[[:space:]]+[[:alnum:]]' || true)"
+    # The lowercase directory name "muxy" of the old Linux data directory sits next to unrelated
+    # literals; it is legacy unless it forms a name with - _ . / : or starts a sentence-like word run.
+    lower="$(grep -P '^(?!.*(?i:muxy)(?<!muxy))(?!.*[-_./:]muxy)(?!.*muxy[-_./:])(?!.*muxy +[A-Za-z]).*muxy' <<<"$outer" || true)"
+    [[ -n "$lower" ]] && bare="$bare"$'\n'"$lower"
+    bare="$(sed '/^$/d' <<<"$bare")"
     if [[ -n "$bare" ]]; then
         old="$old"$'\n'"$bare"
-        outer="$(grep -v -x -F "$bare" <<<"$outer" || true)"
+        outer="$(grep -v -x -F -f <(printf '%s\n' "$bare") <<<"$outer" || true)"
     fi
     [[ -n "$old" ]] && legacy=$((legacy + 1))
     if [[ -n "$outer" ]]; then
