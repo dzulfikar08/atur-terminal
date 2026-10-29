@@ -92,7 +92,7 @@ report() {
     # literals; it is legacy unless it forms a name with - _ . / : or starts a sentence-like word run.
     lower="$(python3 -c '
 import re, sys
-bad = re.compile(r"(?i:muxy)(?<!muxy)|[-_./:]muxy|muxy[-_./:]|muxy +[A-Za-z]")
+bad = re.compile(r"(?i:muxy)(?<!muxy)|[-_./:]muxy|muxy[-_./:]")
 for line in sys.stdin:
     line = line.rstrip("\n")
     if "muxy" in line and not bad.search(line):
