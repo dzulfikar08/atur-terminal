@@ -49,7 +49,7 @@ impl Boot {
         let previous = crate::backup::import_previous_profile(profile).unwrap_or_else(|error| {
             Some(
                 tr!(
-                    "Tabs, workspaces, and servers from Muxy were not imported. %@",
+                    "Tabs, workspaces, and servers from your earlier install were not imported. %@",
                     error.to_string()
                 )
                 .to_string(),

@@ -163,7 +163,7 @@ pub(crate) fn import_previous_profile(profile: &Path) -> Result<Option<String>> 
     Ok(
         muxy_app_core::previous_profile::import(&previous, profile)?.map(|imported| {
             tr!(
-                "Atur Terminal brought over %lld tabs, %lld workspaces, and %lld servers from Muxy.",
+                "Atur Terminal brought over %lld tabs, %lld workspaces, and %lld servers from your earlier install.",
                 imported.tabs,
                 imported.workspaces,
                 imported.servers
