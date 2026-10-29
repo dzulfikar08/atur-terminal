@@ -596,4 +596,60 @@ mod tests {
         assert!(detector.adopt(provider, AgentState::Idle));
         assert!(!detector.adopt(provider, AgentState::Idle));
     }
+
+    #[test]
+    fn tabs_are_created_unlabelled_in_a_workspace_named_after_the_project() {
+        use muxy_protocol::{ProjectId, ServerPath};
+
+        let fake = fake::Fake::start();
+        let state = fake.directory().join("state");
+        std::fs::create_dir_all(&state).expect("state");
+        let herdr = Herdr::open(
+            &HerdrConfig {
+                bin: None,
+                socket: Some(fake.socket().to_path_buf()),
+            },
+            &state,
+        )
+        .expect("open");
+        let project = ProjectId::from_u128(3);
+        let create = |id: u64| {
+            let info = SessionInfo {
+                project,
+                id: SessionId::new(id).expect("id"),
+                directory: ServerPath(b"/tmp".to_vec()),
+            };
+            herdr
+                .create(&NewTerminal {
+                    info: &info,
+                    project_name: "Atur Web",
+                    directory: Path::new("/tmp"),
+                    size: Size { cols: 80, rows: 24 },
+                    environment: vec![("ATUR_TERM_SESSION_ID".to_owned(), id.to_string())],
+                })
+                .expect("create")
+        };
+        let first = create(1);
+        let second = create(2);
+        assert_eq!(first.target.pane().as_deref(), Some("w1:p1"));
+        assert_eq!(second.target.pane().as_deref(), Some("w1:p2"));
+
+        let workspaces = fake.calls("workspace.create");
+        assert_eq!(workspaces.len(), 1);
+        assert_eq!(workspaces[0]["label"], "Atur Web");
+        assert_eq!(workspaces[0]["env"]["ATUR_TERM_SESSION_ID"], "1");
+        let tabs = fake.calls("tab.create");
+        assert_eq!(tabs.len(), 1);
+        assert_eq!(tabs[0]["workspace_id"], "w1");
+        assert_eq!(tabs[0]["env"]["ATUR_TERM_SESSION_ID"], "2");
+        // No label on either tab, and none given afterwards: herdr numbers them.
+        assert!(tabs[0].get("label").is_none());
+        assert!(fake.calls("tab.rename").is_empty());
+        assert_eq!(fake.labels(), ["1", "2"]);
+        // The pane ids are saved: they are what survives a handoff.
+        let saved = herdr.store.sessions();
+        assert_eq!(saved.len(), 2);
+        assert_eq!(saved[0].1.pane.as_deref(), Some("w1:p1"));
+        assert_eq!(saved[1].1.pane.as_deref(), Some("w1:p2"));
+    }
 }

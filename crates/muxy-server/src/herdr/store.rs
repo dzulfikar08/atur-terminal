@@ -145,4 +145,24 @@ mod tests {
         store.remove_session(session);
         assert!(Store::open(&dir).expect("reopen").sessions().is_empty());
     }
+
+    #[test]
+    fn a_file_from_a_build_that_saved_no_pane_is_still_read() {
+        let dir = std::env::temp_dir().join(format!(
+            "atur-herdr-store-{}",
+            getrandom::u64().unwrap_or(1)
+        ));
+        fs::create_dir_all(&dir).expect("directory");
+        let project = ProjectId::from_u128(9);
+        fs::write(
+            dir.join("herdr.json"),
+            format!(r#"{{"version":1,"sessions":{{"7":{{"terminal":"term_a","project":"{project}"}}}},"workspaces":{{}}}}"#),
+        )
+        .expect("write");
+        let store = Store::open(&dir).expect("open");
+        let sessions = store.sessions();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].1.pane, None);
+        assert_eq!(sessions[0].1.project, project);
+    }
 }

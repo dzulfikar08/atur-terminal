@@ -39,7 +39,9 @@ default) keeps local PTYs. The server refuses to start if herdr does not answer 
 | Shared, short-lived `pane.list` copy: title, scrollback size, agent | `herdr/panes.rs` |
 | Scrollback via `pane.read` | `herdr/scrollback.rs` |
 | Session/project to herdr mapping, `herdr.json` | `herdr/store.rs` |
-| Creation, adoption of survivors, the `Backing` implementation | `herdr/mod.rs` |
+| Adoption of survivors (saved ids, shell environment, legacy labels) | `herdr/adopt.rs` |
+| Creation and the `Backing` implementation | `herdr/mod.rs` |
+| Socket API stand-in for tests | `herdr/fake.rs` (test only) |
 | Backend selection | `backend.rs` (binary crate) |
 
 ## Request inventory
@@ -52,7 +54,7 @@ process or bytes go to herdr; everything else is the existing server code.
 | `Authenticate`, `IdentifyClient`, `Ping`, remote access, pairing (`Paired`, `RemoteAccess`, `Pairing`) | atur-term-server, unchanged |
 | `ReadCatalog`, `MutateProject`, `ListProjectSessions`, `CancelCreation` | atur-term-server catalog, unchanged |
 | `ListSessions` | atur-term-server session table; sessions are adopted from herdr at start |
-| `CreateSession` | herdr: `workspace.create` (first session of a project) or `tab.create`, with the project directory, `ATUR_TERM_*` environment and a tab label `atur-<id>`; then a control stream |
+| `CreateSession` | herdr: `workspace.create` (first session of a project; label = project name) or `tab.create`, with the project directory, `ATUR_TERM_*` environment and no tab label; then a control stream |
 | `Attach`, `Detach`, `Resize` (+ `ScreenFrame`, `FrameAck`, `Snapshot`, `Resized`) | atur-term-server owner. The first attach opens herdr's control stream and is answered when its first frame has painted the owner's terminal; the last detach closes the stream after 5 s. Resize goes to the control stream (`terminal.resize`) while it is open and is applied when it opens otherwise |
 | `WriteInput`, `Input`, `TerminalInput`, `Paste` | atur-term-server encodes keys. Bytes go to `terminal.input` while the stream is open and to `pane.send_text` otherwise (no stream is opened for input alone). Pastes are always bracketed because herdr re-wraps for the application's own mode |
 | `Mouse` | `terminal.mouse` / `terminal.scroll` on the control stream |
@@ -115,21 +117,40 @@ herdr itself renders only the panes a client views. `atur-term-server` does the 
 
 | Atur Terminal | herdr |
 |---|---|
-| `ProjectId` | one herdr workspace, created with the first session of the project (label = project name). Stored in `herdr.json` and recovered from the panes of adopted sessions |
-| `SessionId` (u64) | one tab labelled `atur-<top 32 bits of the id, hex>` holding one pane; the pane's `terminal_id` is stored in `herdr.json` |
+| `ProjectId` | one herdr workspace, created with the first session of the project (label = project name, the catalog's, never an id). Stored in `herdr.json` and recovered from the panes of adopted sessions |
+| `SessionId` (u64) | one tab holding one pane, **without a label**, so herdr numbers it (1, 2, 3, …) like the tabs the user opens. The pane's `terminal_id` and `pane_id` are stored in `herdr.json`, and the session id is in the shell's environment as `ATUR_TERM_SESSION_ID` |
 | Session size | owned by Atur Terminal: the control stream attaches with `--takeover` at the client's size and `terminal.resize` follows every `Resize` |
 
 herdr numbers terminals afresh after a server restart and **re-mints terminal ids on a live handoff**
 (observed: `term_…` ids changed, pane ids `w7:p3` and processes did not). So the saved terminal id is only
-a hint. Adoption finds a session by (1) the saved terminal id, then (2) its tab label, for every session
-the Atur Terminal catalog remembers, and a running control stream follows its pane id to the new terminal id.
+a hint, and tabs carry no label to find a session by. For every session the Atur Terminal catalog remembers,
+adoption (`herdr/adopt.rs`) tries, in order:
+
+1. **The saved ids** in `herdr.json`: the terminal id, then the pane id. The pane id is the durable one, as it
+   survives a handoff; both are rewritten when adoption finds the session under other ids.
+2. **The shell's environment**: `ATUR_TERM_SESSION_ID` (`MUXY_SESSION_ID` before the rename), read from
+   `/proc/<shell pid>/environ` with the `shell_pid` of `pane.process_info` (same host, Linux). It needs no saved
+   state, so it also finds sessions after `herdr.json` is deleted. One `pane.process_info` request per pane
+   that is checked, once per start.
+3. **The tab label** `atur-<id>` or the earlier `muxy-<id>`, for sessions made by builds that labelled their tabs
+   (a live server of an earlier build). Only for these is a label read; nothing writes one.
+
+A pane that a saved id (1) points to is taken only if its shell's environment names that session, or cannot
+be read (no `/proc`, as on macOS). A readable environment naming another session or none means the id now
+belongs to someone else's terminal (ids are reused after a restart) and is skipped, because ending a session
+closes its pane. A pane under a legacy label is taken unless its environment names another session. A pane is
+adopted by one session only. A running control stream follows its pane id to the new terminal id.
+
+Adoption never renames a tab: herdr's `tab.rename` takes a string and has no way to clear a label back to the
+default number, so tabs that carry a legacy label keep it until the user renames them.
 
 ## Surviving restarts
 
 * **Restart or crash of `atur-term-server`** (`atur-term server stop`, `kill -9`): sessions are not ended
   (`ExitReason::ServerStopped` detaches), and no `SessionEnded` is sent. On start the registry asks
   herdr for its panes and adopts every session it can match (above), rebuilding the table from herdr
-  and the catalog alone: it also works with `herdr.json` deleted. Clients reconnect and reattach.
+  and the catalog alone: it also works with `herdr.json` deleted, because the shell's environment names
+  its session. Clients reconnect and reattach.
 * **herdr restart/handoff** (`herdr update --handoff`, API `server.live_handoff`): the API and control
   streams drop. The control stream waits up to 60 s for herdr to answer again (an unreachable herdr is not a
   dead terminal), follows the renumbered terminal through its pane, and reconnects. Processes are
@@ -166,6 +187,9 @@ the Atur Terminal catalog remembers, and a running control stream follows its pa
 * Deleting a project does not remove its herdr workspace.
 * The mirror and herdr's own UI contend for the pane size (`--takeover`); the last one to resize wins.
 * Handoff of the whole stack on herdr's `update` command needs herdr ≥ 0.9.x with `live_handoff`.
+* Where `/proc` has no process environment (macOS), adoption cannot read a shell's session id: it relies on the
+  saved terminal and pane ids (the pane id survives a handoff) and on legacy tab labels, so with `herdr.json`
+  deleted a session of an unlabelled tab is not found.
 
 ## Measurements
 
@@ -211,7 +235,8 @@ Isolated herdr (`HERDR_SOCKET_PATH` under /tmp), isolated `ATUR_TERM_DIR`, the s
 1. `atur-term server stop --force` (and `kill -9`) of `atur-term-server` while the TUI shows a session running the
    workload: herdr's shell and workload pids unchanged; `atur-term server start` adopts the session
    (`session adopted from herdr: <id>`), the same TUI keeps drawing the workload (its counter continues).
-   Same with `herdr.json` deleted: the session is found by its tab label.
+   Same with `herdr.json` deleted: the session was found by its tab label (this run predates unlabelled tabs; the
+   current build finds it by the `ATUR_TERM_SESSION_ID` of its shell, see "Identity mapping").
 2. `server.live_handoff` to a copy of the herdr binary while `atur-term-server` keeps running: herdr's pid
    changes, the shell/workload pids do not, terminal ids change (`term_… is now term_…` in the Atur Terminal log),
    all sessions stay `Live`, and typing into a session afterwards works (`echo post-handoff-ok`).
