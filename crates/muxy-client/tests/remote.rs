@@ -188,15 +188,26 @@ fn hosts(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| (*name).to_owned()).collect()
 }
 
-/// Pairs with the server at `host`, then returns an endpoint for `hosts`.
+/// An endpoint for `hosts` of the server that made `offer`.
+fn endpoint_for(offer: &PairingOffer, hosts: Vec<String>) -> RemoteEndpoint {
+    let mut endpoint = RemoteEndpoint::from(&offer.invite);
+    endpoint.hosts = hosts;
+    endpoint
+}
+
+/// Pairs with the server of `offer`. The offer's secret works once: a test that connects
+/// more than once pairs here once and reuses the credential.
+fn pair(offer: &PairingOffer) -> TestResult<muxy_protocol::DeviceCredential> {
+    let (_phone, paired) = Client::pair(&offer.invite, "Phone")?;
+    Ok(paired.credential)
+}
+
+/// Pairs once, then returns an endpoint for `hosts`.
 fn paired_endpoint(
     offer: &PairingOffer,
     hosts: Vec<String>,
 ) -> TestResult<(RemoteEndpoint, muxy_protocol::DeviceCredential)> {
-    let (_phone, paired) = Client::pair(&offer.invite, "Phone")?;
-    let mut endpoint = RemoteEndpoint::from(&offer.invite);
-    endpoint.hosts = hosts;
-    Ok((endpoint, paired.credential))
+    Ok((endpoint_for(offer, hosts), pair(offer)?))
 }
 
 /// One line per race, which the `route` job copies into its summary.
@@ -255,7 +266,7 @@ fn a_single_address_is_connected_as_before() -> TestResult {
     assert_eq!(route.kind, RouteKind::Local);
     client.ping()?;
     // No address at all is an error, not a hang.
-    let (endpoint, credential) = paired_endpoint(&offer, Vec::new())?;
+    let endpoint = endpoint_for(&offer, Vec::new());
     assert!(matches!(
         Client::connect_remote_at(&endpoint, credential),
         Err(ClientError::Io(_))
@@ -287,7 +298,8 @@ fn netem_the_fast_address_beats_a_delayed_one_listed_first() -> TestResult {
     let server = Server::bound(Ipv4Addr::UNSPECIFIED);
     let (_local, offer) = server.pairing_via("127.0.0.1", None)?;
     // Alone, the delayed address needs several round trips of 240 ms.
-    let (alone, credential) = paired_endpoint(&offer, hosts(&["127.0.0.2"]))?;
+    let credential = pair(&offer)?;
+    let alone = endpoint_for(&offer, hosts(&["127.0.0.2"]));
     let started = Instant::now();
     let (_client, route) = Client::connect_remote_at(&alone, credential)?;
     report("delayed-alone-netem", &route, started.elapsed());
@@ -295,7 +307,7 @@ fn netem_the_fast_address_beats_a_delayed_one_listed_first() -> TestResult {
         route.elapsed >= Duration::from_millis(600),
         "127.0.0.2 is not delayed: {route:?}"
     );
-    let (both, credential) = paired_endpoint(&offer, hosts(&["127.0.0.2", "127.0.0.1"]))?;
+    let both = endpoint_for(&offer, hosts(&["127.0.0.2", "127.0.0.1"]));
     let started = Instant::now();
     let (client, route) = Client::connect_remote_at(&both, credential)?;
     let total = started.elapsed();

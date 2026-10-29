@@ -6,7 +6,7 @@ use std::process::Command;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use atur_mobile::{
     Connection, ConnectionEvent, ConnectionListener, Direct, DirectListener, GitChangeKind,
@@ -762,13 +762,13 @@ fn direct_phone() -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>)> 
     Ok((server, local, direct, events))
 }
 
-/// Pairs a phone with `server` (over `port` when given) and connects its facade, asking for
-/// `transport` when given. Also returns the connect answer.
-fn connect_phone(
+/// Pairs a phone with `server` (over `port` when given) and returns the credential as the
+/// module stores it, asking for `transport` when given.
+fn pair_phone(
     server: Server,
     transport: Option<&str>,
     port: Option<u16>,
-) -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>, Value)> {
+) -> TestResult<(Server, Client, Value)> {
     let local = server.local()?;
     match port {
         Some(port) => listen_at(&local, port)?,
@@ -786,6 +786,17 @@ fn connect_phone(
     if let Some(transport) = transport {
         credential["transport"] = json!(transport);
     }
+    Ok((server, local, credential))
+}
+
+/// Pairs a phone with `server` (over `port` when given) and connects its facade, asking for
+/// `transport` when given. Also returns the connect answer.
+fn connect_phone(
+    server: Server,
+    transport: Option<&str>,
+    port: Option<u16>,
+) -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>, Value)> {
+    let (server, local, credential) = pair_phone(server, transport, port)?;
     let (sender, events) = mpsc::channel();
     let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
     let info = ok(&direct.connect(credential.to_string()))?;
@@ -852,6 +863,11 @@ impl Rows {
 
     fn has(&self, needle: &str) -> bool {
         self.0.iter().any(|row| row.contains(needle))
+    }
+
+    /// How many times `marker` is on the screen.
+    fn count(&self, marker: char) -> usize {
+        self.0.iter().map(|row| row.matches(marker).count()).sum()
     }
 }
 
@@ -1265,12 +1281,6 @@ fn netem(step: &str) -> TestResult<bool> {
     }
 }
 
-fn now_nanos() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos())
-}
-
 /// Waits for an event like `wait_json`, for as long as a badly shaped link needs.
 fn wait_json_within(
     events: &Receiver<Value>,
@@ -1286,18 +1296,156 @@ fn wait_json_within(
     }
 }
 
-/// The newest `tick-<nanoseconds>` the rows show.
-fn newest_tick(rows: &Rows) -> Option<u128> {
-    rows.0
-        .iter()
-        .filter_map(|row| row.trim().strip_prefix("tick-")?.trim().parse().ok())
-        .max()
+/// The character the outage probes of connection number `generation` type. Each connection
+/// has its own, so a probe typed on an earlier one cannot be mistaken for it.
+fn probe_marker(generation: usize) -> char {
+    char::from(b'z' - u8::try_from(generation % 8).unwrap_or(0))
+}
+
+/// Connects again with the stored credential, attaches `session` and waits for its screen,
+/// retrying until `deadline`. Returns the connect answer.
+#[allow(clippy::print_stderr)]
+fn reconnect(
+    direct: &Direct,
+    events: &Receiver<Value>,
+    credential: &Value,
+    session: &str,
+    rows: &mut Rows,
+    deadline: Instant,
+) -> TestResult<Value> {
+    loop {
+        if Instant::now() >= deadline {
+            return Err("the phone did not reconnect in time".into());
+        }
+        // Whatever the old connection left behind is not about this one.
+        while events.try_recv().is_ok() {}
+        let attempt = ok(&direct.connect(credential.to_string())).and_then(|info| {
+            call(
+                direct,
+                "attach",
+                &json!({ "session": session, "cols": 100, "rows": 10 }),
+            )?;
+            *rows = Rows::default();
+            wait_json_within(events, Duration::from_secs(30), |event| {
+                rows.apply(event);
+                event["t"] == "snapshot"
+            })?;
+            call(direct, "echoMode", &json!({ "mode": "never" }))?;
+            Ok(info)
+        });
+        match attempt {
+            Ok(info) => return Ok(info),
+            Err(error) => {
+                eprintln!("reconnect attempt failed: {error}");
+                thread::sleep(Duration::from_millis(500));
+            }
+        }
+    }
+}
+
+/// How an outage ended for the phone.
+struct Recovery {
+    /// From the end of the outage to the first probe back on the screen.
+    elapsed: Duration,
+    /// Whether the connection died and a new one carried the probe.
+    reconnected: bool,
+}
+
+/// Lives through an outage that has just begun and lasts 10 s: types a marker every 500 ms and
+/// drains the events, never waiting on a request that could time out. When the link comes back
+/// (`outage-off`) the first marker typed since the outage began to appear on the screen ends the
+/// wait; if the connection died on the way (a `disconnected` event), a new one is made after the
+/// outage and the first marker its own probes show ends it. Fails only after two minutes.
+#[allow(clippy::print_stderr)]
+fn recover_from_outage(
+    transport: &str,
+    direct: &Direct,
+    events: &Receiver<Value>,
+    credential: &Value,
+    session: &str,
+    rows: &mut Rows,
+) -> TestResult<Recovery> {
+    const OUTAGE: Duration = Duration::from_secs(10);
+    const PROBE_EVERY: Duration = Duration::from_millis(500);
+    const LIMIT: Duration = Duration::from_secs(120);
+    let began = Instant::now();
+    let outage_ends = began + OUTAGE;
+    let mut restored: Option<Instant> = None;
+    let mut generation = 0;
+    let mut seen = rows.count(probe_marker(generation));
+    let mut dead = false;
+    let mut reconnected = false;
+    let mut next_probe = began;
+    loop {
+        if restored.is_none() && Instant::now() >= outage_ends {
+            netem("outage-off")?;
+            restored = Some(Instant::now());
+        }
+        if let Some(at) = restored {
+            if at.elapsed() > LIMIT {
+                return Err(
+                    format!("no probe came back within {LIMIT:?}; rows: {:?}", rows.0).into(),
+                );
+            }
+            if dead {
+                let info = reconnect(direct, events, credential, session, rows, at + LIMIT)?;
+                eprintln!(
+                    "lossy {transport} reconnected transport={} note={:?}",
+                    info["transport"], info["udpNote"]
+                );
+                generation += 1;
+                seen = rows.count(probe_marker(generation));
+                dead = false;
+                reconnected = true;
+                next_probe = Instant::now();
+            }
+        }
+        if !dead && Instant::now() >= next_probe {
+            let data = probe_marker(generation).to_string();
+            if fire(
+                direct,
+                "input",
+                &json!({ "session": session, "data": data }),
+            )
+            .is_err()
+            {
+                dead = true;
+            }
+            next_probe = Instant::now() + PROBE_EVERY;
+        }
+        let mut wake = if dead { outage_ends } else { next_probe };
+        if restored.is_none() {
+            wake = wake.min(outage_ends);
+        }
+        match events.recv_timeout(wake.saturating_duration_since(Instant::now())) {
+            Ok(event) => {
+                if event["t"] == "disconnected" {
+                    eprintln!(
+                        "lossy {transport} disconnected {} ms after the outage began",
+                        began.elapsed().as_millis()
+                    );
+                    dead = true;
+                    continue;
+                }
+                rows.apply(&event);
+                if rows.count(probe_marker(generation)) > seen {
+                    return Ok(Recovery {
+                        elapsed: restored.map_or(Duration::ZERO, |at| at.elapsed()),
+                        reconnected,
+                    });
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(error @ mpsc::RecvTimeoutError::Disconnected) => return Err(error.into()),
+        }
+    }
 }
 
 /// Echo latency and recovery from a 10 s outage through the facade, over the transport named by
 /// `ATUR_BENCH_TRANSPORT` (`tls`, or `udp`, the default). Nothing here shapes the network: with
 /// `ATUR_BENCH_NETEM` naming `scripts/lossy-netem.sh` it asks that script to (after connecting,
 /// so pairing is not shaped), and `ATUR_BENCH_TLS_PORT` fixes the TLS port the script filters on.
+/// The in-process server offers UDP on `ATUR_TERM_UDP_PORTS`, as the executable does.
 /// `cargo test -p atur-mobile --test sdk bench_facade_lossy -- --ignored --nocapture`.
 #[test]
 #[ignore = "prints measurements; the lossy workflow job shapes the network"]
@@ -1317,14 +1465,21 @@ fn bench_facade_lossy() -> TestResult {
         .map(|port| port.parse::<u16>())
         .transpose()?;
     let asked = if transport == "tls" { "tls" } else { "auto" };
-    let (_server, _local, direct, events, info) = connect_phone(Server::new(), Some(asked), port)?;
-    if info["transport"] != transport.as_str() {
-        return Err(format!("wanted {transport}, got {info}").into());
-    }
+    let (_server, _local, credential) = pair_phone(Server::new(), Some(asked), port)?;
+    let (sender, events) = mpsc::channel();
+    let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
+    let info = ok(&direct.connect(credential.to_string()))?;
     eprintln!(
         "lossy {transport} connected transport={} note={:?}",
         info["transport"], info["udpNote"]
     );
+    if info["transport"] != transport.as_str() {
+        return Err(format!(
+            "wanted {transport}, got {}; UDP note: {}",
+            info["transport"], info["udpNote"]
+        )
+        .into());
+    }
     let session = home_session(&direct, 100, 10)?;
     call(
         &direct,
@@ -1372,37 +1527,23 @@ fn bench_facade_lossy() -> TestResult {
         samples[KEYS - 1]
     );
 
-    // A program that prints the time ten times a second shows when the screen is live again.
-    fire(
-        &direct,
-        "input",
-        &json!({ "session": session, "data": "\u{4}" }),
-    )?;
-    fire(
-        &direct,
-        "input",
-        &json!({
-            "session": session,
-            "data": "while :; do echo tick-$(date +%s%N); sleep 0.1; done\r"
-        }),
-    )?;
-    wait_json_within(&events, LIMIT, |event| {
-        rows.apply(event);
-        newest_tick(&rows).is_some()
-    })?;
     if netem("outage-on")? {
-        thread::sleep(Duration::from_secs(10));
-        let back = now_nanos();
-        let restored = Instant::now();
-        netem("outage-off")?;
-        wait_json_within(&events, LIMIT, |event| {
-            rows.apply(event);
-            newest_tick(&rows).is_some_and(|tick| tick >= back)
-        })
-        .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+        let outcome = recover_from_outage(
+            &transport,
+            &direct,
+            &events,
+            &credential,
+            &session,
+            &mut rows,
+        );
+        if outcome.is_err() {
+            let _ = netem("outage-off");
+        }
+        let recovery = outcome?;
         eprintln!(
-            "lossy {transport} recovery_ms={:.0}",
-            restored.elapsed().as_secs_f64() * 1000.0
+            "lossy {transport} recovery_ms={:.0} reconnected={}",
+            recovery.elapsed.as_secs_f64() * 1000.0,
+            recovery.reconnected
         );
     } else {
         eprintln!("lossy {transport} recovery_ms=skipped (no ATUR_BENCH_NETEM)");

@@ -200,8 +200,13 @@ The core measures it with `cargo test -p atur-mobile --test sdk bench_facade_los
 `lossy` job of `.github/workflows/mobile.yml` runs it with
 `scripts/lossy-netem.sh` shaping only the bench's two ports on loopback: 400 ms
 each way with 200 ms of jitter and 5% loss (about 800 ms round trip, 10% round-trip
-loss), and a 10 s outage with iptables. It prints `lossy tls|udp echo p50_ms=…
-p90_ms=… max_ms=…` and `lossy tls|udp recovery_ms=…` into the job summary.
+loss), and a 10 s outage with iptables. During the outage the bench types a marker
+character every 500 ms and drains the events; recovery is the time from the end of
+the outage to the first marker on the screen (local echo is off, so a guess cannot
+end it). When the connection dies it connects again with the same credential after
+the outage and counts up to the first marker typed on the new connection. It prints
+`lossy tls|udp echo n=… p50_ms=… p90_ms=… max_ms=…` and
+`lossy tls|udp recovery_ms=… reconnected=true|false` into the job summary.
 
 ## Why not QUIC
 

@@ -84,15 +84,20 @@ impl RouteKind {
     }
 
     fn of_name(host: &str) -> Self {
-        let name = host.to_ascii_lowercase();
-        if name == "localhost" || name.ends_with(".local") {
+        let name = host.as_bytes();
+        if name.eq_ignore_ascii_case(b"localhost") || has_suffix(name, b".local") {
             Self::Local
-        } else if name.ends_with(".ts.net") {
+        } else if has_suffix(name, b".ts.net") {
             Self::Tailscale
         } else {
             Self::Other
         }
     }
+}
+
+/// Whether `name` ends with `suffix`, ignoring ASCII case.
+fn has_suffix(name: &[u8], suffix: &[u8]) -> bool {
+    name.len() >= suffix.len() && name[name.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
 }
 
 /// The address a connection was made through, and what it cost.
