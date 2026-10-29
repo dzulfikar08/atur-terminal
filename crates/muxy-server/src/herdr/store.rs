@@ -12,6 +12,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(super) struct Entry {
     pub(super) terminal: String,
+    /// The pane that holds the terminal. herdr keeps pane ids when it hands its
+    /// terminals to a new server and re-mints terminal ids, so this is the
+    /// durable key. Files from older builds have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) pane: Option<String>,
     pub(super) project: ProjectId,
 }
 
@@ -70,12 +75,19 @@ impl Store {
             .collect()
     }
 
-    pub(super) fn set_session(&self, session: SessionId, project: ProjectId, terminal: &str) {
+    pub(super) fn set_session(
+        &self,
+        session: SessionId,
+        project: ProjectId,
+        terminal: &str,
+        pane: Option<&str>,
+    ) {
         let mut data = self.lock();
         data.sessions.insert(
             session.get().to_string(),
             Entry {
                 terminal: terminal.to_owned(),
+                pane: pane.map(str::to_owned),
                 project,
             },
         );
@@ -114,7 +126,7 @@ mod tests {
         let session = SessionId::new(7).expect("id");
         let project = ProjectId::from_u128(9);
         let store = Store::open(&dir).expect("open");
-        store.set_session(session, project, "term_a");
+        store.set_session(session, project, "term_a", Some("w3:p1"));
         store.set_workspace(project, "w3");
         drop(store);
         let store = Store::open(&dir).expect("reopen");
@@ -124,6 +136,7 @@ mod tests {
                 session,
                 Entry {
                     terminal: "term_a".into(),
+                    pane: Some("w3:p1".into()),
                     project
                 }
             )]

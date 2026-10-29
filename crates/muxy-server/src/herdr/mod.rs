@@ -1,13 +1,17 @@
 //! Terminals owned by a herdr server.
 //!
 //! In this mode the server runs no PTYs. Each Atur Terminal session is a herdr tab with
-//! one pane in the workspace of its project; a control stream mirrors the pane's
-//! screen into the session owner's terminal, and input, resize and mouse go back
-//! through it. Projects, git, files, exec, settings and activity stay Atur Terminal's.
+//! one pane in the workspace of its project, left unlabelled so herdr numbers it like
+//! its own tabs; a control stream mirrors the pane's screen into the session owner's
+//! terminal, and input, resize and mouse go back through it. Projects, git, files,
+//! exec, settings and activity stay Atur Terminal's.
 
+mod adopt;
 mod api;
 mod base64;
 mod control;
+#[cfg(test)]
+mod fake;
 mod panes;
 mod scrollback;
 mod store;
@@ -20,8 +24,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use muxy_protocol::{
-    AgentProvider, AgentState, ErrorCode, ExitReason, MouseEvent, ProjectId, SessionId,
-    SessionInfo, Size,
+    AgentProvider, AgentState, ErrorCode, ExitReason, MouseEvent, SessionId, SessionInfo, Size,
 };
 use muxy_terminal::pty::ExitStatus;
 use muxy_terminal::{CellSize, Row};
@@ -70,17 +73,6 @@ fn unavailable(error: impl std::fmt::Display) -> ServerError {
     ServerError::new(ErrorCode::SpawnFailed, format!("herdr: {error}"))
 }
 
-/// The label of a session's herdr tab; also how a session is found again after
-/// herdr restarts and renumbers its terminals.
-fn tab_label(session: SessionId) -> String {
-    format!("atur-{:08x}", session.get() >> 32)
-}
-
-/// The label tabs made by earlier builds carry.
-fn legacy_tab_label(session: SessionId) -> String {
-    format!("muxy-{:08x}", session.get() >> 32)
-}
-
 #[derive(Debug)]
 pub(crate) struct Herdr {
     api: Arc<Api>,
@@ -124,7 +116,10 @@ impl Herdr {
             .map_err(unavailable)
     }
 
-    /// Creates the session's tab, and its project's workspace if needed.
+    /// Creates the session's tab, and its project's workspace if needed. The tab
+    /// gets no label of its own, so herdr numbers it like any tab the user opens;
+    /// the session is found again by its pane id and the `ATUR_TERM_SESSION_ID`
+    /// of its shell, see `adopt`.
     pub(crate) fn create(
         self: &Arc<Self>,
         request: &NewTerminal<'_>,
@@ -135,7 +130,6 @@ impl Herdr {
             .map(|(key, value)| (key.clone(), Value::String(value.clone())))
             .collect();
         let cwd = request.directory.to_string_lossy();
-        let label = tab_label(request.info.id);
         let project = request.info.project;
         let existing = self
             .store
@@ -145,7 +139,7 @@ impl Herdr {
             self.api
                 .call(
                     "tab.create",
-                    &json!({"workspace_id": workspace, "cwd": cwd, "label": label, "env": env, "focus": false}),
+                    &json!({"workspace_id": workspace, "cwd": cwd, "env": env, "focus": false}),
                 )
                 .map_err(unavailable)?
         } else {
@@ -159,19 +153,15 @@ impl Herdr {
             if let Some(workspace) = reply["workspace"]["workspace_id"].as_str() {
                 self.store.set_workspace(project, workspace);
             }
-            if let Some(tab) = reply["tab"]["tab_id"].as_str() {
-                let _ = self
-                    .api
-                    .call("tab.rename", &json!({"tab_id": tab, "label": label}));
-            }
             reply
         };
         let terminal = reply["root_pane"]["terminal_id"]
             .as_str()
             .ok_or_else(|| unavailable("a new pane without a terminal id"))?
             .to_owned();
-        self.store.set_session(request.info.id, project, &terminal);
         let pane = reply["root_pane"]["pane_id"].as_str().map(str::to_owned);
+        self.store
+            .set_session(request.info.id, project, &terminal, pane.as_deref());
         Ok(HerdrBacking::new(
             Arc::clone(self),
             terminal,
@@ -184,89 +174,6 @@ impl Herdr {
         self.api
             .call("workspace.get", &json!({"workspace_id": workspace}))
             .is_ok()
-    }
-
-    /// The sessions that herdr still runs, with their size. `known` are the
-    /// sessions the catalog remembers with their projects; a terminal is found by
-    /// the mapping this server saved, or else by its tab's label, so the mapping
-    /// can be rebuilt from herdr alone.
-    pub(crate) fn survivors(
-        self: &Arc<Self>,
-        known: &[(SessionId, ProjectId)],
-    ) -> Vec<(SessionId, HerdrBacking)> {
-        let panes = match self.api.call("pane.list", &json!({})) {
-            Ok(list) => list["panes"].as_array().cloned().unwrap_or_default(),
-            Err(error) => {
-                log::warn!("herdr sessions were not adopted: {error}");
-                return Vec::new();
-            }
-        };
-        let tabs = self
-            .api
-            .call("tab.list", &json!({}))
-            .ok()
-            .and_then(|list| list["tabs"].as_array().cloned())
-            .unwrap_or_default();
-        let mut found = Vec::new();
-        let mut candidates: std::collections::BTreeMap<SessionId, (ProjectId, Option<String>)> =
-            known
-                .iter()
-                .map(|(session, project)| (*session, (*project, None)))
-                .collect();
-        for (session, entry) in self.store.sessions() {
-            candidates.insert(session, (entry.project, Some(entry.terminal)));
-        }
-        for (session, (project, saved)) in candidates {
-            let by_terminal = saved.as_deref().and_then(|saved| {
-                panes
-                    .iter()
-                    .find(|pane| pane["terminal_id"].as_str() == Some(saved))
-            });
-            // herdr numbers terminals afresh after it restarts; the tab label survives.
-            let by_label = || {
-                let label = tab_label(session);
-                let legacy = legacy_tab_label(session);
-                let tab = tabs.iter().find(|tab| {
-                    tab["label"]
-                        .as_str()
-                        .is_some_and(|found| found == label || found == legacy)
-                })?;
-                panes
-                    .iter()
-                    .find(|pane| pane["tab_id"].as_str() == tab["tab_id"].as_str())
-            };
-            let Some(pane) = by_terminal.or_else(by_label) else {
-                continue;
-            };
-            let Some(terminal) = pane["terminal_id"].as_str() else {
-                continue;
-            };
-            let size = pane["pane_id"]
-                .as_str()
-                .and_then(|pane| self.pane_size(pane))
-                .unwrap_or(Size {
-                    cols: 120,
-                    rows: 40,
-                });
-            if saved.as_deref() != Some(terminal) {
-                self.store.set_session(session, project, terminal);
-            }
-            if self.store.workspace(project).is_none()
-                && let Some(workspace) = pane["workspace_id"].as_str()
-            {
-                self.store.set_workspace(project, workspace);
-            }
-            found.push((
-                session,
-                HerdrBacking::new(
-                    Arc::clone(self),
-                    terminal.to_owned(),
-                    pane["pane_id"].as_str().map(str::to_owned),
-                    size,
-                ),
-            ));
-        }
-        found
     }
 
     fn pane_size(&self, pane: &str) -> Option<Size> {
@@ -677,17 +584,6 @@ mod tests {
         assert_eq!(agent_state("working"), AgentState::Working);
         assert_eq!(agent_state("blocked"), AgentState::Blocked);
         assert_eq!(agent_state("unknown"), AgentState::Unknown);
-    }
-
-    #[test]
-    fn tabs_are_labelled_anew_and_tabs_of_earlier_builds_are_still_recognised() {
-        let session = SessionId::new(0xabcd_ef01_2345_6789).unwrap();
-        let current = tab_label(session);
-        let legacy = legacy_tab_label(session);
-        assert!(current.starts_with("atur-"));
-        assert!(legacy.starts_with("muxy-"));
-        assert_eq!(current, "atur-abcdef01");
-        assert_eq!(legacy, "muxy-abcdef01");
     }
 
     #[test]

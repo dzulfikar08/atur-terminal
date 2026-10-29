@@ -2,7 +2,7 @@ use super::*;
 use muxy_protocol::ChannelId;
 
 #[gpui::test]
-#[ignore = "requires ATUR_TERM_TEST_TUI and a fresh ATUR_TERM_DIR under /tmp/muxy-tui-desktop-"]
+#[ignore = "requires ATUR_TERM_TEST_TUI and a fresh ATUR_TERM_DIR under /tmp/atur-tui-desktop-"]
 fn nested_tui_and_desktop_share_a_session_with_independent_layouts(cx: &mut TestAppContext) {
     walkthrough(cx).expect("desktop/TUI coexistence");
 }
@@ -12,7 +12,7 @@ fn walkthrough(cx: &mut TestAppContext) -> Result {
     assert!(
         directory
             .to_string_lossy()
-            .starts_with("/tmp/muxy-tui-desktop-")
+            .starts_with("/tmp/atur-tui-desktop-")
     );
     let executable = PathBuf::from(std::env::var("ATUR_TERM_TEST_TUI")?).canonicalize()?;
     let boot = Boot::load()?;
