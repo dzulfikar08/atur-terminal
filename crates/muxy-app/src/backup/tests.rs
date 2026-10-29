@@ -47,7 +47,7 @@ fn backup_round_trip_is_portable_and_restore_waits_for_restart() {
     let saved: AppState = serde_json::from_slice(&files["desktop-state.json"]).unwrap();
     assert!(saved.project_intents(ServerId::local()).is_empty());
     fs::write(target.path().join("ghostty.conf"), "font-size = 12\n").unwrap();
-    let import = prepare(target.path(), &archive).unwrap();
+    let import = prepare(target.path(), &pending).unwrap();
     stage(target.path(), &import).unwrap();
     assert_eq!(
         fs::read_to_string(target.path().join("ghostty.conf")).unwrap(),
@@ -501,7 +501,7 @@ fn mobile_preferences_exclude_credentials_and_apply_through_the_server() {
     fs::write(target.path().join("remote.json"), raw).unwrap();
     let archive = source.path().join("test.aturbackup");
     export(source.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
-    let import = prepare(target.path(), &archive).unwrap();
+    let import = prepare(target.path(), &pending).unwrap();
     assert!(!import.files.contains_key("remote.json"));
     let mobile = &import.files[mobile::FILE];
     assert!(!String::from_utf8_lossy(mobile).contains("secret"));
@@ -749,7 +749,7 @@ fn backups_and_staged_imports_of_earlier_releases_are_still_read() {
     assert!(target.path().join("themes/earlier").exists());
     assert!(pending_path(target.path()).is_none());
 
-    let import = prepare(target.path(), &archive).unwrap();
+    let import = prepare(target.path(), &pending).unwrap();
     fs::copy(&pending, target.path().join("pending-import.muxy")).unwrap();
     stage(target.path(), &import).unwrap();
     assert_eq!(
