@@ -211,6 +211,10 @@ fn paired_endpoint(
 }
 
 /// One line per race, which the `route` job copies into its summary.
+#[allow(
+    clippy::print_stdout,
+    reason = "the route job copies this line into its summary"
+)]
 fn report(case: &str, route: &Route, total: Duration) {
     println!(
         "route race winner={} ms={} kind={} total_ms={} case={case}",

@@ -789,13 +789,11 @@ fn pair_phone(
     Ok((server, local, credential))
 }
 
+type Phone = (Server, Client, Arc<Direct>, Receiver<Value>, Value);
+
 /// Pairs a phone with `server` (over `port` when given) and connects its facade, asking for
 /// `transport` when given. Also returns the connect answer.
-fn connect_phone(
-    server: Server,
-    transport: Option<&str>,
-    port: Option<u16>,
-) -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>, Value)> {
+fn connect_phone(server: Server, transport: Option<&str>, port: Option<u16>) -> TestResult<Phone> {
     let (server, local, credential) = pair_phone(server, transport, port)?;
     let (sender, events) = mpsc::channel();
     let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
