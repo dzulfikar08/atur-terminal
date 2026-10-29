@@ -52,7 +52,7 @@ pub(super) fn app_for(server: &Path) -> io::Result<Option<PathBuf>> {
 }
 
 fn server_beside(executable: &Path) -> PathBuf {
-    executable.with_file_name("muxy-server")
+    executable.with_file_name("atur-term-server")
 }
 
 /// Starts `app` as the host of its server, in its own process group and with

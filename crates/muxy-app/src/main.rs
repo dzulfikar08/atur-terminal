@@ -140,7 +140,7 @@ fn run() -> ExitCode {
     {
         Ok(lease) => lease,
         Err(error) => {
-            let _ = writeln!(io::stderr(), "muxy-app: {error}");
+            let _ = writeln!(io::stderr(), "atur-terminal: {error}");
             return ExitCode::FAILURE;
         }
     };
@@ -150,7 +150,7 @@ fn run() -> ExitCode {
         Ok(Some(instance)) => instance,
         Ok(None) => return ExitCode::SUCCESS,
         Err(error) => {
-            let _ = writeln!(io::stderr(), "muxy-app: {error}");
+            let _ = writeln!(io::stderr(), "atur-terminal: {error}");
             return ExitCode::FAILURE;
         }
     };
@@ -161,7 +161,7 @@ fn run() -> ExitCode {
         match boot::Boot::load() {
             Ok(boot) => boot,
             Err(error) => {
-                let _ = writeln!(io::stderr(), "muxy-app: {error}");
+                let _ = writeln!(io::stderr(), "atur-terminal: {error}");
                 return ExitCode::FAILURE;
             }
         }
@@ -218,7 +218,7 @@ fn run() -> ExitCode {
             });
             model
         }) {
-            let _ = writeln!(io::stderr(), "muxy-app: could not open window: {error}");
+            let _ = writeln!(io::stderr(), "atur-terminal: no window: {error}");
             startup_exit_code.set(ExitCode::FAILURE);
             cx.quit();
         }

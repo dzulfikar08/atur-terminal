@@ -80,7 +80,7 @@ tabs.
 ## Changing shortcuts
 
 - In **Settings → Keyboard**, click a shortcut and press the new keys.
-  **Reset** restores the default. Muxy refuses keys that are already taken.
+  **Reset** restores the default. Atur Terminal refuses keys that are already taken.
 - Changes are saved to `settings.toml` under `[keymap]`, for example
   `split_right = "cmd-alt-d"`.
 - Terminal keys such as clear screen, line editing, and scrolling have built-in

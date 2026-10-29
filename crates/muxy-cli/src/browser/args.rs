@@ -72,7 +72,7 @@ impl Invocation {
     }
 }
 
-/// Reads the words after `muxy browser`.
+/// Reads the words after `atur-term browser`.
 pub(crate) fn parse(arguments: &[OsString]) -> io::Result<Command> {
     let words = arguments
         .iter()
@@ -470,7 +470,7 @@ impl<'a> Given<'a> {
         }
     }
     fn usage(&self) -> io::Error {
-        invalid(&format!("usage: muxy browser {}", self.usage))
+        invalid(&format!("usage: atur-term browser {}", self.usage))
     }
     fn word(&self, index: usize) -> &'a str {
         self.words[index]
@@ -507,7 +507,7 @@ fn number(text: Option<&str>, name: &str) -> io::Result<Option<u64>> {
 }
 
 fn unknown() -> io::Error {
-    invalid("unknown browser command; run muxy browser --help")
+    invalid("unknown browser command; run atur-term browser --help")
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -835,7 +835,7 @@ mod tests {
         let error = command(&["click", "T"]).map(|_| ()).err();
         assert_eq!(
             error.map(|error| error.to_string()),
-            Some("usage: muxy browser click <tab-id> <selector>".to_owned())
+            Some("usage: atur-term browser click <tab-id> <selector>".to_owned())
         );
         for words in [
             vec!["frobnicate", "T"],

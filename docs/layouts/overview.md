@@ -31,7 +31,7 @@ flowchart LR
 - Applying asks first, then replaces all of the project's tabs in this app,
   pinned tabs included, and runs the layout's commands. Terminals that no app
   shows anymore end.
-- Layouts are a desktop app feature. The `muxy` terminal UI does not read them.
+- Layouts are a desktop app feature. The `atur-term` terminal UI does not read them.
 
 Only apply layouts you trust: their commands run as you.
 

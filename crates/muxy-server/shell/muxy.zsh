@@ -1,4 +1,4 @@
-[[ -o interactive && ${MUXY_SHELL_INTEGRATION-} == 1 ]] || return
+[[ -o interactive && ${ATUR_TERM_SHELL_INTEGRATION-} == 1 ]] || return
 (( ${+_muxy_installed} )) && return
 typeset -g _muxy_installed=1 _muxy_running=0 _muxy_prompt='' _muxy_user_prompt=''
 

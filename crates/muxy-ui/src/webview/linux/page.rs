@@ -130,7 +130,7 @@ impl Runtime {
         // SAFETY: This is the one thread that uses GTK. Every pointer passed
         // is a live object made here or a static string.
         let runtime = unsafe {
-            g.g_set_prgname(c"muxy-app".as_ptr());
+            g.g_set_prgname(c"atur-terminal".as_ptr());
             g.gtk_disable_setlocale();
             if g.gtk_init_check(ptr::null_mut(), ptr::null_mut()) == FALSE {
                 return Err(tr!("Extension pages need a desktop session to render in.").into());

@@ -1,5 +1,5 @@
 //! Connections through an SSH channel that the app opens with its own SSH
-//! client. The channel runs the bridge, `muxy stdio`, on the computer, so its
+//! client. The channel runs the bridge, `atur-term stdio`, on the computer, so its
 //! server sees an ordinary local connection.
 //!
 //! One end of a socket pair is the connection's stream. The app writes what

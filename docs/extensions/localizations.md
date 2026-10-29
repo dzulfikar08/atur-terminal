@@ -1,6 +1,6 @@
 # Localizations
 
-Muxy is in English. A language pack is an extension that adds app languages.
+Atur Terminal is in English. A language pack is an extension that adds app languages.
 Users find packs with **Settings → Appearance → Browse language extensions…**
 and pick one under **App language**. Text a pack doesn't translate stays in
 English.
@@ -50,5 +50,5 @@ localization/
 - Each file can be up to 4 MiB. The bundle must not contain executable code.
 - Load errors go to the pack's log in **Settings → Extensions**.
 
-Muxy 2 uses new English strings, so packs made for 1.x load but translate only
+Atur Terminal uses new English strings, so packs made for 1.x load but translate only
 part of the app.

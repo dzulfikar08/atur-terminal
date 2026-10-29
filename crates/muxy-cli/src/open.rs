@@ -10,7 +10,7 @@ pub(crate) fn run(word: &Path) -> Result<(), Box<dyn Error>> {
         .filter(|path| path.is_dir())
         .ok_or_else(|| {
             format!(
-                "{} is not a command or a folder; run muxy --help",
+                "{} is not a command or a folder; run atur-term --help",
                 word.display()
             )
         })?;
@@ -52,7 +52,7 @@ pub(crate) fn desktop_app(folder: Option<&Path>) -> bool {
         return false;
     };
     desktop_session(|name| std::env::var_os(name))
-        && launch(&executable.with_file_name("muxy-app"), folder)
+        && launch(&executable.with_file_name("atur-terminal"), folder)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -114,7 +114,7 @@ mod tests {
     use super::*;
 
     fn stub(root: &Path, script: &str) -> PathBuf {
-        let app = root.join("muxy-app");
+        let app = root.join("atur-terminal");
         let status = Command::new("/bin/sh")
             .args(["-c", r#"printf '%s' "$1" > "$2" && chmod 755 "$2""#, "sh"])
             .arg(format!("#!/bin/sh\n{script}\n"))
@@ -171,7 +171,7 @@ mod tests {
     fn an_app_that_cannot_start_leaves_the_folder_to_the_terminal_ui() {
         let root = tempfile::tempdir().expect("root");
         assert!(!launch(
-            &root.path().join("muxy-app"),
+            &root.path().join("atur-terminal"),
             Some(Path::new("/srv"))
         ));
         let failing = stub(root.path(), "exit 3");

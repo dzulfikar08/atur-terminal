@@ -1,6 +1,6 @@
-# Muxy
+# Atur Terminal
 
-Muxy is a terminal multiplexer. You organize your work into projects and work
+Atur Terminal is a terminal multiplexer. You organize your work into projects and work
 in tabs and split panes. Terminals run in a background server, so they keep
 running when you close the app, and several apps can show the same terminal at
 once.
@@ -8,15 +8,15 @@ once.
 ```mermaid
 flowchart LR
     subgraph COMPUTER["Your computer"]
-        SERVER["muxy-server<br/>projects · terminals · history"]
+        SERVER["atur-term-server<br/>projects · terminals · history"]
         DESKTOP["Desktop app"] <--> SERVER
-        TUI["muxy terminal UI"] <--> SERVER
+        TUI["atur-term terminal UI"] <--> SERVER
     end
     PHONE["Phone app"] <-->|"paired · local network or VPN"| SERVER
-    DESKTOP <-->|"SSH"| REMOTE["muxy-server<br/>on another computer"]
+    DESKTOP <-->|"SSH"| REMOTE["atur-term-server<br/>on another computer"]
 ```
 
-Three ideas explain most of Muxy:
+Three ideas explain most of Atur Terminal:
 
 - **The server owns the work.** Projects and terminal sessions live in the
   server, not in the apps.

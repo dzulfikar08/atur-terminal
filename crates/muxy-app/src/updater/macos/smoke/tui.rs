@@ -18,7 +18,7 @@ impl Tui {
             args: Vec::new(),
             cwd: profile.to_owned(),
             env: vec![
-                ("MUXY_DIR".into(), profile.as_os_str().into()),
+                ("ATUR_TERM_DIR".into(), profile.as_os_str().into()),
                 ("TERM".into(), "xterm-256color".into()),
             ],
             size: PtySize {

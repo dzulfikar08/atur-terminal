@@ -12,7 +12,7 @@ If you discover a security vulnerability in Atur Terminal, please report it resp
 
 **Do not open a public issue for security vulnerabilities.**
 
-Instead, please use [GitHub's private vulnerability reporting](https://github.com/dzulfikar08/muxy/security/advisories/new) to submit your report.
+Instead, please use [GitHub's private vulnerability reporting](https://github.com/dzulfikar08/atur-terminal/security/advisories/new) to submit your report.
 
 ### What to include
 

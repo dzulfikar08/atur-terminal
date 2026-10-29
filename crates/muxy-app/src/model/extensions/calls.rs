@@ -759,7 +759,7 @@ pub(super) fn exec_request(call: &Call, job: u64) -> Result<ExecRequest, String>
     };
     request
         .env
-        .insert("MUXY_EXTENSION_ID".into(), call.owner.clone());
+        .insert("ATUR_TERM_EXTENSION_ID".into(), call.owner.clone());
     if options["cwd"]
         .as_str()
         .is_some_and(|cwd| cwd.contains('\0'))

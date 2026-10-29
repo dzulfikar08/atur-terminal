@@ -14,7 +14,7 @@ impl Source {
             || {
                 Self::Development(
                     Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("../../target/linux-dev/muxy-dev-linux-x86_64.tar.gz"),
+                        .join("../../target/linux-dev/atur-terminal-dev-linux-x86_64.tar.gz"),
                 )
             },
             |version| Self::Release(version.into()),
@@ -24,14 +24,14 @@ impl Source {
     pub(crate) fn command(&self) -> String {
         match self {
             Self::Release(version) => format!(
-                "sh -c 'curl -fsSL {}/install-muxy.sh | sh -s -- --version {version} --tag {}'",
+                "sh -c 'curl -fsSL {}/install-atur-terminal.sh | sh -s -- --version {version} --tag {}'",
                 crate::updater::release_base(version),
                 crate::updater::release_tag(version)
             ),
             Self::Development(_) => {
-                let installer = include_str!("../../../scripts/install-muxy.sh");
+                let installer = include_str!("../../../scripts/install-atur-terminal.sh");
                 format!(
-                    "sh -c '{}' muxy-install --dev-archive",
+                    "sh -c '{}' atur-terminal-install --dev-archive",
                     installer.replace('\'', "'\\''")
                 )
             }
@@ -53,7 +53,7 @@ impl Source {
                 name
             ),
             Self::Development(archive) => tr!(
-                "The development build at %@ is uploaded to %@. It installs muxy-server and its muxy helper in ~/.local/bin, then tests the connection. It requires x86_64 Linux with glibc 2.35 or newer.",
+                "The development build at %@ is uploaded to %@. It installs atur-term-server and its atur-term helper in ~/.local/bin, then tests the connection. It requires x86_64 Linux with glibc 2.35 or newer.",
                 archive.display().to_string(),
                 name
             ),
@@ -75,6 +75,8 @@ mod tests {
             .output()
             .expect("installer help");
         assert!(output.status.success());
-        assert!(String::from_utf8_lossy(&output.stdout).starts_with("Usage: install-muxy.sh"));
+        assert!(
+            String::from_utf8_lossy(&output.stdout).starts_with("Usage: install-atur-terminal.sh")
+        );
     }
 }

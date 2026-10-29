@@ -1,7 +1,7 @@
 # Older fish versions permit return only inside a function.
 function __muxy_setup
     status is-interactive; or return
-    if test "$MUXY_SHELL_INTEGRATION" != 1; or set -q __muxy_installed
+    if test "$ATUR_TERM_SHELL_INTEGRATION" != 1; or set -q __muxy_installed
         return
     end
     set -g __muxy_installed 1

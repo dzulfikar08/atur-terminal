@@ -35,7 +35,7 @@ herdr is used as a separate process. Its code is distributed only where it was a
 
 - AppImage type2-runtime (MIT, Copyright (c) 2004-23 probonopd): `packaging/linux/AppImage-LICENSE`.
 - Shared libraries bundled by linuxdeploy keep their Debian/Ubuntu copyright files under
-  `usr/share/doc/<package>/copyright`, and `usr/share/doc/muxy/bundled-sources.json` lists their sources.
+  `usr/share/doc/<package>/copyright`, and `usr/share/doc/atur-terminal/bundled-sources.json` lists their sources.
 
 ## Detection manifests
 

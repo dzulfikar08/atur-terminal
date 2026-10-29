@@ -49,8 +49,8 @@ impl Fixture {
     fn command(&self) -> Command {
         let mut command = Command::new(binary());
         command
-            .env("MUXY_DIR", &self.directory)
-            .env("MUXY_REMOTE_BIND", "127.0.0.1")
+            .env("ATUR_TERM_DIR", &self.directory)
+            .env("ATUR_TERM_REMOTE_BIND", "127.0.0.1")
             .env("SHELL", "/bin/sh")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -472,9 +472,9 @@ fn default_directory_does_not_touch_other_channels() -> TestResult {
         "Library/Application Support"
     });
     let [development, beta, stable] = if linux {
-        ["muxy-dev", "muxy-beta", "muxy"]
+        ["atur-terminal-dev", "atur-terminal-beta", "atur-terminal"]
     } else {
-        ["Muxy Dev", "Muxy Beta", "Muxy 2"]
+        ["Atur Terminal Dev", "Atur Terminal Beta", "Atur Terminal"]
     };
     let release = muxy_core::release::Version::current().filter(|_| !cfg!(debug_assertions));
     let current = match release.map(muxy_core::release::Version::channel) {
@@ -495,7 +495,7 @@ fn default_directory_does_not_touch_other_channels() -> TestResult {
     let socket = fixture.socket();
     let mut command = fixture.command();
     command
-        .env_remove("MUXY_DIR")
+        .env_remove("ATUR_TERM_DIR")
         .env_remove("XDG_STATE_HOME")
         .env("HOME", &fixture.directory)
         .arg("--socket")
@@ -650,7 +650,7 @@ fn idle_update_notifies_every_client_before_disconnecting() -> TestResult {
 }
 
 fn binary() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_muxy-server"))
+    PathBuf::from(env!("CARGO_BIN_EXE_atur-term-server"))
 }
 
 fn enable_mobile_access(

@@ -30,7 +30,7 @@ class HeadlessTests(unittest.TestCase):
 
         def start(command, *, env, **kwargs):
             nonlocal profile
-            profile = Path(env["MUXY_DIR"])
+            profile = Path(env["ATUR_TERM_DIR"])
             server = Mock()
             server.poll.return_value = None
             server.wait.return_value = 0
@@ -52,7 +52,7 @@ class HeadlessTests(unittest.TestCase):
         with patch.object(SMOKE.subprocess, "Popen", side_effect=start) as spawn, \
                 patch.object(SMOKE.subprocess, "check_output", side_effect=output), \
                 patch.object(SMOKE.time, "sleep", side_effect=ready) as wait:
-            SMOKE.smoke(Path("/unused/muxy"))
+            SMOKE.smoke(Path("/unused/atur-term"))
         self.assertEqual(spawn.call_count, 2)
         self.assertEqual(wait.call_count, 2)
 
@@ -69,7 +69,7 @@ class HeadlessTests(unittest.TestCase):
             ]:
                 output = subprocess.check_output(
                     [ROOT / "scripts/zig/zig", *arguments],
-                    env={**os.environ, "MUXY_ZIG": str(zig)}, text=True,
+                    env={**os.environ, "ATUR_TERM_ZIG": str(zig)}, text=True,
                 )
                 self.assertEqual(json.loads(output), expected)
 

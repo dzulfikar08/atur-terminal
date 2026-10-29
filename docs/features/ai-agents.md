@@ -1,6 +1,6 @@
 # AI Agents
 
-Muxy recognizes AI coding agents running in its terminals and shows whether
+Atur Terminal recognizes AI coding agents running in its terminals and shows whether
 each one is working, waiting for you, or done. It needs no setup, hooks, or
 plugins, and works while no app is open.
 
@@ -45,7 +45,7 @@ or finishes working.
 - Looking at the terminal clears the alert in every app.
 - Clicking a notification jumps to its pane.
 - Only one app notifies, so alerts are never doubled.
-- Turn notifications off in **System Settings → Notifications → Muxy**.
+- Turn notifications off in **System Settings → Notifications → Atur Terminal**.
 
 Alerts live in memory on the server, at most one per terminal. Restarting the
 server clears them.
@@ -60,12 +60,12 @@ focus. Use the arrow keys and Return to open a row.
   opens as a popup that closes when you click elsewhere. Once you have shown
   the panel, the collapsed sidebar keeps a button for it until you hide it.
 - **Move to Right** docks it in the right panel, even when the left sidebar is
-  collapsed. Drag its left edge to resize it; Muxy remembers the side and width.
+  collapsed. Drag its left edge to resize it; Atur Terminal remembers the side and width.
   It shares this area with extension panels and the panel-mode composer: opening
   one replaces the other. Use `Cmd+Opt+A` to bring Agents back. **Move to Left
   Sidebar** returns it to the sidebar.
 - **Detach** floats it over the workspace. Drag its header to move it and its
-  edges or corner to resize it; Muxy remembers where. **Reattach to Sidebar** or
+  edges or corner to resize it; Atur Terminal remembers where. **Reattach to Sidebar** or
   **Reattach to Right Panel** docks it on its last side. The other side's move
   button is also available while floating.
 - **Settings → Appearance → Agents panel rows** lists each agent, grouped as
@@ -80,7 +80,7 @@ that run an agent.
 
 ## From a shell and extensions
 
-- `muxy activity list --json` prints agent status and unread alerts as JSON.
-  `muxy activity ack <event-id>` clears alerts.
-- Extensions get the `agent.status` event and `muxy.agents.list()`. See
+- `atur-term activity list --json` prints agent status and unread alerts as JSON.
+  `atur-term activity ack <event-id>` clears alerts.
+- Extensions get the `agent.status` event and `atur-term.agents.list()`. See
   [Events](../extensions/events.md).

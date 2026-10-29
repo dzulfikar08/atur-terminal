@@ -45,8 +45,8 @@ export MACOSX_DEPLOYMENT_TARGET=14.0
 export LIBGHOSTTY_VT_SYS_OPTIMIZE=ReleaseFast
 export CARGO_TARGET_DIR="$ROOT/target"
 export CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO=packed
-MUXY_ZIG="$(command -v zig)"
-export MUXY_ZIG
+ATUR_TERM_ZIG="$(command -v zig)"
+export ATUR_TERM_ZIG
 export PATH="$ROOT/scripts/zig:$PATH"
 OUTPUT_DIR="$CARGO_TARGET_DIR/packages/$VERSION/$ARCH"
 if [[ -e "$OUTPUT_DIR" ]]; then
@@ -66,7 +66,7 @@ trap 'rm -rf "$STAGING"' EXIT
 APP="$STAGING/dmg/$APP_NAME.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$STAGING/symbols" "$STAGING/artifacts"
 
-for BINARY in muxy-app muxy muxy-server; do
+for BINARY in atur-terminal atur-term atur-term-server; do
     install -m 755 "$BIN_DIR/$BINARY" "$APP/Contents/MacOS/$BINARY"
     EXECUTABLE="$APP/Contents/MacOS/$BINARY"
     if [[ "$(lipo -archs "$EXECUTABLE")" != "$ARCH" ]]; then
@@ -108,24 +108,24 @@ else
     SIGN_ARGS+=(--options runtime --timestamp)
 fi
 # Sign every executable before sealing the bundle.
-for BINARY in muxy muxy-server muxy-app; do
-    if [[ "$BINARY" == muxy-app ]]; then
-        codesign "${SIGN_ARGS[@]}" --entitlements "$ROOT/packaging/macos/Muxy.entitlements" "$APP/Contents/MacOS/$BINARY"
+for BINARY in atur-term atur-term-server atur-terminal; do
+    if [[ "$BINARY" == atur-terminal ]]; then
+        codesign "${SIGN_ARGS[@]}" --entitlements "$ROOT/packaging/macos/AturTerminal.entitlements" "$APP/Contents/MacOS/$BINARY"
     else
         codesign "${SIGN_ARGS[@]}" "$APP/Contents/MacOS/$BINARY"
     fi
 done
-codesign "${SIGN_ARGS[@]}" --entitlements "$ROOT/packaging/macos/Muxy.entitlements" "$APP"
+codesign "${SIGN_ARGS[@]}" --entitlements "$ROOT/packaging/macos/AturTerminal.entitlements" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
-for BINARY in muxy muxy-server; do
+for BINARY in atur-term atur-term-server; do
     python3 "$ROOT/scripts/release.py" check-build "$VERSION" "$APP/Contents/MacOS/$BINARY"
 done
 
 # Copy the sealed executables without stripping or signing them again.
 mkdir "$STAGING/cli"
-cp "$APP/Contents/MacOS/muxy" "$APP/Contents/MacOS/muxy-server" "$APP/Contents/Resources/LICENSE" "$STAGING/cli/"
-CLI_ARCHIVE="$STAGING/artifacts/muxy-${VERSION}-macos-${ARCH}.zip"
-(cd "$STAGING/cli" && zip -X "$CLI_ARCHIVE" muxy muxy-server LICENSE)
+cp "$APP/Contents/MacOS/atur-term" "$APP/Contents/MacOS/atur-term-server" "$APP/Contents/Resources/LICENSE" "$STAGING/cli/"
+CLI_ARCHIVE="$STAGING/artifacts/atur-terminal-${VERSION}-macos-${ARCH}.zip"
+(cd "$STAGING/cli" && zip -X "$CLI_ARCHIVE" atur-term atur-term-server LICENSE)
 
 ln -s /Applications "$STAGING/dmg/Applications"
 DMG="$STAGING/artifacts/AturTerminal-${VERSION}-${ARCH}.dmg"

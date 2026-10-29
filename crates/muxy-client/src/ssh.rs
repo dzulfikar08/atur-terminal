@@ -161,7 +161,7 @@ impl SshTarget {
                 "Custom commands manage their own SSH settings and authentication",
             ));
         }
-        let program = program(self.program.as_deref(), std::env::var_os("MUXY_SSH"))?;
+        let program = program(self.program.as_deref(), std::env::var_os("ATUR_TERM_SSH"))?;
         let output = Command::new(program)
             .args(["-G", "--", &self.destination])
             .stdin(Stdio::null())
@@ -176,7 +176,7 @@ impl SshTarget {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
-    /// A master private to Muxy keeps the login and key exchange for later
+    /// A master private to Atur Terminal keeps the login and key exchange for later
     /// bridges, which saves several round trips on every connection. Logins
     /// with their own key or host key prompt never share one.
     fn connection_sharing(&self) -> Vec<String> {
@@ -189,7 +189,7 @@ impl SshTarget {
     /// Runs `remote` there through the same ssh and login as the bridge,
     /// such as an installer. Its output is the caller's to read.
     pub fn command(&self, remote: &str) -> io::Result<Command> {
-        let program = program(self.program.as_deref(), std::env::var_os("MUXY_SSH"))?;
+        let program = program(self.program.as_deref(), std::env::var_os("ATUR_TERM_SSH"))?;
         let mut command = Command::new(program);
         command
             .args(self.arguments_for(remote))
@@ -307,13 +307,13 @@ fn identity_from(config: &str, home: &Path) -> Option<PathBuf> {
     })
 }
 
-/// The program set on the target, else `MUXY_SSH`, else ssh from `PATH`.
+/// The program set on the target, else `ATUR_TERM_SSH`, else ssh from `PATH`.
 fn program(explicit: Option<&Path>, environment: Option<OsString>) -> io::Result<PathBuf> {
     match (explicit, environment) {
         (Some(program), _) => Ok(program.into()),
         (None, Some(program)) if program.is_empty() => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "MUXY_SSH must not be empty",
+            "ATUR_TERM_SSH must not be empty",
         )),
         (None, Some(program)) => Ok(program.into()),
         (None, None) => Ok("ssh".into()),
@@ -324,7 +324,7 @@ fn program(explicit: Option<&Path>, environment: Option<OsString>) -> io::Result
 /// hexadecimal characters, all within a socket path's 104 bytes.
 const MAX_CONTROL_DIRECTORY: usize = 104 - 1 - 40 - 17;
 
-/// Beside the user's other runtime sockets, out of Muxy's own data folder,
+/// Beside the user's other runtime sockets, out of Atur Terminal's own data folder,
 /// which holds nothing for servers on other computers.
 fn private_control_directory() -> Option<PathBuf> {
     let runtime = PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?);
@@ -363,7 +363,7 @@ fn sharing_options(directory: Option<&Path>) -> Vec<String> {
 
 impl Client {
     /// Connects to the server on another computer through ssh, which runs
-    /// `muxy stdio` there. ssh prompts only through the target's askpass
+    /// `atur-term stdio` there. ssh prompts only through the target's askpass
     /// program, so logging in otherwise needs ssh-agent, a key, or a
     /// certificate. The host's key must already be trusted.
     pub fn connect_ssh(target: &SshTarget, start: Start) -> Result<Self, ClientError> {

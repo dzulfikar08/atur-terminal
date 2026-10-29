@@ -20,7 +20,7 @@ if [[ "$(uname -s)" != Linux || "$(uname -m)" != "$MACHINE" || "$(getconf GNU_LI
 fi
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 export LIBGHOSTTY_VT_SYS_OPTIMIZE=ReleaseFast
-export MUXY_ZIG="${MUXY_ZIG:-$(command -v zig)}"
+export ATUR_TERM_ZIG="${ATUR_TERM_ZIG:-$(command -v zig)}"
 export PATH="$ROOT/scripts/zig:$PATH"
 OUTPUT="$CARGO_TARGET_DIR/packages/$VERSION/linux-desktop-$ARCH"
 if [[ -e "$OUTPUT" ]]; then
@@ -34,7 +34,7 @@ mkdir -p "$(dirname "$OUTPUT")"
 STAGING="$(mktemp -d "$(dirname "$OUTPUT")/.desktop-${ARCH}.XXXXXX")"
 trap 'rm -rf "$STAGING"' EXIT
 mkdir "$STAGING/bin" "$STAGING/symbols" "$STAGING/artifacts"
-for BINARY in muxy-app muxy muxy-server; do
+for BINARY in atur-terminal atur-term atur-term-server; do
     install -m 755 "$CARGO_TARGET_DIR/$TARGET/release/$BINARY" "$STAGING/bin/$BINARY"
     objcopy --only-keep-debug "$STAGING/bin/$BINARY" "$STAGING/symbols/$BINARY.debug"
     strip --strip-debug "$STAGING/bin/$BINARY"
@@ -43,6 +43,6 @@ for BINARY in muxy-app muxy muxy-server; do
 done
 python3 scripts/package-desktop-linux.py "$VERSION" "$ARCH" "$STAGING/bin" "$STAGING/artifacts" \
     --native-formats --tools "$CARGO_TARGET_DIR/appimage-tools"
-tar -czf "$STAGING/artifacts/muxy-desktop-${VERSION}-linux-${ARCH}-symbols.tar.gz" -C "$STAGING/symbols" .
+tar -czf "$STAGING/artifacts/atur-terminal-desktop-${VERSION}-linux-${ARCH}-symbols.tar.gz" -C "$STAGING/symbols" .
 mv "$STAGING/artifacts" "$OUTPUT"
 echo "Built $OUTPUT"

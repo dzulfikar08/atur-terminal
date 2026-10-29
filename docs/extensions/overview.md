@@ -4,7 +4,7 @@
 
 An extension is a web project that adds to the desktop app: tabs, panels,
 popovers, a sidebar, top bar and status bar items, palette commands, shortcuts,
-background logic, and app languages. You build it with any web tooling and Muxy
+background logic, and app languages. You build it with any web tooling and Atur Terminal
 loads the build output.
 
 Most extensions made for Muxy 1.x work unchanged. A few 1.x features are not
@@ -44,7 +44,7 @@ for local and remote projects. Web requests run in the desktop app.
 
 ## Where extensions live
 
-Installed extensions live in the `extensions/<name>/` folder of Muxy's
+Installed extensions live in the `extensions/<name>/` folder of Atur Terminal's
 [profile folder](../features/server.md#files). Each is the build output, with
 `package.json` at its root.
 

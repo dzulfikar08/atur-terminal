@@ -18,7 +18,7 @@ const BUFFER: usize = 64 * 1024;
 const EXIT_POLL: Duration = Duration::from_millis(10);
 
 /// A child process's stdin and stdout as one byte stream, such as `ssh`
-/// running `muxy stdio` on another computer.
+/// running `atur-term stdio` on another computer.
 ///
 /// Both are joined to one end of a Unix socket pair rather than to two pipes.
 /// Cancelling can then wake blocked reads and writes at once, even while a

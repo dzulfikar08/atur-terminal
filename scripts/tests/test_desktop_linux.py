@@ -73,7 +73,7 @@ class DesktopLinuxTests(unittest.TestCase):
         for call in run.call_args_list:
             env = call.kwargs["env"]
             self.assertEqual(call.kwargs["cwd"], ROOT)
-            self.assertEqual(env["MUXY_ZIG"], "/opt/zig/zig")
+            self.assertEqual(env["ATUR_TERM_ZIG"], "/opt/zig/zig")
             self.assertEqual(env["PATH"], f"{ROOT / 'scripts/zig'}{os.pathsep}/usr/bin")
             self.assertEqual(env["RUSTDOCFLAGS"], "--cfg regression_guard -D warnings")
 

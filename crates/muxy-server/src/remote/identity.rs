@@ -15,7 +15,7 @@ pub(super) fn generate() -> Result<TlsIdentity, ServerError> {
     let mut params = rcgen::CertificateParams::default();
     params
         .distinguished_name
-        .push(rcgen::DnType::CommonName, "Muxy");
+        .push(rcgen::DnType::CommonName, "Atur Terminal");
     let certificate = params.self_signed(&key).map_err(failed)?;
     Ok(TlsIdentity {
         certificate: certificate.der().to_vec(),

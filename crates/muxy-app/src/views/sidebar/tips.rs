@@ -116,7 +116,7 @@ fn content(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
                 .text_size(m.font_caption())
                 .font_weight(FontWeight::BOLD)
                 .text_color(theme.accent)
-                .child(tr!("MUXY TIP")),
+                .child(tr!("ATUR TIP")),
         )
         .child(
             div().debug_selector(|| "hide-tips".into()).child(

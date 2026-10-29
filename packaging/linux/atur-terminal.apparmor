@@ -1,0 +1,17 @@
+# Optional Ubuntu 24.04 integration for WebKitGTK's user-namespace sandbox.
+# Install as /etc/apparmor.d/atur-terminal, then reload with apparmor_parser -r.
+# Adapt the attachment path if XDG_DATA_HOME has been customized.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile atur-terminal @{HOME}/.local/share/atur-terminal{,-beta}/versions/*/atur-terminal flags=(unconfined) {
+    userns,
+}
+
+profile atur-terminal-package /usr/lib/atur-terminal{,-beta}/atur-terminal flags=(unconfined) {
+    userns,
+}
+
+profile atur-terminal-appimage @{HOME}/.local/share/atur-terminal-appimage/*/usr/bin/atur-terminal flags=(unconfined) {
+    userns,
+}

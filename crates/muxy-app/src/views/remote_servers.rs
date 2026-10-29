@@ -1024,7 +1024,7 @@ fn connection_status(
             )
         }
         Some(ConnectionTest::Installing) => (
-            tr!("Installing muxy-server, then testing connection…"),
+            tr!("Installing atur-term-server, then testing connection…"),
             theme.fg_muted,
         ),
         Some(ConnectionTest::Succeeded(version)) => (
@@ -1032,7 +1032,7 @@ fn connection_status(
             theme.accent,
         ),
         Some(ConnectionTest::NotInstalled(_)) => (
-            tr!("SSH connected. Install muxy-server to finish setting up this server."),
+            tr!("SSH connected. Install atur-term-server to finish setting up this server."),
             theme.fg_muted,
         ),
         Some(ConnectionTest::Failed(error)) => (error.clone().into(), theme.danger),
@@ -1147,7 +1147,7 @@ fn install_offer(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
             metrics: &model.metrics,
         },
         "server-install",
-        &tr!("Install muxy-server & Test Connection"),
+        &tr!("Install atur-term-server & Test Connection"),
         true,
         cx.listener(|model, _, window, cx| model.confirm_install_server_form(window, cx)),
     )

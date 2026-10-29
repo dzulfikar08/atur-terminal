@@ -72,19 +72,19 @@ impl Shell {
         if shell.ends_with("zsh") {
             fs::write(
                 dotfiles.join(".zshenv"),
-                "skip_global_compinit=1\ntypeset -g MUXY_TEST_ENV=$(( ${MUXY_TEST_ENV:-0} + 1 ))\n",
+                "skip_global_compinit=1\ntypeset -g ATUR_TERM_TEST_ENV=$(( ${ATUR_TERM_TEST_ENV:-0} + 1 ))\n",
             )?;
             fs::write(
                 dotfiles.join(".zprofile"),
-                "typeset -g MUXY_TEST_PROFILE=loaded\n",
+                "typeset -g ATUR_TERM_TEST_PROFILE=loaded\n",
             )?;
             fs::write(
                 dotfiles.join(".zshrc"),
-                format!("PS1='muxy-test> '; unset RPS1; MUXY_TEST_RC=loaded\n{startup}\n"),
+                format!("PS1='muxy-test> '; unset RPS1; ATUR_TERM_TEST_RC=loaded\n{startup}\n"),
             )?;
             fs::write(
                 dotfiles.join(".zlogin"),
-                "typeset -g MUXY_TEST_LOGIN=loaded\n",
+                "typeset -g ATUR_TERM_TEST_LOGIN=loaded\n",
             )?;
         } else if shell.ends_with("fish") {
             let config = home.join(".config/fish");
@@ -164,7 +164,7 @@ fn zsh_marks_prompts_commands_and_failures_without_replacing_startup_files() -> 
     for custom in [false, true] {
         let mut shell = Shell::start("/bin/zsh", custom, true, "")?;
         let mut output = shell.until(b"\x1b]133;B\x07")?;
-        shell.pty.write(b"printf 'startup:%s:%s:%s:%s\\n' $MUXY_TEST_ENV $MUXY_TEST_PROFILE $MUXY_TEST_RC $MUXY_TEST_LOGIN\n")?;
+        shell.pty.write(b"printf 'startup:%s:%s:%s:%s\\n' $ATUR_TERM_TEST_ENV $ATUR_TERM_TEST_PROFILE $ATUR_TERM_TEST_RC $ATUR_TERM_TEST_LOGIN\n")?;
         let command = shell.until(b"\x1b]133;B\x07")?;
         assert!(String::from_utf8_lossy(&command).contains("startup:1:loaded:loaded:loaded"));
         assert!(command.windows(8).any(|bytes| bytes == b"\x1b]133;C\x07"));
@@ -222,12 +222,12 @@ fn bash_is_manual_and_keeps_the_login_profile_and_prompt_command() -> TestResult
         "/bin/bash",
         false,
         true,
-        "PROMPT_COMMAND='MUXY_TEST_PROMPT=loaded'; source \"$MUXY_SHELL_INTEGRATION_DIR/muxy.bash\"",
+        "PROMPT_COMMAND='ATUR_TERM_TEST_PROMPT=loaded'; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\"",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell
         .pty
-        .write(b"printf 'preserved:%s\\n' \"$MUXY_TEST_PROMPT\"\n")?;
+        .write(b"printf 'preserved:%s\\n' \"$ATUR_TERM_TEST_PROMPT\"\n")?;
     let output = shell.until(b"\x1b]133;B\x07")?;
     assert!(String::from_utf8_lossy(&output).contains("preserved:loaded"));
     assert!(output.windows(8).any(|bytes| bytes == b"\x1b]133;C\x07"));
@@ -265,9 +265,9 @@ fn install_rejects_symlinked_directories_and_replaces_files_without_following_li
 }
 
 #[test]
-#[ignore = "requires MUXY_TEST_FISH pointing to a fish executable"]
+#[ignore = "requires ATUR_TERM_TEST_FISH pointing to a fish executable"]
 fn fish_marks_prompts_and_preserves_user_configuration() -> TestResult {
-    let program = std::env::var("MUXY_TEST_FISH")?;
+    let program = std::env::var("ATUR_TERM_TEST_FISH")?;
     for native in [true, false] {
         let features = if native {
             "mark-prompt"
@@ -279,13 +279,13 @@ fn fish_marks_prompts_and_preserves_user_configuration() -> TestResult {
             &program,
             false,
             true,
-            "set -g MUXY_TEST_CONFIG loaded",
+            "set -g ATUR_TERM_TEST_CONFIG loaded",
             &env,
         )?;
         shell.until(b"\x1b]133;B")?;
         shell
             .pty
-            .write(b"printf 'config:%s:%s\\n' $MUXY_TEST_CONFIG $__muxy_installed\n")?;
+            .write(b"printf 'config:%s:%s\\n' $ATUR_TERM_TEST_CONFIG $__muxy_installed\n")?;
         let output = shell.until(b"\x1b]133;B")?;
         assert!(String::from_utf8_lossy(&output).contains("config:loaded:1"));
         assert!(output.windows(7).any(|bytes| bytes == b"\x1b]133;C"));
@@ -316,12 +316,12 @@ fn bash_preserves_an_existing_debug_trap() -> TestResult {
         "/bin/bash",
         false,
         true,
-        "trap 'MUXY_TEST_DEBUG=loaded' DEBUG; source \"$MUXY_SHELL_INTEGRATION_DIR/muxy.bash\"",
+        "trap 'ATUR_TERM_TEST_DEBUG=loaded' DEBUG; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\"",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell
         .pty
-        .write(b"printf 'debug:%s\\n' \"$MUXY_TEST_DEBUG\"\n")?;
+        .write(b"printf 'debug:%s\\n' \"$ATUR_TERM_TEST_DEBUG\"\n")?;
     let output = shell.until(b"\x1b]133;B\x07")?;
     assert!(String::from_utf8_lossy(&output).contains("debug:loaded"));
     assert!(!output.windows(8).any(|bytes| bytes == b"\x1b]133;C\x07"));
@@ -335,14 +335,16 @@ fn zsh_keeps_prompt_hooks_and_percent_status_expansion() -> TestResult {
         "/bin/zsh",
         false,
         true,
-        "precmd() { PS1='status:%? > '; }; preexec() { MUXY_TEST_PREEXEC=loaded; }",
+        "precmd() { PS1='status:%? > '; }; preexec() { ATUR_TERM_TEST_PREEXEC=loaded; }",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell.pty.write(b"false\n")?;
     let output = shell.until(b"\x1b]133;B\x07")?;
     assert!(String::from_utf8_lossy(&output).contains("status:1 > "));
     assert!(output.windows(10).any(|bytes| bytes == b"\x1b]133;D;1\x07"));
-    shell.pty.write(b"print -r -- hook:$MUXY_TEST_PREEXEC\n")?;
+    shell
+        .pty
+        .write(b"print -r -- hook:$ATUR_TERM_TEST_PREEXEC\n")?;
     assert!(String::from_utf8_lossy(&shell.until(b"\x1b]133;B\x07")?).contains("hook:loaded"));
     Ok(())
 }
@@ -353,14 +355,14 @@ fn bash_preserves_the_exit_status_seen_by_the_user_prompt_command() -> TestResul
         "/bin/bash",
         false,
         true,
-        "PROMPT_COMMAND='MUXY_TEST_STATUS=$?'; source \"$MUXY_SHELL_INTEGRATION_DIR/muxy.bash\"",
+        "PROMPT_COMMAND='ATUR_TERM_TEST_STATUS=$?'; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\"",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell.pty.write(b"false\n")?;
     shell.until(b"\x1b]133;B\x07")?;
     shell
         .pty
-        .write(b"printf 'status:%s\\n' \"$MUXY_TEST_STATUS\"\n")?;
+        .write(b"printf 'status:%s\\n' \"$ATUR_TERM_TEST_STATUS\"\n")?;
     let output = shell.until(b"\x1b]133;B\x07")?;
     assert!(String::from_utf8_lossy(&output).contains("status:1"));
     Ok(())
@@ -406,8 +408,9 @@ fn bash_integration_consumes_alt_arrows_without_replacing_user_bindings() -> Tes
         } else {
             ":"
         };
-        let startup =
-            format!("set -o {mode}; {binding}; source \"$MUXY_SHELL_INTEGRATION_DIR/muxy.bash\"");
+        let startup = format!(
+            "set -o {mode}; {binding}; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\""
+        );
         let mut shell = Shell::start("/bin/bash", false, true, &startup)?;
         let prompt = shell.until(b"\x1b]133;B\x07")?;
         assert!(

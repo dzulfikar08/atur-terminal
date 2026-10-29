@@ -227,7 +227,7 @@ pub(crate) fn run(args: &Args) -> io::Result<()> {
         Err(BindError::InUse) => {
             writeln!(
                 io::stdout(),
-                "muxy-server already running at {}",
+                "atur-term-server already running at {}",
                 args.socket.display()
             )?;
             return Ok(());

@@ -9,7 +9,7 @@
 //! herdr_socket = "/home/me/.config/herdr/herdr.sock"  # default: $HERDR_SOCKET_PATH or herdr's own
 //! ```
 //!
-//! `MUXY_BACKEND`, `MUXY_HERDR_BIN` and `MUXY_HERDR_SOCKET` override the file.
+//! `ATUR_TERM_BACKEND`, `ATUR_TERM_HERDR_BIN` and `ATUR_TERM_HERDR_SOCKET` override the file.
 
 use std::fs;
 use std::io;
@@ -41,9 +41,9 @@ pub(crate) fn herdr(directory: &Path) -> io::Result<Option<HerdrConfig>> {
     };
     resolve(
         file,
-        std::env::var("MUXY_BACKEND").ok(),
-        std::env::var_os("MUXY_HERDR_BIN").map(PathBuf::from),
-        std::env::var_os("MUXY_HERDR_SOCKET").map(PathBuf::from),
+        std::env::var("ATUR_TERM_BACKEND").ok(),
+        std::env::var_os("ATUR_TERM_HERDR_BIN").map(PathBuf::from),
+        std::env::var_os("ATUR_TERM_HERDR_SOCKET").map(PathBuf::from),
     )
 }
 

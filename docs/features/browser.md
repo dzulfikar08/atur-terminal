@@ -7,7 +7,7 @@ so it opens in a tab or a split, and its page keeps running while hidden.
 
 - **File → New Browser Tab** (`Cmd+Opt+B` on macOS, `Ctrl+Alt+B` on Linux), the globe button in the tab
   strip, or the command palette.
-- `muxy browser open <url>` from a terminal. See [Muxy CLI](muxy-cli.md#browser-control).
+- `atur-term browser open <url>` from a terminal. See [Atur Terminal CLI](atur-term-cli.md#browser-control).
 - Command-click a link in a terminal, when **Settings → Browser → Open terminal
   links in the browser** is on.
 - A page that opens a new window gets a new tab instead.
@@ -45,7 +45,7 @@ zoom, and back/forward history start fresh.
 ## Turning it off
 
 Turn off **Settings → Browser → Enable built-in browser** to disable browser
-tabs and `muxy browser`. Terminal links then open in your system browser.
+tabs and `atur-term browser`. Terminal links then open in your system browser.
 
 ## Linux
 

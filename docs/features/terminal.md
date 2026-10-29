@@ -1,6 +1,6 @@
 # Terminal
 
-Muxy's terminals run in the [server](server.md), powered by
+Atur Terminal's terminals run in the [server](server.md), powered by
 [Ghostty](https://github.com/ghostty-org/ghostty). They keep running after you
 quit the app, and every app shows the same screen and history.
 
@@ -32,7 +32,7 @@ list.
 
 - Closing a pane ends its terminal, unless another pane in any app still shows
   it.
-- Muxy asks first when a program other than the shell is running.
+- Atur Terminal asks first when a program other than the shell is running.
 - **Detach Terminal** in the pane's right-click menu removes the pane but keeps
   the terminal running.
 - **Existing Terminals** (`Cmd+Opt+T`, or the project menu) lists the project's
@@ -73,7 +73,7 @@ plain text and case-insensitive; **Aa** makes it case-sensitive.
 
 ## Shell integration
 
-With [shell integration](server.md#shell-integration), Muxy tracks each
+With [shell integration](server.md#shell-integration), Atur Terminal tracks each
 terminal's folder, and you can:
 
 - Jump between prompts with `Cmd+Up` and `Cmd+Down`.

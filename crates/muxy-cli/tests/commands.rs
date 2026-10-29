@@ -28,22 +28,25 @@ fn linked_client_finds_its_sibling_server_and_reuses_a_server_when_the_sibling_i
     let profile = Profile::new()?;
     let package = profile.0.join("installed pair");
     fs::create_dir(&package)?;
-    let client = package.join("muxy");
-    let server = package.join("muxy-server");
+    let client = package.join("atur-term");
+    let server = package.join("atur-term-server");
     copy_executable(&support::binary(), &client)?;
-    let link = profile.0.join("muxy");
+    let link = profile.0.join("atur-term");
     symlink(&client, &link)?;
     let invoke = || {
         Command::new(&link)
-            .env_remove("MUXY_SERVER_BIN")
-            .env("MUXY_DIR", &profile.0)
+            .env_remove("ATUR_TERM_SERVER_BIN")
+            .env("ATUR_TERM_DIR", &profile.0)
             .args(["project", "list"])
             .output()
     };
     let missing = invoke()?;
     assert!(!missing.status.success());
     assert!(String::from_utf8(missing.stderr)?.contains(&server.display().to_string()));
-    copy_executable(&support::binary().with_file_name("muxy-server"), &server)?;
+    copy_executable(
+        &support::binary().with_file_name("atur-term-server"),
+        &server,
+    )?;
     let launched = invoke()?;
     assert!(launched.status.success(), "{launched:?}");
     let first = Client::connect(&profile.socket())?;
@@ -89,7 +92,7 @@ fn simultaneous_client_startup_reuses_one_server_instance() -> Result {
                 scope.spawn(|| {
                     muxy_client::local::ensure_running(
                         &socket,
-                        &support::binary().with_file_name("muxy-server"),
+                        &support::binary().with_file_name("atur-term-server"),
                     )
                     .map(|client| client.server_info().instance)
                 })

@@ -14,13 +14,13 @@ docker run --rm --cap-add SYS_PTRACE -v "$ROOT:/src:ro" -v "$PACKAGES:/packages:
     useradd --create-home package-check
     DEB_ARCH="$ARCH"
     [[ "$ARCH" != x86_64 ]] || DEB_ARCH=amd64
-    PACKAGE=muxy-desktop
-    [[ "$VERSION" != *-beta.* ]] || PACKAGE=muxy-desktop-beta
-    MUXY_DISPOSABLE_PACKAGE_TEST=1 python3 /src/scripts/verify-desktop-formats.py deb \
+    PACKAGE=atur-terminal
+    [[ "$VERSION" != *-beta.* ]] || PACKAGE=atur-terminal-beta
+    ATUR_TERM_DISPOSABLE_PACKAGE_TEST=1 python3 /src/scripts/verify-desktop-formats.py deb \
       "/packages/${PACKAGE}_${VERSION}_${DEB_ARCH}.deb" --version "$VERSION"
     runuser -u package-check -- dbus-run-session -- xvfb-run -a \
       python3 /src/scripts/verify-desktop-formats.py appimage \
       "/packages/AturTerminal-$VERSION-linux-$ARCH.AppImage" --version "$VERSION" --desktop
     runuser -u package-check -- python3 /src/scripts/verify-desktop-linux.py \
-      "/packages/muxy-desktop-$VERSION-linux-$ARCH.tar.gz" --version "$VERSION"
+      "/packages/atur-terminal-desktop-$VERSION-linux-$ARCH.tar.gz" --version "$VERSION"
 '

@@ -12,9 +12,9 @@ import time
 
 
 def smoke(binary):
-    with tempfile.TemporaryDirectory(prefix="muxy-smoke-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="atur-terminal-smoke-") as temporary:
         profile = Path(temporary)
-        env = {**os.environ, "MUXY_DIR": temporary, "SHELL": "/bin/sh"}
+        env = {**os.environ, "ATUR_TERM_DIR": temporary, "SHELL": "/bin/sh"}
         def command(*args):
             return subprocess.check_output([binary, *args], env=env, text=True, timeout=10)
         for flag in ["--help", "--version", "--build-info"]:
@@ -23,7 +23,7 @@ def smoke(binary):
         identity = None
         for restart in [False, True]:
             with (profile / "smoke.log").open("ab") as log:
-                server = subprocess.Popen([binary.with_name("muxy-server")], env=env, stdout=log, stderr=log)
+                server = subprocess.Popen([binary.with_name("atur-term-server")], env=env, stdout=log, stderr=log)
                 try:
                     deadline = time.monotonic() + 10
                     while not (profile / "server.sock").exists() or not (profile / "sessions/catalog.json").exists():

@@ -1,13 +1,13 @@
 # Remote Servers
 
-Muxy can work with projects on other computers over SSH. Each computer runs its
-own `muxy-server`, so remote terminals keep running when you disconnect, just
+Atur Terminal can work with projects on other computers over SSH. Each computer runs its
+own `atur-term-server`, so remote terminals keep running when you disconnect, just
 like local ones. Remote projects sit in the same sidebar as local ones, marked
 with their server.
 
 ```mermaid
 flowchart LR
-    APP["Desktop app or muxy"] -->|"SSH · muxy stdio"| REMOTE["muxy-server<br/>on the other computer"]
+    APP["Desktop app or atur-term"] -->|"SSH · atur-term stdio"| REMOTE["atur-term-server<br/>on the other computer"]
 ```
 
 ## Requirements
@@ -15,7 +15,7 @@ flowchart LR
 - SSH access to the computer with your keys, agent, or certificates. The
   desktop app also supports password logins.
 - A trusted host key. Run `ssh <host>` once to accept it.
-- Muxy [installed there](../user-guide/getting-started.md#cli-and-server-only),
+- Atur Terminal [installed there](../user-guide/getting-started.md#cli-and-server-only),
   on `PATH` or in `~/.local/bin`, at a version that speaks the same protocol as yours.
 - macOS 14 or newer, or Linux with glibc 2.35 or newer, on x86_64 or ARM64.
 
@@ -28,7 +28,7 @@ On Linux hosts that end your processes when you log out, run
    **Add Server…**.
 2. Enter the SSH host (a host name, address, or `~/.ssh/config` alias), and
    optionally the user, port, and identity file.
-3. Choose **Test Connection**. If Muxy isn't installed there, the app offers to
+3. Choose **Test Connection**. If Atur Terminal isn't installed there, the app offers to
    install the same version into `~/.local/bin`.
 4. Add projects with **Add Project → Remote**, which browses the server's
    folders.
@@ -50,9 +50,9 @@ in **Add Server…** (or **Edit…**) and enter its command prefix, for example:
 swiftvm ssh my-vm
 ```
 
-Muxy runs that local program directly and appends its remote command as **one
+Atur Terminal runs that local program directly and appends its remote command as **one
 argument**. The prefix must include the target machine and any flags or `--`
-separator your tool needs. Muxy does not add SSH flags, a host, or a port in this
+separator your tool needs. Atur Terminal does not add SSH flags, a host, or a port in this
 mode. The same prefix is used for Test Connection, installation, normal
 connections, and reconnects.
 
@@ -60,7 +60,7 @@ connections, and reconnects.
   stdin/stdout unchanged **without allocating a TTY**. Interactive-shell-only
   tools are not supported. Add your tool's non-interactive/no-TTY flags if needed.
 - Authentication and host-key verification belong to the tool. Set them up in a
-  terminal first; Muxy's password and identity-file controls do not apply here.
+  terminal first; Atur Terminal's password and identity-file controls do not apply here.
 - Single/double quotes and backslashes group arguments, so paths and VM names
   can contain spaces. Shell variables, `~`, wildcards, pipelines, redirects,
   aliases, and command substitutions are not expanded. Use an absolute program
@@ -71,7 +71,7 @@ connections, and reconnects.
 
 For tools with a different argument convention, use an executable wrapper
 script that accepts the last argument as the remote command and forwards it
-without changing stdin/stdout. The remote computer still needs Muxy and the
+without changing stdin/stdout. The remote computer still needs Atur Terminal and the
 same OS requirements listed above.
 
 A custom-command entry in `settings.toml` uses `ssh_command` instead of `ssh`:
@@ -88,9 +88,9 @@ ssh_command = "swiftvm ssh my-vm"
 Put `--host` first to use another computer's server:
 
 ```bash
-muxy --host devbox                 # terminal UI
-muxy --host devbox project list    # any CLI command
-muxy --host ssh://me@devbox:2222   # with a user and port
+atur-term --host devbox                 # terminal UI
+atur-term --host devbox project list    # any CLI command
+atur-term --host ssh://me@devbox:2222   # with a user and port
 ```
 
 `--host` takes `user@host`, an `~/.ssh/config` alias, or
@@ -109,7 +109,7 @@ arguments must be absolute paths on that computer.
 
 ## Updating
 
-Muxy never updates a remote computer by itself. When versions can't talk, the
+Atur Terminal never updates a remote computer by itself. When versions can't talk, the
 app shows the command to run there. To update by hand, follow
 the [installation instructions](../user-guide/getting-started.md#cli-and-server-only)
 on that computer with `--replace`, choosing the same channel and a compatible version.

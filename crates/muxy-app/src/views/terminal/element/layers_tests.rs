@@ -88,7 +88,7 @@ impl Render for Chart {
         let rows = self.rows.clone();
         let unbatched = self.unbatched;
         let sequential_quads =
-            std::env::var("MUXY_BENCH_LEGACY_QUADS").is_ok_and(|value| value == "1");
+            std::env::var("ATUR_TERM_BENCH_LEGACY_QUADS").is_ok_and(|value| value == "1");
         canvas(
             move |_, _, _| Painting {
                 rows,
@@ -152,7 +152,7 @@ fn chart_with_text(rows: u16, cols: u16, window: &mut Window, text: Option<&str>
                     .collect();
                 let mut painting = RowPainting::default();
                 painting.paths.legacy_dots =
-                    std::env::var("MUXY_BENCH_LEGACY_DOTS").is_ok_and(|value| value == "1");
+                    std::env::var("ATUR_TERM_BENCH_LEGACY_DOTS").is_ok_and(|value| value == "1");
                 renderer.row(
                     &runs,
                     point(px(0.0), px(f32::from(row) * 16.0)),

@@ -1,4 +1,4 @@
-//! The bridge to a server on another computer. `muxy stdio` runs there,
+//! The bridge to a server on another computer. `atur-term stdio` runs there,
 //! joined to that computer's server, and its stdin and stdout carry the
 //! protocol unchanged, so version negotiation stays end to end.
 //!
@@ -27,7 +27,7 @@ const MAX_NOISE: usize = 64 * 1024;
 const MAX_VERSION: usize = 16;
 /// Keeps error details to one readable line.
 const MAX_DETAIL: usize = 300;
-/// What `muxy stdio --no-start` reports when no server is running.
+/// What `atur-term stdio --no-start` reports when no server is running.
 const NOT_RUNNING: &str = "the server isn't running";
 /// How shells report that `muxy` isn't on PATH.
 const NOT_FOUND: [&str; 3] = [
@@ -52,7 +52,7 @@ const UNREACHABLE: [&str; 8] = [
 pub enum Start {
     /// Start the server if it isn't running, like most commands.
     IfNeeded,
-    /// Only use a running server, like `muxy server status`.
+    /// Only use a running server, like `atur-term server status`.
     Never,
 }
 
@@ -61,9 +61,9 @@ pub enum Start {
 /// the installer puts `muxy`.
 pub fn command(start: Start) -> &'static str {
     match start {
-        Start::IfNeeded => r#"sh -c 'export PATH="$PATH:$HOME/.local/bin"; exec muxy stdio'"#,
+        Start::IfNeeded => r#"sh -c 'export PATH="$PATH:$HOME/.local/bin"; exec atur-term stdio'"#,
         Start::Never => {
-            r#"sh -c 'export PATH="$PATH:$HOME/.local/bin"; exec muxy stdio --no-start'"#
+            r#"sh -c 'export PATH="$PATH:$HOME/.local/bin"; exec atur-term stdio --no-start'"#
         }
     }
 }

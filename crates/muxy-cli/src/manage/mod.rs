@@ -179,7 +179,7 @@ fn set_setting(client: &Client, key: &str, value: &str) -> Result {
         }
         "history-budget-bytes" => settings.history_budget_bytes = value.parse()?,
         "shell-integration" => settings.shell_integration = value.parse()?,
-        _ => return Err("unknown server setting; run muxy settings --help".into()),
+        _ => return Err("unknown server setting; run atur-term settings --help".into()),
     }
     settings
         .validate()

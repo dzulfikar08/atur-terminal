@@ -68,7 +68,7 @@ pub(crate) fn released_version() -> Option<&'static str> {
 }
 
 /// Runs this release's installer there, which downloads it from GitHub,
-/// checks it, and puts `muxy` and `muxy-server` in `~/.local/bin`.
+/// checks it, and puts `atur-term` and `atur-term-server` in `~/.local/bin`.
 pub(super) fn install_command(version: &str) -> String {
     crate::remote_install::Source::Release(version.into()).command()
 }
@@ -76,14 +76,15 @@ pub(super) fn install_command(version: &str) -> String {
 /// The command that replaces Muxy on another computer with this release.
 pub(crate) fn update_command(version: &str) -> String {
     format!(
-        "curl -fsSL {}/install-muxy.sh | sh -s -- --version {version} --tag {} --replace",
+        "curl -fsSL {}/install-atur-terminal.sh | sh -s -- --version {version} --tag {} --replace",
         crate::updater::release_base(version),
         crate::updater::release_tag(version)
     )
 }
 
 /// Prints the version of Muxy installed there, found as the bridge finds it.
-const VERSION_COMMAND: &str = "sh -c 'export PATH=\"$PATH:$HOME/.local/bin\"; exec muxy --version'";
+const VERSION_COMMAND: &str =
+    "sh -c 'export PATH=\"$PATH:$HOME/.local/bin\"; exec atur-term --version'";
 
 /// Why Muxy on another computer can't talk to this app, and how to fix it.
 /// `there` is the version installed there, when it could be read. When it is
@@ -92,7 +93,7 @@ pub(crate) fn incompatible_guidance(name: &str, there: Option<&str>) -> String {
     let here = env!("CARGO_PKG_VERSION");
     if there == Some(here) {
         return tr!(
-            "Atur Terminal on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server",
+            "Atur Terminal on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x atur-term-server",
             name,
             here
         )
@@ -674,7 +675,11 @@ impl AppModel {
             let Ok(printed) = version.await else {
                 return;
             };
-            let version = printed.trim().trim_start_matches("muxy").trim().to_owned();
+            let version = printed
+                .trim()
+                .trim_start_matches("atur-term")
+                .trim()
+                .to_owned();
             let _ = model.update(cx, |model, cx| {
                 let Some(runtime) = model.servers.get_mut(server) else {
                     return;

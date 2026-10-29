@@ -21,16 +21,19 @@ fn signed_bundle(path: &Path, server: &Path, identity: &str) -> Result<()> {
         path.join("Contents/Info.plist"),
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.joyodigitama.atur-terminal-beta</string>
-<key>CFBundleExecutable</key><string>muxy-app</string><key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleExecutable</key><string>atur-terminal</string><key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>"#,
     )?;
-    std::fs::copy("/usr/bin/true", binaries.join("muxy-app"))?;
-    std::fs::copy(server, binaries.join("muxy-server"))?;
-    std::fs::copy(server.with_file_name("muxy"), binaries.join("muxy"))?;
+    std::fs::copy("/usr/bin/true", binaries.join("atur-terminal"))?;
+    std::fs::copy(server, binaries.join("atur-term-server"))?;
+    std::fs::copy(
+        server.with_file_name("atur-term"),
+        binaries.join("atur-term"),
+    )?;
     for executable in [
-        binaries.join("muxy-app"),
-        binaries.join("muxy"),
-        binaries.join("muxy-server"),
+        binaries.join("atur-terminal"),
+        binaries.join("atur-term"),
+        binaries.join("atur-term-server"),
     ] {
         run(Command::new("/usr/bin/codesign")
             .args(["--force", "--timestamp=none", "--sign", identity])
@@ -69,16 +72,16 @@ fn output(path: &Path) -> Result<String> {
 }
 
 #[test]
-#[ignore = "requires MUXY_TEST_SERVER, MUXY_TEST_SIGN_IDENTITY and MUXY_TEST_SIGN_TEAM; uses only temporary bundles"]
+#[ignore = "requires ATUR_TERM_TEST_SERVER, ATUR_TERM_TEST_SIGN_IDENTITY and ATUR_TERM_TEST_SIGN_TEAM; uses only temporary bundles"]
 fn another_profiles_server_retains_its_bundle_without_a_tui() -> Result<()> {
-    let identity = std::env::var("MUXY_TEST_SIGN_IDENTITY")?;
-    let binary = PathBuf::from(std::env::var("MUXY_TEST_SERVER")?);
+    let identity = std::env::var("ATUR_TERM_TEST_SIGN_IDENTITY")?;
+    let binary = PathBuf::from(std::env::var("ATUR_TERM_TEST_SERVER")?);
     let directory = tempfile::tempdir()?;
     let bundle = directory.path().join("Atur Terminal Beta.app");
     signed_bundle(&bundle, &binary, &identity)?;
     let installation = Installation {
         bundle: bundle.clone(),
-        team: std::env::var("MUXY_TEST_SIGN_TEAM")?,
+        team: std::env::var("ATUR_TERM_TEST_SIGN_TEAM")?,
     };
     let first = directory.path().join("first");
     let second = directory.path().join("second");
@@ -109,8 +112,8 @@ fn another_profiles_server_retains_its_bundle_without_a_tui() -> Result<()> {
 fn start_server(bundle: &Path, profile: &Path) -> Result<Server> {
     std::fs::create_dir_all(profile)?;
     Ok(Server(
-        Command::new(bundle.join("Contents/MacOS/muxy-server"))
-            .env("MUXY_DIR", profile)
+        Command::new(bundle.join("Contents/MacOS/atur-term-server"))
+            .env("ATUR_TERM_DIR", profile)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -119,11 +122,11 @@ fn start_server(bundle: &Path, profile: &Path) -> Result<Server> {
 }
 
 #[test]
-#[ignore = "requires MUXY_TEST_SERVER, MUXY_TEST_SIGN_IDENTITY and MUXY_TEST_SIGN_TEAM; uses only temporary bundles"]
+#[ignore = "requires ATUR_TERM_TEST_SERVER, ATUR_TERM_TEST_SIGN_IDENTITY and ATUR_TERM_TEST_SIGN_TEAM; uses only temporary bundles"]
 fn signed_bundle_updates_preserve_shell_and_retire_only_unused_bundles() -> Result<()> {
-    let identity = std::env::var("MUXY_TEST_SIGN_IDENTITY")?;
-    let team = std::env::var("MUXY_TEST_SIGN_TEAM")?;
-    let binary = PathBuf::from(std::env::var("MUXY_TEST_SERVER")?);
+    let identity = std::env::var("ATUR_TERM_TEST_SIGN_IDENTITY")?;
+    let team = std::env::var("ATUR_TERM_TEST_SIGN_TEAM")?;
+    let binary = PathBuf::from(std::env::var("ATUR_TERM_TEST_SERVER")?);
     let directory = tempfile::tempdir()?;
     let bundle = directory.path().join("Atur Terminal Beta.app");
     signed_bundle(&bundle, &binary, &identity)?;
@@ -136,8 +139,8 @@ fn signed_bundle_updates_preserve_shell_and_retire_only_unused_bundles() -> Resu
     std::fs::create_dir(&data)?;
     std::fs::write(data.join("shell-env"), "PS1='lease-test> '\n")?;
     let socket = data.join("server.sock");
-    let child = Command::new(bundle.join("Contents/MacOS/muxy-server"))
-        .env("MUXY_DIR", &data)
+    let child = Command::new(bundle.join("Contents/MacOS/atur-term-server"))
+        .env("ATUR_TERM_DIR", &data)
         .env("HOME", &data)
         .env("ENV", data.join("shell-env"))
         .env("SHELL", "/bin/sh")
@@ -153,7 +156,7 @@ fn signed_bundle_updates_preserve_shell_and_retire_only_unused_bundles() -> Resu
     let attached = client.attach(session.id, size)?;
     client.send_input(attached.channel, b"echo $$ > before.pid\n")?;
     let pid = output(&data.join("before.pid"))?;
-    let mut tui = tui::Tui::start(&bundle.join("Contents/MacOS/muxy"), &data)?;
+    let mut tui = tui::Tui::start(&bundle.join("Contents/MacOS/atur-term"), &data)?;
     tui.output("lease-test>")?;
     tui.write(b"printf '\\nLIVE_BUNDLED_TUI\\n'\r")?;
     tui.output("LIVE_BUNDLED_TUI")?;
@@ -190,8 +193,8 @@ fn signed_bundle_updates_preserve_shell_and_retire_only_unused_bundles() -> Resu
     client.end_session(session.id)?;
     assert!(client.stop_server_if_idle()?);
     server.0.wait()?;
-    server.0 = Command::new(bundle.join("Contents/MacOS/muxy-server"))
-        .env("MUXY_DIR", &data)
+    server.0 = Command::new(bundle.join("Contents/MacOS/atur-term-server"))
+        .env("ATUR_TERM_DIR", &data)
         .env("HOME", &data)
         .env("ENV", data.join("shell-env"))
         .env("SHELL", "/bin/sh")
@@ -235,7 +238,7 @@ fn replace_bundle(
         installation: installation.clone(),
         staging: staging.clone(),
         build: Some(crate::server::read_build_info(
-            &candidate.join("Contents/MacOS/muxy-server"),
+            &candidate.join("Contents/MacOS/atur-term-server"),
         )?),
     };
     assert!(update.compatible_with(server));
@@ -251,13 +254,13 @@ fn replace_bundle(
 }
 
 #[test]
-#[ignore = "requires MUXY_TEST_LEGACY_SERVER; launches only an isolated temporary server"]
+#[ignore = "requires ATUR_TERM_TEST_LEGACY_SERVER; launches only an isolated temporary server"]
 fn beta_mismatch_reports_incompatible_builds_without_stopping_the_old_server() -> Result<()> {
-    let executable = std::env::var("MUXY_TEST_LEGACY_SERVER")?;
+    let executable = std::env::var("ATUR_TERM_TEST_LEGACY_SERVER")?;
     let directory = tempfile::tempdir()?;
     let socket = directory.path().join("server.sock");
     let child = Command::new(executable)
-        .env("MUXY_DIR", directory.path())
+        .env("ATUR_TERM_DIR", directory.path())
         .env("SHELL", "/bin/sh")
         .stdin(Stdio::null())
         .stdout(Stdio::null())

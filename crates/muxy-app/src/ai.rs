@@ -203,7 +203,7 @@ impl Provider {
                 "-l",
                 "-i",
                 "-c",
-                "printf '__MUXY_PATH_START__%s__MUXY_PATH_END__' \"$PATH\"",
+                "printf '__ATUR_TERM_PATH_START__%s__ATUR_TERM_PATH_END__' \"$PATH\"",
             ]);
             command
                 .stdin(Stdio::null())
@@ -218,10 +218,10 @@ impl Provider {
                 return Vec::new();
             };
             let output = String::from_utf8_lossy(&stdout);
-            let Some((_, tail)) = output.rsplit_once("__MUXY_PATH_START__") else {
+            let Some((_, tail)) = output.rsplit_once("__ATUR_TERM_PATH_START__") else {
                 return Vec::new();
             };
-            let Some((path, _)) = tail.split_once("__MUXY_PATH_END__") else {
+            let Some((path, _)) = tail.split_once("__ATUR_TERM_PATH_END__") else {
                 return Vec::new();
             };
             std::env::split_paths(path).collect()
@@ -282,7 +282,7 @@ impl Provider {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .env("MUXY_PANE_ID", "")
+            .env("ATUR_TERM_PANE_ID", "")
             .env("PWD", directory);
         if let Ok(path) = std::env::join_paths(Self::search_path()) {
             command.env("PATH", path);

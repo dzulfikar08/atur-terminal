@@ -76,7 +76,7 @@ dictionaries, which fit their training data and little else.
 Unix sockets, TCP, and stdio pipes were all about ten times faster than a
 program writing line by line to a terminal. Apps on the same computer use a Unix
 socket and phones use TLS (D11). Other computers are reached over SSH, which
-runs `muxy stdio` there to join its stdin and stdout to that computer's server.
+runs `atur-term stdio` there to join its stdin and stdout to that computer's server.
 ssh logs in with the user's keys, agent, or certificates. For a password login,
 the desktop asks for the password, keeps it only in memory, and answers ssh's
 prompt for it.
@@ -114,7 +114,7 @@ only as a hash. The phone apps embed the same Rust client as the desktop app.
 
 Pairing stays the default because it needs no SSH setup. Phones can also
 connect over SSH, since the apps already embed an SSH client: it runs
-`muxy stdio` on the computer (D7).
+`atur-term stdio` on the computer (D7).
 
 Turned down: a cloud relay, which is another service to trust; mutual TLS, for
 handling certificates on phones; and a native Swift, Kotlin, or JSON protocol,

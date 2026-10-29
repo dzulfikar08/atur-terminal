@@ -1,5 +1,5 @@
 # Source explicitly from your interactive Bash startup file. Bash startup is not redirected.
-[[ $- == *i* && ${MUXY_SHELL_INTEGRATION-} == 1 ]] || return
+[[ $- == *i* && ${ATUR_TERM_SHELL_INTEGRATION-} == 1 ]] || return
 [[ ${_muxy_installed-} == 1 ]] && return
 _muxy_installed=1
 _muxy_running=0
@@ -46,7 +46,7 @@ _muxy_prompt_status() {
 
 # Bash 5 hides the caller's DEBUG trap while sourcing. Inspect it afterward,
 # directly in PROMPT_COMMAND, without replacing a user's trap.
-read -r -d '' _muxy_debug_setup <<'MUXY_DEBUG_SETUP' || :
+read -r -d '' _muxy_debug_setup <<'ATUR_TERM_DEBUG_SETUP' || :
 if [[ ${_muxy_debug_checked-0} == 0 ]]; then
     _muxy_debug_checked=1
     if [[ -z $(trap -p DEBUG) ]]; then
@@ -54,7 +54,7 @@ if [[ ${_muxy_debug_checked-0} == 0 ]]; then
     fi
 fi
 _muxy_prompt_status
-MUXY_DEBUG_SETUP
+ATUR_TERM_DEBUG_SETUP
 if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 1) )); then
     PROMPT_COMMAND=(_muxy_precmd "$_muxy_debug_setup" "${PROMPT_COMMAND[@]}" _muxy_prompt_end)
 else

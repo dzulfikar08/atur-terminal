@@ -30,7 +30,7 @@ impl StackMode {
             Some(Some("always")) => Ok(Self::Always),
             Some(Some("0")) => Ok(Self::Off),
             _ => Err(io::Error::other(
-                "MUXY_PROFILE_STACKS must be auto, always, or 0",
+                "ATUR_TERM_PROFILE_STACKS must be auto, always, or 0",
             )),
         }
     }

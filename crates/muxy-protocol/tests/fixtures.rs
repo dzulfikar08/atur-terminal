@@ -13,7 +13,7 @@ use muxy_protocol::wire::{Decoder, MessageKind, WireError, encode};
 use muxy_protocol::{CONTROL, CURRENT, ChannelId, ChannelKind, Message};
 
 /// Points at another build's fixtures to check that this build reads them.
-const OTHER_FIXTURES: &str = "MUXY_PROTOCOL_FIXTURES";
+const OTHER_FIXTURES: &str = "ATUR_TERM_PROTOCOL_FIXTURES";
 
 fn directory() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -34,7 +34,7 @@ fn every_sample_has_a_fixture() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Without `MUXY_PROTOCOL_FIXTURES`, reads this build's fixtures strictly.
+/// Without `ATUR_TERM_PROTOCOL_FIXTURES`, reads this build's fixtures strictly.
 /// With it, reads a newer build's fixtures the way a running peer would:
 /// messages this build doesn't know may be skipped or reported as unsupported.
 #[test]

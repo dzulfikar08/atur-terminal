@@ -132,7 +132,7 @@ pub(crate) async fn prompt_install_server(
     source: &crate::remote_install::Source,
     cx: &mut AsyncApp,
 ) -> Result<bool, String> {
-    let title = tr!("Install muxy-server on %@?", name);
+    let title = tr!("Install atur-term-server on %@?", name);
     let message = source.description(name);
     server_prompt(window, &title, &tr!("Install"), &message, cx).await
 }

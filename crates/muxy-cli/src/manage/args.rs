@@ -161,7 +161,8 @@ pub(crate) enum Worktree {
 
 pub(crate) fn parse(arguments: &[OsString]) -> io::Result<Invocation> {
     let group = arguments.first().map_or(Ok(""), |s| text(s))?;
-    let usage = help::topic(group).ok_or_else(|| invalid("unknown command; run muxy --help"))?;
+    let usage =
+        help::topic(group).ok_or_else(|| invalid("unknown command; run atur-term --help"))?;
     if (2..=3).contains(&arguments.len())
         && arguments.last().is_some_and(|s| s == "--help" || s == "-h")
     {
@@ -342,13 +343,13 @@ fn session(verb: &str, o: &mut Options<'_>) -> io::Result<Session> {
         "end" | "discard" | "read-screen" | "history" | "wait" => 0,
         _ => return Err(invalid(help::SESSION)),
     };
-    // The session ID comes first and may be left out inside a Muxy terminal.
+    // The session ID comes first and may be left out inside an Atur Terminal terminal.
     let given = o
         .words
         .len()
         .checked_sub(arguments)
         .filter(|given| *given <= 1)
-        .ok_or_else(|| invalid("wrong number of arguments; run muxy <command> --help"))?;
+        .ok_or_else(|| invalid("wrong number of arguments; run atur-term <command> --help"))?;
     let session = if given == 1 {
         Some(
             o.word(0)?
@@ -582,7 +583,7 @@ impl<'a> Options<'a> {
             Ok(())
         } else {
             Err(invalid(
-                "wrong number of arguments; run muxy <command> --help",
+                "wrong number of arguments; run atur-term <command> --help",
             ))
         }
     }

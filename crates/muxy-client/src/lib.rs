@@ -2,7 +2,7 @@
 //!
 //! This crate translates shared protocol traffic without owning project,
 //! tab, pane, UI, or desktop update policy. Local startup launches an explicit executable.
-//! Servers on other computers are reached through a bridge, `muxy stdio`,
+//! Servers on other computers are reached through a bridge, `atur-term stdio`,
 //! which ssh runs there.
 
 mod async_request;

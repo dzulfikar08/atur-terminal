@@ -1,6 +1,6 @@
 # Product model
 
-The things Muxy is made of, and who owns them.
+The things Atur Terminal is made of, and who owns them.
 
 ## The pieces
 
@@ -71,17 +71,17 @@ folder. You can create one from a branch or add a worktree that already exists.
 It takes the branch name and its parent's color, and has its own tabs.
 Worktrees can't have children of their own.
 
-Worktrees made outside Muxy show up automatically. A new project shows
+Worktrees made outside Atur Terminal show up automatically. A new project shows
 worktrees only if its repository already has some; turn them on or off from
 the project menu.
 
-After a worktree is deleted outside Muxy, its entry is removed automatically
+After a worktree is deleted outside Atur Terminal, its entry is removed automatically
 if it has no tabs in this app and no terminal history.
 
 ```mermaid
 flowchart LR
-    PARENT["muxy<br/>~/code/muxy"] --> FEATURE["feature-x<br/>~/code/muxy-feature-x"]
-    PARENT --> FIX["fix-login<br/>~/code/muxy-fix-login"]
+    PARENT["atur-terminal<br/>~/code/atur-terminal"] --> FEATURE["feature-x<br/>~/code/atur-terminal-feature-x"]
+    PARENT --> FIX["fix-login<br/>~/code/atur-terminal-fix-login"]
 ```
 
 ## Deleting

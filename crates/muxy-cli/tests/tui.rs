@@ -227,20 +227,26 @@ fn shell_identity_is_replaced_and_the_hosting_session_cannot_attach_to_itself() 
     let fixture = Fixture::new()?;
     let mut tui = Tui::start(
         &fixture,
-        &[("MUXY_SERVER_ID", "inherited"), ("MUXY_SESSION_ID", "999")],
+        &[
+            ("ATUR_TERM_SERVER_ID", "inherited"),
+            ("ATUR_TERM_SESSION_ID", "999"),
+        ],
     )?;
     tui.ready()?;
     let client = fixture.client()?;
     let catalog = client.catalog()?;
     let session = client.list_sessions()?[0].id;
-    tui.write(b"printf '\\nSTAMP:%s:%s\\n' \"$MUXY_SERVER_ID\" \"$MUXY_SESSION_ID\"\r")?;
+    tui.write(b"printf '\\nSTAMP:%s:%s\\n' \"$ATUR_TERM_SERVER_ID\" \"$ATUR_TERM_SESSION_ID\"\r")?;
     tui.output(&format!("STAMP:{}:{}", catalog.server, session.get()))?;
     tui.detach()?;
     let server = catalog.server.to_string();
     let id = session.get().to_string();
     let mut nested = Tui::start(
         &fixture,
-        &[("MUXY_SERVER_ID", &server), ("MUXY_SESSION_ID", &id)],
+        &[
+            ("ATUR_TERM_SERVER_ID", &server),
+            ("ATUR_TERM_SESSION_ID", &id),
+        ],
     )?;
     nested.output("Hosting terminal excluded")?;
     nested.write(b"\x02x")?;

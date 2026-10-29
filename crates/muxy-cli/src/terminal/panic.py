@@ -12,7 +12,7 @@ import time
 pid, master = pty.fork()
 if pid == 0:
     os.kill(os.getpid(), signal.SIGSTOP)
-    os.environ["MUXY_TEST_HOST_PANIC"] = "1"
+    os.environ["ATUR_TERM_TEST_HOST_PANIC"] = "1"
     os.execv(sys.argv[1], [sys.argv[1], "--exact",
              "terminal::tests::panic_restores_terminal_settings_and_output_modes", "--nocapture"])
 exited = False

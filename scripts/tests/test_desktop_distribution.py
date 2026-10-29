@@ -66,7 +66,7 @@ class DesktopDistributionTests(unittest.TestCase):
             archive = self.home / f"{version}.tar.gz"
             with tarfile.open(archive, "w:gz") as output:
                 for path in directory.iterdir():
-                    output.add(path, arcname=f"muxy-desktop/{path.name}")
+                    output.add(path, arcname=f"atur-terminal-desktop/{path.name}")
         return archive, INSTALL.digest(archive)
 
     def staged(self, version):
@@ -85,10 +85,10 @@ class DesktopDistributionTests(unittest.TestCase):
 
     def test_tar_rejects_traversal_links_duplicate_files_and_oversized_entries(self):
         for name, kind, size in (("../escaped", tarfile.REGTYPE, 1),
-                                 ("muxy-desktop/muxy", tarfile.SYMTYPE, 0),
-                                 ("muxy-desktop/muxy", tarfile.LNKTYPE, 0),
-                                 ("muxy-desktop/muxy", tarfile.FIFOTYPE, 0),
-                                 ("muxy-desktop/muxy", tarfile.REGTYPE, INSTALL.MAX_ARCHIVE + 1)):
+                                 ("atur-terminal-desktop/atur-term", tarfile.SYMTYPE, 0),
+                                 ("atur-terminal-desktop/atur-term", tarfile.LNKTYPE, 0),
+                                 ("atur-terminal-desktop/atur-term", tarfile.FIFOTYPE, 0),
+                                 ("atur-terminal-desktop/atur-term", tarfile.REGTYPE, INSTALL.MAX_ARCHIVE + 1)):
             with self.subTest(name=name, kind=kind, size=size):
                 archive = self.home / "bad.tar.gz"
                 with gzip.open(archive, "wb") as output:
@@ -101,7 +101,7 @@ class DesktopDistributionTests(unittest.TestCase):
         archive = self.home / "duplicates.tar.gz"
         with tarfile.open(archive, "w:gz") as output:
             for _ in range(2):
-                entry = tarfile.TarInfo("muxy-desktop/muxy")
+                entry = tarfile.TarInfo("atur-terminal-desktop/atur-term")
                 entry.size = 1
                 output.addfile(entry, io.BytesIO(b"x"))
         with tempfile.TemporaryDirectory() as temporary, self.assertRaises(ValueError):
@@ -121,7 +121,7 @@ class DesktopDistributionTests(unittest.TestCase):
         self.staged(self.old)
         candidate = self.staged(self.new)
         INSTALL.switch(self.root, self.old)
-        (candidate / "muxy-server").write_text("modified")
+        (candidate / "atur-term-server").write_text("modified")
         with self.assertRaisesRegex(ValueError, "checksum"):
             INSTALL.activate(self.root, self.new, self.old, 12345)
         self.assertEqual(INSTALL.current_version(self.root), self.old)
@@ -136,7 +136,7 @@ class DesktopDistributionTests(unittest.TestCase):
         self.assertEqual(INSTALL.current_version(self.root), self.old)
         INSTALL.activate(self.root, self.new, self.old, 12345, spawn=lambda *args, **kwargs: None)
         self.assertEqual(INSTALL.current_version(self.root), self.new)
-        self.assertTrue((self.root / "versions" / self.old / "muxy-server").exists())
+        self.assertTrue((self.root / "versions" / self.old / "atur-term-server").exists())
         with self.assertRaisesRegex(ValueError, "changed"):
             INSTALL.activate(self.root, self.new, self.old, 12345)
 
@@ -203,9 +203,9 @@ class DesktopDistributionTests(unittest.TestCase):
         INSTALL.switch(self.root, self.old)
         commands = self.home / ".local/bin"
         commands.mkdir(parents=True)
-        unrelated = commands / "muxy-beta"
+        unrelated = commands / "atur-term-beta"
         unrelated.write_text("unrelated CLI")
-        profile = self.home / "data/muxy-beta"
+        profile = self.home / "data/atur-term-beta"
         profile.mkdir(parents=True)
         (profile / "settings.toml").write_text("keep me")
         INSTALL.integrate(self.root, self.old)
@@ -214,15 +214,15 @@ class DesktopDistributionTests(unittest.TestCase):
             fcntl.flock(running, fcntl.LOCK_SH)
             with self.assertRaises(BlockingIOError):
                 INSTALL.uninstall(self.root)
-            self.assertTrue((commands / "muxy-server-beta").exists())
+            self.assertTrue((commands / "atur-term-server-beta").exists())
         INSTALL.uninstall(self.root)
         self.assertFalse(self.root.exists())
-        self.assertFalse((commands / "muxy-server-beta").is_symlink())
+        self.assertFalse((commands / "atur-term-server-beta").is_symlink())
         self.assertEqual(unrelated.read_text(), "unrelated CLI")
         self.assertEqual((profile / "settings.toml").read_text(), "keep me")
 
     def test_appimage_updates_its_launcher_without_overwriting_other_formats_or_channels(self):
-        store = self.home / "data/muxy-appimage"
+        store = self.home / "data/atur-terminal-appimage"
         old, new = store / ("a" * 64), store / ("b" * 64)
         old.mkdir(parents=True)
         new.mkdir()
@@ -231,7 +231,7 @@ class DesktopDistributionTests(unittest.TestCase):
         self.assertEqual(entry.read_text(), old_contents)
         INSTALL.integrate_appimage(new, self.new)
         self.assertEqual(entry.read_text(), INSTALL.desktop_entry(new, self.new, appimage=True)[1])
-        self.assertIn(f'Exec="{new}/usr/bin/muxy-app" %F', entry.read_text())
+        self.assertIn(f'Exec="{new}/usr/bin/atur-terminal" %F', entry.read_text())
         self.assertIn(f"Icon={new}/com.joyodigitama.atur-terminal-beta.png", entry.read_text())
         INSTALL.integrate_appimage(new, "2.2.0")
         stable, stable_contents = INSTALL.desktop_entry(new, "2.2.0", appimage=True)
@@ -266,7 +266,7 @@ class DesktopDistributionTests(unittest.TestCase):
         self.assertFalse((self.root / "versions").exists())
 
     def test_downloads_refuse_a_plaintext_redirect_before_following_it(self):
-        request = INSTALL.urllib.request.Request("https://github.com/dzulfikar08/muxy/releases/download/test")
+        request = INSTALL.urllib.request.Request("https://github.com/dzulfikar08/atur-terminal/releases/download/test")
         with self.assertRaisesRegex(ValueError, "insecure"):
             INSTALL.HTTPSRedirectHandler().redirect_request(request, None, 302, "redirect", {}, "http://example.com/archive")
 
@@ -274,12 +274,12 @@ class DesktopDistributionTests(unittest.TestCase):
         def feed(version, platforms):
             return json.dumps({"schema": 1, "version": version, "platforms": platforms}).encode()
         for selected, version, url in (
-                ("stable", "2.2.0", "https://github.com/dzulfikar08/muxy/releases/latest/download/update.json"),
+                ("stable", "2.2.0", "https://github.com/dzulfikar08/atur-terminal/releases/latest/download/update.json"),
                 ("beta", self.new, f"{INSTALL.RELEASES}/atur-beta/update.json")):
             def fetch(actual_url, output, limit):
                 self.assertEqual(actual_url, url)
                 tag = f"atur-v{version}" + ("-3" if selected == "stable" else "")
-                output.write(feed(version, {"linux-aarch64": {"url": f"{INSTALL.RELEASES}/{tag}/muxy-desktop-{version}-linux-arm64.tar.gz"}}))
+                output.write(feed(version, {"linux-aarch64": {"url": f"{INSTALL.RELEASES}/{tag}/atur-terminal-desktop-{version}-linux-arm64.tar.gz"}}))
             with patch.object(INSTALL, "fetch", side_effect=fetch):
                 self.assertEqual(INSTALL.latest(selected), (version, f"atur-v{version}" + ("-3" if selected == "stable" else "")))
         for data, reason in ((feed("2.2.0", {"macos-aarch64": {}}), "no Linux desktop"),
@@ -290,18 +290,18 @@ class DesktopDistributionTests(unittest.TestCase):
 
     def test_linux_metadata_is_complete_checksummed_and_keeps_macos_assets(self):
         for name in (f"AturTerminal-{self.new}-arm64.dmg", f"AturTerminal-{self.new}-x86_64.dmg",
-                     f"muxy-desktop-{self.new}-linux-arm64.tar.gz", f"muxy-desktop-{self.new}-linux-x86_64.tar.gz"):
+                     f"atur-terminal-desktop-{self.new}-linux-arm64.tar.gz", f"atur-terminal-desktop-{self.new}-linux-x86_64.tar.gz"):
             (self.home / name).write_bytes(b"release bytes")
         tag = f"atur-v{self.new}"
-        metadata = RELEASE.update_metadata(self.new, "dzulfikar08/muxy", self.home, tag)
+        metadata = RELEASE.update_metadata(self.new, "dzulfikar08/atur-terminal", self.home, tag)
         self.assertEqual(set(metadata["platforms"]), {"macos-aarch64", "macos-x86_64", "linux-aarch64", "linux-x86_64"})
         self.assertEqual(metadata["platforms"]["linux-aarch64"]["sha256"], hashlib.sha256(b"release bytes").hexdigest())
         self.assertEqual(metadata["platforms"]["macos-aarch64"]["url"],
-                         f"https://github.com/dzulfikar08/muxy/releases/download/{tag}/AturTerminal-{self.new}-arm64.dmg")
-        (self.home / f"muxy-desktop-{self.new}-linux-x86_64.tar.gz").unlink()
-        self.assertNotIn("linux-x86_64", RELEASE.update_metadata(self.new, "dzulfikar08/muxy", self.home, tag)["platforms"])
+                         f"https://github.com/dzulfikar08/atur-terminal/releases/download/{tag}/AturTerminal-{self.new}-arm64.dmg")
+        (self.home / f"atur-terminal-desktop-{self.new}-linux-x86_64.tar.gz").unlink()
+        self.assertNotIn("linux-x86_64", RELEASE.update_metadata(self.new, "dzulfikar08/atur-terminal", self.home, tag)["platforms"])
         with self.assertRaises(ValueError):
-            RELEASE.update_metadata(self.new, "dzulfikar08/muxy", self.home, "v" + self.new)
+            RELEASE.update_metadata(self.new, "dzulfikar08/atur-terminal", self.home, "v" + self.new)
 
     def test_desktop_audit_does_not_weaken_standalone_glibc_or_library_policy(self):
         inputs = ["Class: ELF64\nData: little endian\nMachine: AArch64\n",

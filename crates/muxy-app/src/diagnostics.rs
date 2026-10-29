@@ -16,7 +16,7 @@ struct Trace {
 }
 
 pub(crate) fn init(directory: &Path) {
-    if !cfg!(debug_assertions) && std::env::var_os("MUXY_DIAGNOSTICS").is_none() {
+    if !cfg!(debug_assertions) && std::env::var_os("ATUR_TERM_DIAGNOSTICS").is_none() {
         return;
     }
     let path = directory.join(format!("app-diagnostics-{}.log", std::process::id()));

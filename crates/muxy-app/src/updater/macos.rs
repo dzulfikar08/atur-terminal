@@ -112,7 +112,7 @@ impl Installation {
         run(Command::new("/usr/bin/ditto").arg(&source).arg(&candidate))?;
         self.verify_app(&candidate, &release.version)?;
         let build =
-            crate::server::read_build_info(&candidate.join("Contents/MacOS/muxy-server")).ok();
+            crate::server::read_build_info(&candidate.join("Contents/MacOS/atur-term-server")).ok();
         if build
             .as_ref()
             .is_some_and(|info| info.version != release.version)
@@ -157,7 +157,7 @@ impl Installation {
         let candidate = staging.join(bundle_name());
         self.verify_app(&candidate, &version)?;
         let build =
-            crate::server::read_build_info(&candidate.join("Contents/MacOS/muxy-server")).ok();
+            crate::server::read_build_info(&candidate.join("Contents/MacOS/atur-term-server")).ok();
         if build.as_ref().is_some_and(|build| build.version != version) {
             return Err(tr!("Pending update version mismatch").to_string().into());
         }
@@ -242,7 +242,7 @@ impl Installation {
         let plist = app.join("Contents/Info.plist");
         for (key, expected) in [
             ("CFBundleIdentifier", Channel::current().bundle_identifier()),
-            ("CFBundleExecutable", "muxy-app"),
+            ("CFBundleExecutable", "atur-terminal"),
             ("MuxyVersion", version),
         ] {
             let actual = run(Command::new("/usr/bin/plutil")
@@ -271,13 +271,13 @@ impl Installation {
         } else {
             "x86_64"
         };
-        for binary in ["muxy-app", "muxy", "muxy-server"] {
+        for binary in ["atur-terminal", "atur-term", "atur-term-server"] {
             run(Command::new("/usr/bin/lipo")
                 .arg(app.join("Contents/MacOS").join(binary))
                 .args(["-verify_arch", arch]))?;
         }
-        let server = crate::server::read_build_info(&app.join("Contents/MacOS/muxy-server"))?;
-        let client = crate::server::read_build_info(&app.join("Contents/MacOS/muxy"))?;
+        let server = crate::server::read_build_info(&app.join("Contents/MacOS/atur-term-server"))?;
+        let client = crate::server::read_build_info(&app.join("Contents/MacOS/atur-term"))?;
         if client != server || server.version != version {
             return Err(
                 tr!("The bundled client and server do not match the release")
@@ -339,9 +339,10 @@ impl PreparedUpdate {
             .verify_app(&self.candidate(), &self.version)?;
         self.installation
             .verify_app(&self.installation.bundle, env!("CARGO_PKG_VERSION"))?;
-        let build =
-            crate::server::read_build_info(&self.candidate().join("Contents/MacOS/muxy-server"))
-                .ok();
+        let build = crate::server::read_build_info(
+            &self.candidate().join("Contents/MacOS/atur-term-server"),
+        )
+        .ok();
         if build != self.build {
             return Err(
                 tr!("The staged update metadata changed. Check for updates again.")
@@ -517,11 +518,11 @@ mod tests {
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.joyodigitama.atur-terminal-beta</string>
-<key>CFBundleExecutable</key><string>muxy-app</string>
+<key>CFBundleExecutable</key><string>atur-terminal</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>"#,
         )?;
-        for binary in ["muxy-app", "muxy", "muxy-server"] {
+        for binary in ["atur-terminal", "atur-term", "atur-term-server"] {
             let path = binaries.join(binary);
             std::fs::copy("/usr/bin/true", &path)?;
             run(Command::new("/usr/bin/codesign")
@@ -538,7 +539,7 @@ mod tests {
             team: "TESTTEAM00".into(),
         };
         assert!(installation.verify_signature(&app, true).is_err());
-        std::fs::write(binaries.join("muxy"), b"changed helper")?;
+        std::fs::write(binaries.join("atur-term"), b"changed helper")?;
         assert!(verify_code(&app, "identifier \"com.joyodigitama.atur-terminal-beta\"").is_err());
         Ok(())
     }

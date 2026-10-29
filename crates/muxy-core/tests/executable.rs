@@ -47,7 +47,7 @@ fn malformed_commands_cannot_turn_into_a_different_invocation() {
 
 #[test]
 fn current_path_keeps_the_running_generation_after_a_link_switch() -> Result {
-    if let Some(directory) = std::env::var_os("MUXY_TEST_EXECUTABLE_PATH") {
+    if let Some(directory) = std::env::var_os("ATUR_TERM_TEST_EXECUTABLE_PATH") {
         let directory = std::path::PathBuf::from(directory);
         fs::write(directory.join("ready"), b"")?;
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -85,7 +85,7 @@ fn current_path_keeps_the_running_generation_after_a_link_switch() -> Result {
             "--exact",
             "current_path_keeps_the_running_generation_after_a_link_switch",
         ])
-        .env("MUXY_TEST_EXECUTABLE_PATH", directory.path())
+        .env("ATUR_TERM_TEST_EXECUTABLE_PATH", directory.path())
         .stdout(Stdio::null())
         .spawn()?;
     let deadline = Instant::now() + Duration::from_secs(10);

@@ -15,7 +15,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "browser-enabled",
         label: tr_key!("Enable built-in browser"),
         description: tr_key!(
-            "Open web pages in browser tabs and let muxy browser commands drive them."
+            "Open web pages in browser tabs and let atur-term browser commands drive them."
         ),
         category: Category::Browser,
         section: tr_key!("General"),
@@ -871,7 +871,7 @@ pub(super) const SETTINGS: &[Setting] = &[
     Setting {
         id: "mobile-pair",
         label: tr_key!("Pair a phone"),
-        description: tr_key!("Show a one-time code to scan with the Atur/Muxy mobile app."),
+        description: tr_key!("Show a one-time code to scan with the Atur Terminal mobile app."),
         category: Category::Mobile,
         section: tr_key!("Pairing"),
     },

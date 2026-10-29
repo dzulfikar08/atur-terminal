@@ -36,12 +36,15 @@ impl Fixture {
     pub(super) fn environment(&self) -> Vec<(OsString, OsString)> {
         vec![
             (
-                "MUXY_SERVER_BIN".into(),
+                "ATUR_TERM_SERVER_BIN".into(),
                 super::support::binary()
-                    .with_file_name("muxy-server")
+                    .with_file_name("atur-term-server")
                     .into(),
             ),
-            ("MUXY_DIR".into(), self.directory.path().as_os_str().into()),
+            (
+                "ATUR_TERM_DIR".into(),
+                self.directory.path().as_os_str().into(),
+            ),
             (
                 "HOME".into(),
                 self.directory.path().join("home").into_os_string(),
@@ -106,7 +109,7 @@ impl<'a> Tui<'a> {
         Self::launch(fixture, extra, &[])
     }
 
-    /// Starts `muxy` with `arguments`, such as `--host`.
+    /// Starts `atur-term` with `arguments`, such as `--host`.
     pub(super) fn launch(
         fixture: &'a Fixture,
         extra: &[(&str, &str)],
@@ -118,10 +121,13 @@ impl<'a> Tui<'a> {
                 .iter()
                 .map(|(key, value)| ((*key).into(), (*value).into())),
         );
-        env.push(("MUXY_TEST_TUI_BIN".into(), super::support::binary().into()));
+        env.push((
+            "ATUR_TERM_TEST_TUI_BIN".into(),
+            super::support::binary().into(),
+        ));
         let mut args = vec![
             "-c".into(),
-            "stty -g > \"$MUXY_DIR/termios-$$\"; tty > \"$MUXY_DIR/tty-$$\"; exec \"$MUXY_TEST_TUI_BIN\" \"$@\"".into(),
+            "stty -g > \"$ATUR_TERM_DIR/termios-$$\"; tty > \"$ATUR_TERM_DIR/tty-$$\"; exec \"$ATUR_TERM_TEST_TUI_BIN\" \"$@\"".into(),
             "sh".into(),
         ];
         args.extend(arguments.iter().map(Into::into));

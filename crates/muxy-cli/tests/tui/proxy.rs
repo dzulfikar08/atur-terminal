@@ -88,7 +88,7 @@ impl Proxy {
     pub(super) fn new(fixture: &Fixture) -> Result<Self> {
         let actual = fixture.directory.path().join("actual.sock");
         let server =
-            std::process::Command::new(super::support::binary().with_file_name("muxy-server"))
+            std::process::Command::new(super::support::binary().with_file_name("atur-term-server"))
                 .envs(fixture.environment())
                 .arg("--socket")
                 .arg(&actual)

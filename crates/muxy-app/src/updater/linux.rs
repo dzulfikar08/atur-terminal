@@ -35,7 +35,7 @@ impl Installation {
             installer: executable.with_file_name("install.py"),
         };
         if installation.verify(env!("CARGO_PKG_VERSION"))? != muxy_protocol::BuildInfo::current()
-            || root.join("current/muxy-app").canonicalize()? != executable
+            || root.join("current/atur-terminal").canonicalize()? != executable
         {
             return Err(tr!("The installed app changed. Reopen it before updating.")
                 .to_string()
@@ -150,7 +150,7 @@ impl PreparedUpdate {
             || self
                 .installation
                 .root
-                .join("current/muxy-app")
+                .join("current/atur-terminal")
                 .canonicalize()?
                 != muxy_core::executable::current_path()?
         {

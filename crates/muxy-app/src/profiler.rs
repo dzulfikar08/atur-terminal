@@ -129,7 +129,7 @@ fn output_parent(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
 }
 
 pub(crate) fn init() -> Option<Session> {
-    let parent = output_parent(std::env::var_os("MUXY_PROFILE"))?;
+    let parent = output_parent(std::env::var_os("ATUR_TERM_PROFILE"))?;
     match start(&parent) {
         Ok(session) => Some(session),
         Err(error) => {
@@ -143,8 +143,8 @@ pub(crate) fn init() -> Option<Session> {
 }
 
 fn start(parent: &Path) -> io::Result<Session> {
-    let bypass = std::env::var_os("MUXY_PROFILE_ROW_CACHE").is_some_and(|value| value == "0");
-    let mode = capture::StackMode::parse(std::env::var_os("MUXY_PROFILE_STACKS").as_deref())?;
+    let bypass = std::env::var_os("ATUR_TERM_PROFILE_ROW_CACHE").is_some_and(|value| value == "0");
+    let mode = capture::StackMode::parse(std::env::var_os("ATUR_TERM_PROFILE_STACKS").as_deref())?;
     let capture = capture::Capture::new(parent, bypass, mode)?;
     PROFILE
         .set(Profile::new(bypass))

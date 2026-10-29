@@ -1,28 +1,28 @@
 # Mobile
 
-Phones connect straight to `muxy-server` on the user's computer. There is no
+Phones connect straight to `atur-term-server` on the user's computer. There is no
 cloud service. A phone connects in one of two ways:
 
 - **Paired, over TLS.** The phone reaches the computer on the same network,
   through a VPN such as Tailscale, or at an address added to the pairing code.
-- **Over SSH**, with the phone app's own SSH client. It runs `muxy stdio` on
-  the computer, like `muxy --host` does, so no pairing or open port is needed.
+- **Over SSH**, with the phone app's own SSH client. It runs `atur-term stdio` on
+  the computer, like `atur-term --host` does, so no pairing or open port is needed.
 
 ```mermaid
 flowchart LR
     subgraph PHONE["Phone app · Swift or Kotlin"]
         VIEW["Screen and keyboard"] --> SDK["muxy-mobile<br/>Rust client library"]
     end
-    SDK <-->|"TLS 1.3 · pinned certificate"| SERVER["muxy-server"]
-    SDK <-->|"SSH · muxy stdio<br/>through the app's SSH client"| SERVER
+    SDK <-->|"TLS 1.3 · pinned certificate"| SERVER["atur-term-server"]
+    SDK <-->|"SSH · atur-term stdio<br/>through the app's SSH client"| SERVER
 ```
 
 ## Pairing
 
 ```mermaid
 sequenceDiagram
-    participant Computer as Desktop app or muxy mobile
-    participant Server as muxy-server
+    participant Computer as Desktop app or atur-term mobile
+    participant Server as atur-term-server
     participant Phone
     Computer->>Server: Start pairing
     Server-->>Computer: Pairing link, shown as a QR code
@@ -35,7 +35,7 @@ sequenceDiagram
 
 The computer lists its own addresses. One that phones reach by another name,
 such as a cloud server behind NAT, puts that name first with
-`muxy mobile pair --address`.
+`atur-term mobile pair --address`.
 
 ## Security
 

@@ -7,7 +7,7 @@
   var MAX_QUERY_VARIANTS = 64;
   var SEARCH_TIMEOUT_MS = 350;
   var OUTPUT_LINE_LIMIT = MAX_RESULTS;
-  var SEARCH_EXIT_MARKER = "__MUXY_FIND_IN_FILES_EXIT__=";
+  var SEARCH_EXIT_MARKER = "__ATUR_TERM_FIND_IN_FILES_EXIT__=";
 
   // scripts/find-in-files/query.js
   function result_id(filePath, lineNumber) {

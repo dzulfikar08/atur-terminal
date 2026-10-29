@@ -1,14 +1,14 @@
 # Server
 
-`muxy-server` runs every terminal. The desktop app, the terminal UI, the CLI,
+`atur-term-server` runs every terminal. The desktop app, the terminal UI, the CLI,
 and phones are all clients of it. That is why terminals keep running after you
 quit an app, and why several apps can show the same terminal.
 
 ```mermaid
 flowchart LR
-    DESKTOP["Desktop app"] <--> SERVER["muxy-server"]
-    TUI["muxy terminal UI"] <--> SERVER
-    CLI["muxy CLI"] <--> SERVER
+    DESKTOP["Desktop app"] <--> SERVER["atur-term-server"]
+    TUI["atur-term terminal UI"] <--> SERVER
+    CLI["atur-term CLI"] <--> SERVER
     PHONE["Phone"] <--> SERVER
 ```
 
@@ -19,8 +19,8 @@ flowchart LR
 - It keeps running until you stop it, even with no app open.
 - Stopping or restarting it ends every terminal. Saved screens and history are
   kept. Use the status bar, **Settings → Server**, or
-  `muxy server stop --force`.
-- Muxy never restarts it on its own while terminals are running. After an
+  `atur-term server stop --force`.
+- Atur Terminal never restarts it on its own while terminals are running. After an
   update, the desktop app replaces this computer's server once no terminals are
   running.
 
@@ -48,7 +48,7 @@ flowchart LR
 ## Settings
 
 Server settings apply to everyone using that server. Change them in
-**Settings → Server**, with `muxy settings set`, or in `server.toml`:
+**Settings → Server**, with `atur-term settings set`, or in `server.toml`:
 
 | Setting | `server.toml` key | Default |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ budget applies to saved history after the server restarts.
 
 ## Shell integration
 
-Shell integration lets Muxy track each terminal's folder, jump between prompts,
+Shell integration lets Atur Terminal track each terminal's folder, jump between prompts,
 and select a command's output. It loads automatically for zsh and fish, without
 editing your startup files.
 
@@ -69,13 +69,13 @@ Bash is opt-in. Add this to the file your Bash profile loads for interactive
 shells:
 
 ```bash
-if [[ ${MUXY_SHELL_INTEGRATION:-0} == 1 ]]; then
-    source "$MUXY_SHELL_INTEGRATION_DIR/muxy.bash"
+if [[ ${ATUR_TERM_SHELL_INTEGRATION:-0} == 1 ]]; then
+    source "$ATUR_TERM_SHELL_INTEGRATION_DIR/atur-term.bash"
 fi
 ```
 
 Every terminal gets `TERM=xterm-256color`, `COLORTERM=truecolor`,
-`TERM_PROGRAM=muxy`, `MUXY_SERVER_ID`, and `MUXY_SESSION_ID`.
+`TERM_PROGRAM=atur-terminal`, `ATUR_TERM_SERVER_ID`, and `ATUR_TERM_SESSION_ID`.
 
 ## Files
 
@@ -83,8 +83,8 @@ Everything lives in one profile folder:
 
 | Platform | Stable | Beta |
 | --- | --- | --- |
-| macOS | `~/Library/Application Support/Muxy 2` | `~/Library/Application Support/Muxy Beta` |
-| Linux | `$XDG_STATE_HOME/muxy`, or `~/.local/state/muxy` | `$XDG_STATE_HOME/muxy-beta`, or `~/.local/state/muxy-beta` |
+| macOS | `~/Library/Application Support/Atur Terminal` | `~/Library/Application Support/Atur Terminal Beta` |
+| Linux | `$XDG_STATE_HOME/atur-terminal`, or `~/.local/state/atur-terminal` | `$XDG_STATE_HOME/atur-terminal-beta`, or `~/.local/state/atur-terminal-beta` |
 
 | File | What it holds |
 | --- | --- |
@@ -96,5 +96,10 @@ Everything lives in one profile folder:
 | `settings.toml`, `terminal.toml`, `themes/` | Desktop app settings, see [Settings](../user-guide/settings.md) |
 | `tui-state.json` | Terminal UI layouts |
 
-Set `MUXY_DIR` to use a different profile folder. Development builds use
-`Muxy Dev` (`muxy-dev` on Linux), so they never touch your real data.
+On first start, if the profile folder does not exist and the matching Muxy folder does (`muxy`,
+`muxy-beta`, `muxy-dev` on Linux; `Muxy 2`, `Muxy Beta`, `Muxy Dev` on macOS), `server.toml`,
+`catalog.json`, `remote.json`, `backend.toml` and `herdr.json` are copied into it. The Muxy folder is
+never changed, and nothing is copied when `ATUR_TERM_DIR` is set.
+
+Set `ATUR_TERM_DIR` to use a different profile folder. Development builds use
+`Atur Terminal Dev` (`atur-terminal-dev` on Linux), so they never touch your real data.

@@ -28,12 +28,12 @@ impl Fixture {
         let mut command = Command::new(support::binary());
         command
             .args(args)
-            .env("MUXY_DIR", &self.profile)
+            .env("ATUR_TERM_DIR", &self.profile)
             .env("XDG_CONFIG_HOME", self.profile.join("config"))
-            .env_remove("MUXY_SERVER_BIN")
-            .env_remove("MUXY_PANE_ID")
-            .env_remove("MUXY_SESSION_ID")
-            .env_remove("MUXY_SERVER_ID")
+            .env_remove("ATUR_TERM_SERVER_BIN")
+            .env_remove("ATUR_TERM_PANE_ID")
+            .env_remove("ATUR_TERM_SESSION_ID")
+            .env_remove("ATUR_TERM_SERVER_ID")
             .current_dir(self.directory.path());
         command
     }
@@ -42,8 +42,8 @@ impl Fixture {
         let server = self.client()?.catalog()?.server.to_string();
         Ok(self
             .command(args)
-            .env("MUXY_SESSION_ID", session)
-            .env("MUXY_SERVER_ID", server)
+            .env("ATUR_TERM_SESSION_ID", session)
+            .env("ATUR_TERM_SERVER_ID", server)
             .output()?)
     }
     fn ok(&self, args: &[&str]) -> Result<String> {
@@ -382,8 +382,8 @@ fn worktrees_use_the_default_location_and_run_hooks_only_when_asked() -> Result 
     std::fs::create_dir(f.directory.path().join(".muxy"))?;
     std::fs::write(
         f.directory.path().join(".muxy/worktree.json"),
-        r#"{"setup": ["touch \"$MUXY_PROJECT_PATH/setup-ran\""],
-            "teardown": ["touch \"$MUXY_PROJECT_PATH/teardown-ran\""]}"#,
+        r#"{"setup": ["touch \"$ATUR_TERM_PROJECT_PATH/setup-ran\""],
+            "teardown": ["touch \"$ATUR_TERM_PROJECT_PATH/teardown-ran\""]}"#,
     )?;
     let project = f.project()?;
     let plain = f.json(&["worktree", "create", &project, "plain", "--json"])?;

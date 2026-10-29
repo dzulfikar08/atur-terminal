@@ -4,7 +4,7 @@ Atur Terminal is a fork of [Muxy](https://github.com/muxy-app/muxy). Thank you f
 
 ## Humans Only Policy
 
-Muxy is a community project and we want communication to stay between humans. You are welcome to use AI to help you write code, but **only humans may**:
+Atur Terminal is a community project and we want communication to stay between humans. You are welcome to use AI to help you write code, but **only humans may**:
 
 - Create commits and push changes
 - Open issues or pull requests
@@ -16,7 +16,7 @@ Issues and PRs opened by AI or containing AI-generated text will be closed witho
 
 ## Getting Started
 
-Read [docs/product](docs/product/README.md) and [docs/tech](docs/tech/README.md) first. They describe how Muxy works and how it is built.
+Read [docs/product](docs/product/README.md) and [docs/tech](docs/tech/README.md) first. They describe how Atur Terminal works and how it is built.
 
 ### Prerequisites
 
@@ -27,8 +27,8 @@ Read [docs/product](docs/product/README.md) and [docs/tech](docs/tech/README.md)
 ### Setup
 
 ```bash
-git clone https://github.com/dzulfikar08/muxy.git
-cd muxy
+git clone https://github.com/dzulfikar08/atur-terminal.git
+cd atur-terminal
 ```
 
 On macOS, build the whole workspace with `cargo build --workspace`. On Linux,
@@ -39,12 +39,12 @@ desktop app is macOS only.
 
 ```bash
 cargo run -p muxy-app     # desktop app (macOS)
-cargo run -p muxy-cli     # muxy terminal UI
+cargo run -p muxy-cli     # atur-term terminal UI
 ```
 
-Build as in [Setup](#setup) first, so `muxy-server` sits next to the binary you
+Build as in [Setup](#setup) first, so `atur-term-server` sits next to the binary you
 run.
-Development builds keep their data in a separate `Muxy Dev` profile (`muxy-dev`
+Development builds keep their data in a separate `Atur Terminal Dev` profile (`atur-terminal-dev`
 on Linux).
 
 ## Development Workflow
@@ -97,7 +97,7 @@ and tests with `-p` for each package that
 
 ## Reporting Issues
 
-- Report bugs and ideas on [GitHub Issues](https://github.com/dzulfikar08/muxy/issues)
+- Report bugs and ideas on [GitHub Issues](https://github.com/dzulfikar08/atur-terminal/issues)
 - Search existing issues before creating a new one
 
 ## License

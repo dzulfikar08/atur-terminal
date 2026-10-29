@@ -33,9 +33,9 @@ def verify():
     webkit.webkit_web_view_get_title.argtypes = [c.c_void_p]
     webkit.webkit_web_view_get_title.restype = c.c_char_p
     glib.g_main_context_iteration.argtypes = [c.c_void_p, c.c_int]
-    webkit.webkit_web_view_load_html(view, b"<html><script>document.title='Muxy system WebKit works'</script></html>", b"https://example.invalid/")
+    webkit.webkit_web_view_load_html(view, b"<html><script>document.title='Atur Terminal system WebKit works'</script></html>", b"https://example.invalid/")
     deadline = time.monotonic() + 30
-    while webkit.webkit_web_view_get_title(view) != b"Muxy system WebKit works":
+    while webkit.webkit_web_view_get_title(view) != b"Atur Terminal system WebKit works":
         if time.monotonic() >= deadline:
             raise RuntimeError("System WebKit did not execute the page script")
         glib.g_main_context_iteration(None, 0)

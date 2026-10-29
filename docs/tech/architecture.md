@@ -7,12 +7,12 @@ The processes, the crates, and how data moves between them.
 ```mermaid
 flowchart LR
     DESKTOP["Desktop app"] <-->|"Unix socket"| LOCAL
-    TUI["muxy terminal UI"] <-->|"Unix socket"| LOCAL
-    DESKTOP <-->|"SSH · muxy stdio<br/>from another computer"| LOCAL
-    TUI <-->|"SSH · muxy stdio<br/>from another computer"| LOCAL
+    TUI["atur-term terminal UI"] <-->|"Unix socket"| LOCAL
+    DESKTOP <-->|"SSH · atur-term stdio<br/>from another computer"| LOCAL
+    TUI <-->|"SSH · atur-term stdio<br/>from another computer"| LOCAL
     PHONE["Phone app"] <-->|"TLS · after pairing"| NETWORK
-    PHONE <-->|"SSH · muxy stdio"| LOCAL
-    subgraph SERVER["muxy-server · one per profile"]
+    PHONE <-->|"SSH · atur-term stdio"| LOCAL
+    subgraph SERVER["atur-term-server · one per profile"]
         LOCAL["Local listener"]
         NETWORK["Network listener · opt-in"]
         CONNECTION["Client connections"]
@@ -27,7 +27,7 @@ flowchart LR
     end
 ```
 
-- The desktop app ships the `muxy` and `muxy-server` executables, which are
+- The desktop app ships the `atur-term` and `atur-term-server` executables, which are
   also released on their own. Either app starts the server if it isn't running.
 - The server keeps projects and which sessions belong to them. Apps keep tabs,
   panes, order, and workspaces.
@@ -40,29 +40,29 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    APP["muxy-app"] --> UI["muxy-ui"]
-    APP --> APPCORE["muxy-app-core"]
+    APP["atur-terminal"] --> UI["muxy-ui"]
+    APP --> APPCORE["atur-terminal-core"]
     APP --> CLIENT["muxy-client"]
     CLI["muxy-cli"] --> APPCORE
     CLI --> CLIENT
     MOBILE["muxy-mobile"] --> CLIENT
     CLIENT --> PROTOCOL["muxy-protocol"]
     APPCORE --> PROTOCOL
-    SERVER["muxy-server"] --> TERMINAL["muxy-terminal"]
+    SERVER["atur-term-server"] --> TERMINAL["muxy-terminal"]
     SERVER --> PROTOCOL
     TERMINAL --> PROTOCOL
 ```
 
 | Crate | Role |
 | --- | --- |
-| `muxy-app` | The desktop app. |
+| `atur-terminal` | The desktop app. |
 | `muxy-ui` | Reusable GPUI components and native web views. No app state. |
-| `muxy-app-core` | The app model without UI, shared by desktop and terminal UI: layouts, workspaces, settings, extensions. |
-| `muxy-cli` | The `muxy` command: CLI and terminal UI. |
+| `atur-terminal-core` | The app model without UI, shared by desktop and terminal UI: layouts, workspaces, settings, extensions. |
+| `muxy-cli` | The `atur-term` command: CLI and terminal UI. |
 | `muxy-client` | Connects to a server, starting a local one if needed. |
 | `muxy-mobile` | The client library for phones, with Swift and Kotlin bindings. |
 | `muxy-protocol` | Messages, encoding, screen types, and transports. |
-| `muxy-server` | The server: projects, sessions, history, Git, files, and mobile access. |
+| `atur-term-server` | The server: projects, sessions, history, Git, files, and mobile access. |
 | `muxy-terminal` | Wraps the Ghostty terminal and the PTY. |
 | `muxy-core` | Shared basics, such as folders, locks, the shortcut catalog, and the app language. |
 
@@ -156,8 +156,8 @@ flowchart LR
 - Browser panes embed [polybrowser](https://github.com/saeedvaziry/polybrowser),
   which wraps the system WebKit view and keeps profiles and history.
 - A page sits in the same native host as extension web views, so it hides under
-  app content and shares the keyboard with Muxy's shortcuts.
-- The server knows nothing about browsers. `muxy browser` reaches the desktop
+  app content and shares the keyboard with Atur Terminal's shortcuts.
+- The server knows nothing about browsers. `atur-term browser` reaches the desktop
   app over its own socket in the profile folder, `app.sock`, which only this
   user can open. One JSON request gets one JSON reply.
 

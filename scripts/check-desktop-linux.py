@@ -26,12 +26,12 @@ def main():
     if os.environ.get("CARGO_BUILD_TARGET", args.target) != args.target:
         raise ValueError("Remove CARGO_BUILD_TARGET or set it to the native Linux host")
     wrapper = ROOT / "scripts/zig"
-    zig = os.environ.get("MUXY_ZIG") or shutil.which("zig")
+    zig = os.environ.get("ATUR_TERM_ZIG") or shutil.which("zig")
     if not zig or Path(zig).resolve() == (wrapper / "zig").resolve():
-        raise ValueError("Install Zig 0.15.2 or set MUXY_ZIG to it before running the Linux desktop check")
+        raise ValueError("Install Zig 0.15.2 or set ATUR_TERM_ZIG to it before running the Linux desktop check")
     env = {
         **os.environ,
-        "MUXY_ZIG": zig,
+        "ATUR_TERM_ZIG": zig,
         "PATH": str(wrapper) + os.pathsep + os.environ.get("PATH", ""),
         "RUSTDOCFLAGS": (os.environ.get("RUSTDOCFLAGS", "") + " -D warnings").strip(),
     }

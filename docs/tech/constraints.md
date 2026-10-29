@@ -7,7 +7,7 @@ Supported platforms, and lessons that shape the code.
 | Part | Supported |
 | --- | --- |
 | Desktop app | macOS 14 and later |
-| `muxy` and `muxy-server` | macOS 14 and later, and Linux with glibc 2.35 or later, on x86_64 and ARM64 |
+| `atur-term` and `atur-term-server` | macOS 14 and later, and Linux with glibc 2.35 or later, on x86_64 and ARM64 |
 | Mobile SDK | iOS and Android |
 
 Not yet supported: Windows, and musl or Alpine Linux. Linux builds must be
@@ -33,8 +33,8 @@ text fields use Ctrl+C and Ctrl+V. Links in a terminal open with Ctrl+click.
 Existing configured shortcuts remain literal. New configurations use the system
 monospace font and inline paths for composer images.
 
-One app runs per profile: a second launch, and `muxy <folder>`, hand their
-folders to the app that is running. The app, the `muxy` tool and the server are
+One app runs per profile: a second launch, and `atur-term <folder>`, hand their
+folders to the app that is running. The app, the `atur-term` tool and the server are
 installed in one directory and find each other there.
 
 Extensions run on the system's WebKitGTK 4.1, version 2.40 or later, which the
@@ -52,18 +52,18 @@ has:
 - content processes outside WebKit's sandbox where the system forbids the
   sandbox, as Ubuntu 24.04 does for an app without an AppArmor profile.
 
-On Ubuntu, download `muxy-desktop.apparmor` from the
-[latest stable release](https://github.com/muxy-app/muxy/releases/latest) to allow
+On Ubuntu, download `atur-terminal.apparmor` from the
+[latest stable release](https://github.com/dzulfikar08/atur-terminal/releases/latest) to allow
 WebKit's sandbox at the default installation paths for all three Linux formats.
 An administrator can install it:
 
 ```sh
-sudo install -m 644 muxy-desktop.apparmor /etc/apparmor.d/muxy-desktop
-sudo apparmor_parser -r /etc/apparmor.d/muxy-desktop
+sudo install -m 644 atur-terminal.apparmor /etc/apparmor.d/atur-terminal
+sudo apparmor_parser -r /etc/apparmor.d/atur-terminal
 ```
 
 Adjust its attachment paths for a custom `XDG_DATA_HOME`, then fully quit and
-reopen Muxy. The profile permits user-namespace creation; it does not confine
+reopen Atur Terminal. The profile permits user-namespace creation; it does not confine
 the whole terminal app. Installers do not change system security settings.
 Remove the optional profile only when no installed channel or format needs it.
 
@@ -85,7 +85,7 @@ Voice input uses local `parec` capture and `whisper-cli` transcription. Install
 PulseAudio's utilities (`pulseaudio-utils` on Ubuntu) and
 [whisper.cpp](https://github.com/ggml-org/whisper.cpp), v1.9.5 or later. The
 audio service must expose its local PulseAudio socket, as PipeWire's PulseAudio
-compatibility service does. Muxy records the default input device; choose it
+compatibility service does. Atur Terminal records the default input device; choose it
 and control access in the desktop's sound settings. There is no separate
 microphone permission dialog in this backend.
 
@@ -103,11 +103,11 @@ detection model
 `~/.local/share/muxy/voice/ggml-silero-v6.2.0.bin` when `XDG_DATA_HOME` is unset.
 Its SHA256 is
 `2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987`.
-This model is required even when the voice model is stored elsewhere. Muxy
+This model is required even when the voice model is stored elsewhere. Atur Terminal
 checks for it before opening the microphone and uses it to discard audio
 without detected speech before transcription. This reduces invented text from
 silence or keyboard noise; speech detection and recognition can still make
-mistakes. Model downloads are manual; Muxy does not download anything for
+mistakes. Model downloads are manual; Atur Terminal does not download anything for
 dictation.
 
 Audio stays in memory and is sent through a pipe to the local model when the
@@ -138,9 +138,9 @@ libwayland-dev libxcb1-dev libvulkan-dev`. Runtime packages include
 `libwebkit2gtk-4.1-0` for extensions.
 The desktop checks also need `xvfb` and `xauth` for isolated X11 shortcut and
 window-lifecycle tests.
-Then run `bash scripts/build-desktop-linux.sh`. `MUXY_ZIG` can point at Zig, and
+Then run `bash scripts/build-desktop-linux.sh`. `ATUR_TERM_ZIG` can point at Zig, and
 `CARGO_TARGET_DIR` must point to a guest-local writable directory when the source
-checkout is shared read-only. Keep `muxy-app`, `muxy`, and `muxy-server` together.
+checkout is shared read-only. Keep `atur-terminal`, `atur-term`, and `atur-term-server` together.
 
 Visual checks are performed by a person: start the app from a desktop terminal,
 open a project, create and split terminals, exercise shell input and Ctrl+C,
@@ -152,12 +152,12 @@ package installation and upgrade acceptance, and the deferred platform backends.
 On Linux hosts that end a user's processes at logout, run
 `loginctl enable-linger` so the server keeps running after an SSH session ends.
 
-Turning on mobile access may show a macOS firewall prompt for `muxy-server`, and
+Turning on mobile access may show a macOS firewall prompt for `atur-term-server`, and
 the iOS app needs local network permission.
 
 macOS charges a process's privacy permissions, such as Local Network, to the app
 process that started it. The desktop app starts the server through a small copy
-of itself that lives as long as the server, so terminals keep Muxy's permissions
+of itself that lives as long as the server, so terminals keep Atur Terminal's permissions
 after the app quits.
 
 ## Terminal engine
@@ -195,8 +195,8 @@ editing your startup files. Bash is opt-in. Add this to the file your Bash
 profile loads for interactive shells:
 
 ```bash
-if [[ ${MUXY_SHELL_INTEGRATION:-0} == 1 ]]; then
-    source "$MUXY_SHELL_INTEGRATION_DIR/muxy.bash"
+if [[ ${ATUR_TERM_SHELL_INTEGRATION:-0} == 1 ]]; then
+    source "$ATUR_TERM_SHELL_INTEGRATION_DIR/atur-term.bash"
 fi
 ```
 

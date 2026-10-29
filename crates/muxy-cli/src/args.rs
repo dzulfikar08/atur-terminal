@@ -37,7 +37,7 @@ pub(crate) enum Mobile {
 
 /// Reads the command, and the other computer whose server it uses when it
 /// starts with `--host DESTINATION`. Help, version and build info describe
-/// this computer's Muxy, a bridge must never reach on to another computer,
+/// this computer's Atur Terminal, a bridge must never reach on to another computer,
 /// and browser tabs live in this computer's desktop app, so none of them
 /// takes `--host`.
 pub(crate) fn parse(arguments: &[OsString]) -> io::Result<(Option<SshTarget>, Command)> {
@@ -67,7 +67,7 @@ pub(crate) fn parse(arguments: &[OsString]) -> io::Result<(Option<SshTarget>, Co
                 (command, _) => Ok((Some(host), command)),
             }
         }
-        [flag] if flag == "--host" => Err(invalid("usage: muxy --host DESTINATION [COMMAND]")),
+        [flag] if flag == "--host" => Err(invalid("usage: atur-term --host DESTINATION [COMMAND]")),
         _ => Ok((None, command(arguments)?)),
     }
 }
@@ -100,7 +100,7 @@ fn command(arguments: &[OsString]) -> io::Result<Command> {
             .to_str()
             .and_then(help::topic)
             .map(Command::Usage)
-            .ok_or_else(|| invalid("unknown command; run muxy --help")),
+            .ok_or_else(|| invalid("unknown command; run atur-term --help")),
         [word] if names_folder(word) => Ok(Command::Open(word.into())),
         _ => {
             crate::manage::args::parse(arguments).map(|command| Command::Manage(Box::new(command)))
@@ -130,7 +130,9 @@ fn mobile(arguments: &[OsString]) -> io::Result<Mobile> {
         [Some("revoke"), Some(device)] if !device.is_empty() => Ok(Mobile::Revoke {
             device: (*device).to_owned(),
         }),
-        _ => Err(invalid("unknown mobile command; run muxy mobile --help")),
+        _ => Err(invalid(
+            "unknown mobile command; run atur-term mobile --help",
+        )),
     }
 }
 
@@ -138,7 +140,7 @@ fn pair(options: &[Option<&str>]) -> io::Result<Mobile> {
     let mut addresses = Vec::new();
     for option in options.chunks(2) {
         let [Some("--address"), Some(address)] = option else {
-            return Err(invalid("usage: muxy mobile pair [--address HOST]..."));
+            return Err(invalid("usage: atur-term mobile pair [--address HOST]..."));
         };
         let address = (*address).to_owned();
         if muxy_protocol::validate_pairing_hosts(std::slice::from_ref(&address)).is_err() {
@@ -163,7 +165,7 @@ fn install_skills(arguments: &[OsString]) -> io::Result<Vec<PathBuf>> {
             [flag, directory] if flag == "--dir" && !directory.is_empty() => {
                 Ok(PathBuf::from(directory))
             }
-            _ => Err(invalid("usage: muxy install-skills [--dir DIR]...")),
+            _ => Err(invalid("usage: atur-term install-skills [--dir DIR]...")),
         })
         .collect()
 }
@@ -172,7 +174,7 @@ fn stdio(arguments: &[OsString]) -> io::Result<Start> {
     match arguments {
         [] => Ok(Start::IfNeeded),
         [flag] if flag == "--no-start" => Ok(Start::Never),
-        _ => Err(invalid("usage: muxy stdio [--no-start]")),
+        _ => Err(invalid("usage: atur-term stdio [--no-start]")),
     }
 }
 

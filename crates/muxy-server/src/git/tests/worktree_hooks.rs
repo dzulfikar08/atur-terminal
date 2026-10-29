@@ -61,15 +61,15 @@ fn remove_request(repo: &Repo, project: ProjectId, hooks: Option<Vec<WorktreeHoo
 #[test]
 fn worktree_hooks_use_the_source_config_environment_order_and_run_once() {
     let repo = Repo::new(true);
-    std::fs::write(repo.path.join("machine-worktree.json"), r#"{"setup":["printf global > order"],"teardown":["printf global >> \"$MUXY_PROJECT_PATH/removed\""]}"#).unwrap();
+    std::fs::write(repo.path.join("machine-worktree.json"), r#"{"setup":["printf global > order"],"teardown":["printf global >> \"$ATUR_TERM_PROJECT_PATH/removed\""]}"#).unwrap();
     configure(
         &repo,
         &[
             "printf project >> order",
-            "printf '%s\n' \"$MUXY_PROJECT_PATH\" \"$MUXY_WORKTREE_PATH\" \"$MUXY_WORKTREE_NAME\" \"$MUXY_WORKTREE_BRANCH\" \"$MUXY_WORKTREE_ID\" > environment",
+            "printf '%s\n' \"$ATUR_TERM_PROJECT_PATH\" \"$ATUR_TERM_WORKTREE_PATH\" \"$ATUR_TERM_WORKTREE_NAME\" \"$ATUR_TERM_WORKTREE_BRANCH\" \"$ATUR_TERM_WORKTREE_ID\" > environment",
         ],
         &[
-            "printf project > \"$MUXY_PROJECT_PATH/removed\"",
+            "printf project > \"$ATUR_TERM_PROJECT_PATH/removed\"",
             "rm order",
         ],
     );

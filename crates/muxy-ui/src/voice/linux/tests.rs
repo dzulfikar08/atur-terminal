@@ -128,10 +128,10 @@ fn english_only_models_cannot_silently_override_the_requested_language() {
 #[test]
 #[ignore = "requires whisper-cli, multilingual and Silero models, and the bundled 16 kHz JFK WAV sample"]
 fn real_models_reject_keyboard_noise_and_transcribe_speech_from_memory() {
-    let model = PathBuf::from(std::env::var_os("MUXY_TEST_VOICE_MODEL").expect("model"));
+    let model = PathBuf::from(std::env::var_os("ATUR_TERM_TEST_VOICE_MODEL").expect("model"));
     let speech_model =
-        PathBuf::from(std::env::var_os("MUXY_TEST_VOICE_VAD_MODEL").expect("Silero model"));
-    let sample = std::env::var_os("MUXY_TEST_VOICE_SAMPLE").expect("sample");
+        PathBuf::from(std::env::var_os("ATUR_TERM_TEST_VOICE_VAD_MODEL").expect("Silero model"));
+    let sample = std::env::var_os("ATUR_TERM_TEST_VOICE_SAMPLE").expect("sample");
     let wav = std::fs::read(sample).expect("WAV sample");
     assert_eq!(&wav[..4], b"RIFF");
     let mut offset = 12;

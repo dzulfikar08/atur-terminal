@@ -18,16 +18,16 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub fn server_executable() -> io::Result<PathBuf> {
-    if let Some(path) = std::env::var_os("MUXY_SERVER_BIN") {
+    if let Some(path) = std::env::var_os("ATUR_TERM_SERVER_BIN") {
         if path.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "MUXY_SERVER_BIN must not be empty",
+                "ATUR_TERM_SERVER_BIN must not be empty",
             ));
         }
         return Ok(path.into());
     }
-    Ok(muxy_core::executable::current_path()?.with_file_name("muxy-server"))
+    Ok(muxy_core::executable::current_path()?.with_file_name("atur-term-server"))
 }
 
 pub fn ensure_running(socket: &Path, executable: &Path) -> Result<Client, ClientError> {

@@ -24,7 +24,7 @@ try:
             if b"\x1b[6n" in raw:
                 os.write(master, b"\x1b[1;1R")
                 raw = raw.replace(b"\x1b[6n", b"")
-        state_path = Path(os.environ["MUXY_DIR"]) / "tui-state.json"
+        state_path = Path(os.environ["ATUR_TERM_DIR"]) / "tui-state.json"
         if state_path.exists():
             state = json.loads(state_path.read_text())
             tabs = state["projects"][state["active"]]["tabs"]

@@ -150,7 +150,7 @@ def bundle_info(version, build):
         "CFBundleDevelopmentRegion": "en",
         "CFBundleDisplayName": name,
         "CFBundleName": name,
-        "CFBundleExecutable": "muxy-app",
+        "CFBundleExecutable": "atur-terminal",
         "CFBundleIdentifier": identifier,
         "CFBundleIconFile": "AppIcon",
         "CFBundleInfoDictionaryVersion": "6.0",
@@ -190,7 +190,7 @@ def update_metadata(version, repository, directory, tag):
             "size": size,
         }
     for platform, arch in (("linux-aarch64", "arm64"), ("linux-x86_64", "x86_64")):
-        filename = f"muxy-desktop-{version}-linux-{arch}.tar.gz"
+        filename = f"atur-terminal-desktop-{version}-linux-{arch}.tar.gz"
         path = directory / filename
         if not path.exists():
             continue

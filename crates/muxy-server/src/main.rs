@@ -16,7 +16,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             log::error!("{error}");
-            let _ = writeln!(io::stderr(), "muxy-server: {error}");
+            let _ = writeln!(io::stderr(), "atur-term-server: {error}");
             ExitCode::FAILURE
         }
     }
@@ -30,11 +30,15 @@ fn execute() -> io::Result<()> {
             Ok(())
         }
         [flag] if flag == "--version" || flag == "-V" => {
-            writeln!(io::stdout(), "muxy-server {}", env!("CARGO_PKG_VERSION"))
+            writeln!(
+                io::stdout(),
+                "atur-term-server {}",
+                env!("CARGO_PKG_VERSION")
+            )
         }
         [flag] if flag == "--help" || flag == "-h" => writeln!(
             io::stdout(),
-            "Usage: muxy-server [--socket PATH --settings PATH --log PATH]\n       muxy-server --help | --version | --build-info"
+            "Usage: atur-term-server [--socket PATH --settings PATH --log PATH]\n       atur-term-server --help | --version | --build-info"
         ),
         _ => {
             let args = args::Args::parse(arguments)?;

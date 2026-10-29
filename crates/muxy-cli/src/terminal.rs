@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn panic_restores_terminal_settings_and_output_modes() -> Result<(), Box<dyn std::error::Error>>
     {
-        if std::env::var_os("MUXY_TEST_HOST_PANIC").is_some() {
+        if std::env::var_os("ATUR_TERM_TEST_HOST_PANIC").is_some() {
             let _host = Host::enter()?;
             panic!("deliberate terminal cleanup test");
         }

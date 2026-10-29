@@ -1,5 +1,5 @@
 //! Reaching a server on another computer over SSH. A fake ssh runs the remote
-//! command on this computer, against the real `muxy` and `muxy-server`.
+//! command on this computer, against the real `atur-term` and `atur-term-server`.
 
 #[path = "support/ssh.rs"]
 mod remote;
@@ -171,7 +171,7 @@ fn muxy_is_found_in_the_installers_folder_or_reported_missing() -> Result {
 
     let installed = remote.home().join(".local/bin");
     fs::create_dir_all(&installed)?;
-    symlink(support::binary(), installed.join("muxy"))?;
+    symlink(support::binary(), installed.join("atur-term"))?;
     Client::connect_ssh(&remote.target()?, Start::IfNeeded)?.ping()?;
     Ok(())
 }
@@ -216,21 +216,21 @@ fn the_bridge_alone_starts_the_server_announces_itself_and_ends_with_stdin() -> 
     Ok(())
 }
 
-/// `muxy --host box` on this computer, with `local` as its own profile.
+/// `atur-term --host box` on this computer, with `local` as its own profile.
 fn host_command(remote: &FakeRemote, local: &Path, args: &[&str]) -> Command {
     let mut command = Command::new(support::binary());
     command
         .args(["--host", "box"])
         .args(args)
-        .env("MUXY_SSH", remote.ssh())
-        .env("MUXY_DIR", local)
-        .env_remove("MUXY_SERVER_BIN")
-        .env_remove("MUXY_PANE_ID")
+        .env("ATUR_TERM_SSH", remote.ssh())
+        .env("ATUR_TERM_DIR", local)
+        .env_remove("ATUR_TERM_SERVER_BIN")
+        .env_remove("ATUR_TERM_PANE_ID")
         .stdin(Stdio::null());
     command
 }
 
-/// Runs `muxy --host box` on this computer, with `local` as its own profile.
+/// Runs `atur-term --host box` on this computer, with `local` as its own profile.
 fn host(remote: &FakeRemote, local: &Path, args: &[&str]) -> Result<Output> {
     Ok(host_command(remote, local, args).output()?)
 }

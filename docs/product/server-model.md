@@ -1,6 +1,6 @@
 # Server model
 
-`muxy-server` runs the terminals for every app. It runs on its own, apart from
+`atur-term-server` runs the terminals for every app. It runs on its own, apart from
 the apps.
 
 ## Lifetime
@@ -64,7 +64,7 @@ flowchart TD
   watching, so it is still there after the program ends or the server restarts.
   A crash may lose the last moments of output.
 - Ended sessions and their saved output are automatically removed after 7 days.
-  `muxy session list` shows live sessions; use `--all` to include saved ones.
+  `atur-term session list` shows live sessions; use `--all` to include saved ones.
 
 ## Git and files
 
@@ -85,8 +85,8 @@ repository and files.
 ```mermaid
 sequenceDiagram
     actor You
-    participant Computer as Desktop app or muxy mobile
-    participant Server as muxy-server
+    participant Computer as Desktop app or atur-term mobile
+    participant Server as atur-term-server
     participant Phone
     You->>Computer: Turn on mobile access and show a code
     Computer->>Server: Start pairing
@@ -103,4 +103,4 @@ sequenceDiagram
   outside a terminal (`exec`).
 - Revoking a phone, or turning mobile access off, disconnects it at once.
 - A phone can pair with a server on another computer too, with
-  `muxy --host <computer> mobile pair`.
+  `atur-term --host <computer> mobile pair`.

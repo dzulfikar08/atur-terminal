@@ -1,13 +1,13 @@
 # App model
 
-How people use Muxy: the apps, navigation, settings, and updates.
+How people use Atur Terminal: the apps, navigation, settings, and updates.
 
 ## The apps
 
 | App | Connects to |
 | --- | --- |
 | Desktop app (macOS) | The server on the same computer, starting it if needed, and the servers of remote devices over SSH. |
-| `muxy` terminal UI | The server on the same computer, starting it if needed, or with `--host`, the server on another computer over SSH. Ships with the desktop app and also on its own. |
+| `atur-term` terminal UI | The server on the same computer, starting it if needed, or with `--host`, the server on another computer over SSH. Ships with the desktop app and also on its own. |
 | Phone app | A paired computer's server, over the local network or a VPN, or any computer's server over SSH. |
 
 Every project knows which server it lives on, so the desktop app shows
@@ -16,8 +16,8 @@ their server and path. There is no global "current server".
 
 The **Remote** section at the bottom of the sidebar shows each remote server's
 state. Its popover adds servers (host, user, port, key file, or a password that
-Muxy asks for and keeps only in memory) and manages them. **Add Project →
-Remote** browses that server's folders. When a server lacks Muxy, a released
+Atur Terminal asks for and keeps only in memory) and manages them. **Add Project →
+Remote** browses that server's folders. When a server lacks Atur Terminal, a released
 app offers to install the same version there; when its version can't talk to
 the app, the section explains how to update it. Removing a server only forgets
 its projects in this app.
@@ -32,7 +32,7 @@ composer, are copied to that computer and its path is pasted. Clicking a file
 path in a remote terminal offers a read-only copy here, or its path.
 
 Each app keeps its own layout: tabs, splits, workspaces, and project order.
-Projects and terminals are shared. Several `muxy` windows can open the same
+Projects and terminals are shared. Several `atur-term` windows can open the same
 terminal UI layout.
 
 ## Navigation
@@ -57,7 +57,7 @@ flowchart LR
   never opens a tab by itself.
 - The terminal UI opens one shell in Home the first time, then restores its
   layout.
-- `muxy <folder>` opens the folder in the desktop app, selecting its project or
+- `atur-term <folder>` opens the folder in the desktop app, selecting its project or
   adding one. Without the desktop app, or over SSH, it opens in the terminal UI.
 - **Existing Terminals** lists a project's terminals that this app isn't
   showing, and which app owns each one. Opening one adds it to your layout.
@@ -76,11 +76,11 @@ Optional setup and teardown commands come from the source project's
 { "setup": ["npm ci"], "teardown": ["docker compose down"] }
 ```
 
-Review and enable commands when creating or removing a worktree; `muxy worktree`
+Review and enable commands when creating or removing a worktree; `atur-term worktree`
 runs them only with `--hooks`. Setup runs per-machine commands first; teardown
 runs project commands first. Commands run in the worktree, with
-`MUXY_PROJECT_PATH` and `MUXY_WORKTREE_ID`, `MUXY_WORKTREE_PATH`,
-`MUXY_WORKTREE_NAME`, and `MUXY_WORKTREE_BRANCH` available.
+`ATUR_TERM_PROJECT_PATH` and `ATUR_TERM_WORKTREE_ID`, `ATUR_TERM_WORKTREE_PATH`,
+`ATUR_TERM_WORKTREE_NAME`, and `ATUR_TERM_WORKTREE_BRANCH` available.
 A setup failure keeps the new worktree; a teardown failure stops removal.
 
 ## When things go away
@@ -110,12 +110,12 @@ stop.
 - **Settings → Appearance → App language** picks the interface language. English
   is built in; other languages come from language-pack extensions, the same ones
   made for Muxy 1.x. Untranslated text stays English, and while the chosen pack is
-  unavailable Muxy shows English.
+  unavailable Atur Terminal shows English.
 - Server settings, such as the shell and history size, apply to this
-  computer's server. `muxy --host` changes another computer's. Stopping or
+  computer's server. `atur-term --host` changes another computer's. Stopping or
   restarting it asks first.
 - **Settings → Mobile** turns phone access on, shows a pairing code, and lists
-  paired phones. `muxy mobile` does the same without the desktop app.
+  paired phones. `atur-term mobile` does the same without the desktop app.
 - **Settings → Backup & Restore** exports settings, themes, extension preferences,
   projects, and layouts. Restore applies on the next launch and keeps a recovery
   copy in `Backups`. Existing projects are kept; matching projects receive the
@@ -125,7 +125,7 @@ stop.
   A 1.x import adds to what is already there: existing projects, tabs, and
   workspaces are kept. A profile with no projects or workspaces yet imports the
   installed 1.x automatically, once, including its extensions. Profiles chosen
-  with `MUXY_DIR` are left alone.
+  with `ATUR_TERM_DIR` are left alone.
   Config files open in the system editor. Backups exclude live terminal sessions,
   paired-device credentials, extension packages, and project files. They keep
   the list of remote servers but not remote projects, which come back from

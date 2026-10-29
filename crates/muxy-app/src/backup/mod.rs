@@ -142,10 +142,10 @@ fn installed_legacy() -> Result<Option<PathBuf>> {
 
 /// Stages the installed 1.x configuration, once, for a profile that has no
 /// projects or workspaces yet, so upgrading keeps projects, workspaces, and
-/// layouts. A profile chosen with `MUXY_DIR` is left alone. Returns what the
+/// layouts. A profile chosen with `ATUR_TERM_DIR` is left alone. Returns what the
 /// user should check, if anything could not come along.
 pub(crate) fn migrate_installed(profile: &Path) -> Result<Option<String>> {
-    if std::env::var_os("MUXY_DIR").is_some() {
+    if std::env::var_os("ATUR_TERM_DIR").is_some() {
         return Ok(None);
     }
     let Some(source) = installed_legacy()? else {

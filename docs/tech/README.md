@@ -5,18 +5,18 @@ How the [product](../product/README.md) is built.
 ```mermaid
 flowchart LR
     subgraph APPS["Apps · one shared client library"]
-        DESKTOP["muxy-app<br/>desktop · Rust + GPUI"]
-        TUI["muxy<br/>CLI and terminal UI · Ratatui"]
+        DESKTOP["atur-terminal<br/>desktop · Rust + GPUI"]
+        TUI["atur-term<br/>CLI and terminal UI · Ratatui"]
         PHONE["Phone apps<br/>muxy-mobile SDK"]
     end
-    SERVER["muxy-server<br/>Ghostty terminals · history · projects"]
-    REMOTE["muxy-server<br/>on another computer"]
+    SERVER["atur-term-server<br/>Ghostty terminals · history · projects"]
+    REMOTE["atur-term-server<br/>on another computer"]
     DESKTOP <-->|"Unix socket"| SERVER
     TUI <-->|"Unix socket"| SERVER
-    DESKTOP <-->|"SSH · muxy stdio"| REMOTE
-    TUI <-->|"SSH · muxy stdio"| REMOTE
+    DESKTOP <-->|"SSH · atur-term stdio"| REMOTE
+    TUI <-->|"SSH · atur-term stdio"| REMOTE
     PHONE <-->|"TLS"| SERVER
-    PHONE <-->|"SSH · muxy stdio"| REMOTE
+    PHONE <-->|"SSH · atur-term stdio"| REMOTE
 ```
 
 The big ideas:
@@ -38,6 +38,6 @@ The big ideas:
 2. [Protocol](./protocol.md): how apps and the server talk, and the
    compatibility rules.
 3. [Mobile](./mobile.md): how phones pair and connect.
-4. [herdr backend](./herdr-backend.md): running terminals in a herdr server so they outlive the Muxy server.
+4. [herdr backend](./herdr-backend.md): running terminals in a herdr server so they outlive the Atur Terminal server.
 4. [Decisions](./decisions.md): the key choices and why they were made.
 5. [Constraints](./constraints.md): supported platforms and hard-won lessons.

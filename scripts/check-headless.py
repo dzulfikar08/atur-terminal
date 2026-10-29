@@ -60,7 +60,7 @@ def main():
     zig = shutil.which("zig")
     if not zig:
         raise ValueError("Install Zig 0.15.2 before running headless verification")
-    os.environ["MUXY_ZIG"] = zig
+    os.environ["ATUR_TERM_ZIG"] = zig
     os.environ["PATH"] = str(ROOT / "scripts/zig") + os.pathsep + os.environ["PATH"]
     # Cargo cannot detect that a cached native Zig library targets another CPU.
     run("cargo", "clean", "-p", "libghostty-vt-sys")
@@ -68,9 +68,9 @@ def main():
     run("cargo", "clippy", "--locked", *package_args, "--all-targets", "--all-features", "--", "-D", "warnings")
     run("cargo", "test", "--locked", *package_args, "--all-features", "--no-fail-fast")
     run("cargo", "test", "--locked", *package_args, "--all-features", "fish_marks_prompts_and_preserves_user_configuration",
-        "--", "--ignored", env={**os.environ, "MUXY_TEST_FISH": "/usr/bin/fish"})
-    binary = ROOT / "target/debug/muxy"
-    for executable in [binary, binary.with_name("muxy-server")]:
+        "--", "--ignored", env={**os.environ, "ATUR_TERM_TEST_FISH": "/usr/bin/fish"})
+    binary = ROOT / "target/debug/atur-term"
+    for executable in [binary, binary.with_name("atur-term-server")]:
         run(sys.executable, ROOT / "scripts/audit-linux.py", executable, "--target", args.target)
     run(sys.executable, ROOT / "scripts/smoke-headless.py", binary)
 

@@ -134,7 +134,7 @@ fn accept(listener: &TlsListener, registry: &Weak<Registry>, connections: &Conne
 
 /// Loopback in tests keeps developer runs off the network and the firewall prompt.
 fn bind_address() -> io::Result<Ipv4Addr> {
-    match std::env::var_os("MUXY_REMOTE_BIND") {
+    match std::env::var_os("ATUR_TERM_REMOTE_BIND") {
         None => Ok(Ipv4Addr::UNSPECIFIED),
         Some(address) => address
             .to_str()
@@ -142,7 +142,7 @@ fn bind_address() -> io::Result<Ipv4Addr> {
             .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "MUXY_REMOTE_BIND must be an IPv4 address",
+                    "ATUR_TERM_REMOTE_BIND must be an IPv4 address",
                 )
             }),
     }

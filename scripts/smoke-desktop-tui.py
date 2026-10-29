@@ -11,9 +11,9 @@ import tempfile
 
 def main():
     root = Path(__file__).resolve().parent.parent
-    binary = root / "target/debug/muxy"
-    server = binary.with_name("muxy-server")
-    with tempfile.TemporaryDirectory(prefix="muxy-tui-desktop-", dir="/tmp") as temporary:
+    binary = root / "target/debug/atur-term"
+    server = binary.with_name("atur-term-server")
+    with tempfile.TemporaryDirectory(prefix="atur-terminal-tui-desktop-", dir="/tmp") as temporary:
         profile = Path(temporary)
         home = profile / "home"
         home.mkdir()
@@ -21,7 +21,7 @@ def main():
         (profile / "server.toml").write_text('default_shell = "/bin/zsh"\n')
         wrapper = profile / "server-wrapper.sh"
         wrapper.write_text(
-            '#!/bin/sh\nprintf "%s\\n" "$$" > "$MUXY_DIR/server.pid"\n'
+            '#!/bin/sh\nprintf "%s\\n" "$$" > "$ATUR_TERM_DIR/server.pid"\n'
             f'exec {shlex.quote(str(server))} "$@"\n'
         )
         wrapper.chmod(0o700)
@@ -29,12 +29,12 @@ def main():
             **os.environ,
             "CARGO_HOME": os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")),
             "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")),
-            "MUXY_DIR": str(profile),
+            "ATUR_TERM_DIR": str(profile),
             "HOME": str(home),
             "ZDOTDIR": str(home),
             "SHELL": "/bin/zsh",
-            "MUXY_TEST_TUI": str(binary),
-            "MUXY_SERVER_BIN": str(wrapper),
+            "ATUR_TERM_TEST_TUI": str(binary),
+            "ATUR_TERM_SERVER_BIN": str(wrapper),
         }
         build = subprocess.run(
             ["cargo", "test", "--locked", "-p", "muxy-app", "--no-run"],

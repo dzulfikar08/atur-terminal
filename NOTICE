@@ -10,11 +10,11 @@ Muxy
   https://github.com/muxy-app/muxy
   MIT License, Copyright (c) 2026 Muxy.
   Atur Terminal is a fork of Muxy. The Muxy copyright and permission notice
-  is kept in LICENSE, and ships with every build. The binary names (muxy,
-  muxy-server, muxy-app), crate names, socket paths, MUXY_* environment
-  variables and the Muxy client protocol are Muxy's and are kept unchanged on
-  purpose, so existing Muxy installs, the Atur bridge and stock Muxy clients
-  keep working.
+  is kept in LICENSE, and ships with every build. Atur Terminal's binaries
+  (atur-term, atur-term-server, atur-terminal), data directory and ATUR_TERM_*
+  environment variables are renamed; crate names, the Muxy client protocol and
+  the .muxy project files and extension paths are Muxy's and are kept
+  unchanged for compatibility.
 
 herdr
   https://github.com/herdrdev/herdr

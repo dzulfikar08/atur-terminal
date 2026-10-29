@@ -19,7 +19,7 @@ from pathlib import Path
 from release import APPS
 
 ROOT = Path(__file__).resolve().parent.parent
-BINARIES = ("muxy", "muxy-server")
+BINARIES = ("atur-term", "atur-term-server")
 BETA_APP = f"{APPS['beta'][0]}.app"
 
 
@@ -97,7 +97,7 @@ def package_app(directory, binaries, version, identity):
     resources = contents / "Resources"
     executables.mkdir(parents=True)
     resources.mkdir()
-    for name in (*BINARIES, "muxy-app"):
+    for name in (*BINARIES, "atur-terminal"):
         shutil.copy2(binaries / name, executables / name)
     from release import build_number, bundle_info, license_text
     if version == "2.0.0-beta-0":
@@ -121,8 +121,8 @@ def package_app(directory, binaries, version, identity):
     sign = ("codesign", "--force", "--sign", identity, "--options", "runtime", "--timestamp")
     for name in BINARIES:
         run(*sign, executables / name)
-    entitlements = ("--entitlements", ROOT / "packaging/macos/Muxy.entitlements")
-    run(*sign, *entitlements, executables / "muxy-app")
+    entitlements = ("--entitlements", ROOT / "packaging/macos/AturTerminal.entitlements")
+    run(*sign, *entitlements, executables / "atur-terminal")
     run(*sign, *entitlements, app)
     run("codesign", "--verify", "--deep", "--strict", "--verbose=2", app)
     return app
@@ -138,9 +138,9 @@ def remove(path):
 def install(artifact, bin_dir, app_dir=None):
     """Stage replacements on their destination filesystem and roll back failures."""
     bin_dir.mkdir(parents=True, exist_ok=True)
-    with (bin_dir / ".muxy-build-install.lock").open("a") as lock:
+    with (bin_dir / ".atur-terminal-build-install.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        destination = app_dir / BETA_APP if app_dir else bin_dir / ".muxy-local"
+        destination = app_dir / BETA_APP if app_dir else bin_dir / ".atur-terminal-local"
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
             raise ValueError(f"Expected a regular installation directory: {destination}")
@@ -150,9 +150,9 @@ def install(artifact, bin_dir, app_dir=None):
                 raise ValueError(f"Cannot replace a directory or special file: {path}")
         with contextlib.ExitStack() as stack:
             stage = Path(stack.enter_context(tempfile.TemporaryDirectory(
-                prefix=".muxy-install-", dir=destination.parent)))
+                prefix=".atur-terminal-install-", dir=destination.parent)))
             links = Path(stack.enter_context(tempfile.TemporaryDirectory(
-                prefix=".muxy-links-", dir=bin_dir)))
+                prefix=".atur-terminal-links-", dir=bin_dir)))
             staged = stage / destination.name
             if app_dir:
                 # Preserve the signature, resources and stapled notarization ticket.
@@ -250,7 +250,7 @@ def main():
         install(artifact, args.install_dir.expanduser().resolve(),
                 args.app_dir.expanduser().resolve() if system == "Darwin" else None)
         if str(args.install_dir.expanduser().resolve()) not in os.environ.get("PATH", "").split(os.pathsep):
-            print(f"Add {args.install_dir.expanduser().resolve()} to PATH to run muxy.")
+            print(f"Add {args.install_dir.expanduser().resolve()} to PATH to run atur-term.")
         print("Reopen Atur Terminal to use the new build. Existing servers and sessions were left running.")
 
 

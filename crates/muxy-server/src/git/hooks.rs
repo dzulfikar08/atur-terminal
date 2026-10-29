@@ -143,11 +143,11 @@ pub(super) fn run(
         process
             .args(["-c", &hook.command])
             .current_dir(path(&project.directory))
-            .env("MUXY_PROJECT_PATH", repository)
-            .env("MUXY_WORKTREE_ID", project.id.to_string())
-            .env("MUXY_WORKTREE_PATH", path(&project.directory))
-            .env("MUXY_WORKTREE_NAME", &project.name)
-            .env("MUXY_WORKTREE_BRANCH", branch);
+            .env("ATUR_TERM_PROJECT_PATH", repository)
+            .env("ATUR_TERM_WORKTREE_ID", project.id.to_string())
+            .env("ATUR_TERM_WORKTREE_PATH", path(&project.directory))
+            .env("ATUR_TERM_WORKTREE_NAME", &project.name)
+            .env("ATUR_TERM_WORKTREE_BRANCH", branch);
         if let Some(path) = crate::exec::login_path() {
             process.env("PATH", path);
         }

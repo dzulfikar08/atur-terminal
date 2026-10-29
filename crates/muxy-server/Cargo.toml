@@ -1,6 +1,6 @@
 [package]
 name = "muxy-server"
-description = "The Muxy server executable"
+description = "The Atur Terminal server executable"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,10 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "atur-term-server"
+path = "src/main.rs"
 
 [dependencies]
 regex = "1"

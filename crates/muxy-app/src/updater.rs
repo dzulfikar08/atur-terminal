@@ -27,7 +27,7 @@ pub(crate) use macos::{CAPABILITY, Installation, PreparedUpdate};
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-pub(crate) const RELEASES: &str = "https://github.com/dzulfikar08/muxy/releases/download";
+pub(crate) const RELEASES: &str = "https://github.com/dzulfikar08/atur-terminal/releases/download";
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -36,10 +36,10 @@ const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 fn feed(channel: Channel) -> &'static str {
     match channel {
         Channel::Beta => {
-            "https://github.com/dzulfikar08/muxy/releases/download/atur-beta/update.json"
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/atur-beta/update.json"
         }
         Channel::Stable => {
-            "https://github.com/dzulfikar08/muxy/releases/latest/download/update.json"
+            "https://github.com/dzulfikar08/atur-terminal/releases/latest/download/update.json"
         }
     }
 }
@@ -125,7 +125,7 @@ impl Release {
         let filename = match platform {
             "macos-aarch64" | "macos-x86_64" => format!("AturTerminal-{version}-{arch}.dmg"),
             "linux-aarch64" | "linux-x86_64" => {
-                format!("muxy-desktop-{version}-linux-{arch}.tar.gz")
+                format!("atur-terminal-desktop-{version}-linux-{arch}.tar.gz")
             }
             _ => return Err(tr!("No update for this platform").to_string().into()),
         };
@@ -286,12 +286,12 @@ mod tests {
             "http://github.com/file.dmg",
             "https://example.com/file.dmg",
             "https://github.com/muxy-app/muxy/releases/download/v2.0.0-beta.10/Muxy-2.0.0-beta.10-arm64.dmg",
-            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.9-1/AturTerminal-2.0.0-beta.9-arm64.dmg",
-            "https://github.com/dzulfikar08/muxy/releases/download/v2.0.0-beta.10/AturTerminal-2.0.0-beta.10-arm64.dmg",
-            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-x/AturTerminal-2.0.0-beta.10-arm64.dmg",
-            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-/AturTerminal-2.0.0-beta.10-arm64.dmg",
-            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-1/extra/AturTerminal-2.0.0-beta.10-arm64.dmg",
-            "https://github.com/dzulfikar08/muxy/releases/download/atur-v2.0.0-beta.10-1/Muxy-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/atur-v2.0.0-beta.9-1/AturTerminal-2.0.0-beta.9-arm64.dmg",
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/v2.0.0-beta.10/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/atur-v2.0.0-beta.10-x/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/atur-v2.0.0-beta.10-/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/atur-v2.0.0-beta.10-1/extra/AturTerminal-2.0.0-beta.10-arm64.dmg",
+            "https://github.com/dzulfikar08/atur-terminal/releases/download/atur-v2.0.0-beta.10-1/Muxy-2.0.0-beta.10-arm64.dmg",
         ] {
             let mut data = feed("2.0.0-beta.10");
             data["platforms"]["macos-aarch64"]["url"] = url.into();
@@ -337,7 +337,9 @@ mod tests {
     #[test]
     fn linux_updates_require_the_desktop_archive_and_checksum() {
         let version = "2.0.0-beta.10";
-        let url = format!("{RELEASES}/atur-v{version}-2/muxy-desktop-{version}-linux-arm64.tar.gz");
+        let url = format!(
+            "{RELEASES}/atur-v{version}-2/atur-terminal-desktop-{version}-linux-arm64.tar.gz"
+        );
         let mut data = serde_json::json!({"schema": 1, "version": version, "platforms": {
             "linux-aarch64": {"url": url, "size": 100, "sha256": "a".repeat(64)}
         }});
@@ -360,7 +362,8 @@ mod tests {
         }
         data["platforms"]["linux-aarch64"]["sha256"] = "a".repeat(64).into();
         data["platforms"]["linux-aarch64"]["url"] =
-            format!("{RELEASES}/atur-v{version}-2/muxy-{version}-linux-arm64.tar.gz").into();
+            format!("{RELEASES}/atur-v{version}-2/atur-terminal-{version}-linux-arm64.tar.gz")
+                .into();
         assert!(parse(&data).is_err());
     }
 }

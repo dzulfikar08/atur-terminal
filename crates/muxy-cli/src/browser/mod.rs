@@ -1,4 +1,4 @@
-//! `muxy browser`: drives the built-in browser tabs of the desktop app on
+//! `atur-term browser`: drives the built-in browser tabs of the desktop app on
 //! this computer. Each command is one request to the app over its socket.
 
 mod args;
@@ -15,7 +15,7 @@ use serde_json::Value;
 use args::Output;
 pub(crate) use args::{Invocation, parse};
 
-/// How long the app has to answer, unless `MUXY_CLI_TIMEOUT` says otherwise.
+/// How long the app has to answer, unless `ATUR_TERM_CLI_TIMEOUT` says otherwise.
 const REPLY_TIME: Duration = Duration::from_secs(10);
 /// How long a desktop app that `open` started has to begin listening.
 const APP_START_TIME: Duration = Duration::from_secs(20);
@@ -35,7 +35,7 @@ pub(crate) fn run(invocation: Invocation) -> Result<(), Box<dyn Error>> {
     print(invocation.output, reply)
 }
 
-/// Starts the desktop app as `muxy <folder>` does, but never over SSH,
+/// Starts the desktop app as `atur-term <folder>` does, but never over SSH,
 /// where it would open away from the user.
 fn start_app() -> bool {
     !crate::terminal::over_ssh() && crate::open::desktop_app(None)
@@ -59,7 +59,7 @@ fn call_once_listening(
 }
 
 fn reply_time() -> Result<Duration, Box<dyn Error>> {
-    let Some(seconds) = std::env::var_os("MUXY_CLI_TIMEOUT").filter(|value| !value.is_empty())
+    let Some(seconds) = std::env::var_os("ATUR_TERM_CLI_TIMEOUT").filter(|value| !value.is_empty())
     else {
         return Ok(REPLY_TIME);
     };
@@ -68,7 +68,7 @@ fn reply_time() -> Result<Duration, Box<dyn Error>> {
         .and_then(|seconds| seconds.parse().ok())
         .filter(|seconds| *seconds > 0)
         .map(Duration::from_secs)
-        .ok_or_else(|| "MUXY_CLI_TIMEOUT must be a whole number of seconds".into())
+        .ok_or_else(|| "ATUR_TERM_CLI_TIMEOUT must be a whole number of seconds".into())
 }
 
 fn print(output: Output, reply: Value) -> Result<(), Box<dyn Error>> {

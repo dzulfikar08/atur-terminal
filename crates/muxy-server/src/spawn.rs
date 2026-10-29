@@ -16,7 +16,7 @@ const LOGIN_FLAG: &str = "-l";
 const TERMINAL_ENV: [(&str, &str); 3] = [
     ("TERM", "xterm-256color"),
     ("COLORTERM", "truecolor"),
-    ("TERM_PROGRAM", "muxy"),
+    ("TERM_PROGRAM", "atur-terminal"),
 ];
 
 pub(crate) fn spawn_shell(
@@ -80,10 +80,10 @@ fn environment(
     identity: (muxy_protocol::ServerIdentity, muxy_protocol::SessionId),
 ) -> Vec<(OsString, OsString)> {
     let mut env: Vec<_> = env::vars_os().collect();
-    env.retain(|(name, _)| name != "MUXY_SERVER_ID" && name != "MUXY_SESSION_ID");
-    env.push(("MUXY_SERVER_ID".into(), identity.0.to_string().into()));
+    env.retain(|(name, _)| name != "ATUR_TERM_SERVER_ID" && name != "ATUR_TERM_SESSION_ID");
+    env.push(("ATUR_TERM_SERVER_ID".into(), identity.0.to_string().into()));
     env.push((
-        "MUXY_SESSION_ID".into(),
+        "ATUR_TERM_SESSION_ID".into(),
         identity.1.get().to_string().into(),
     ));
     env.extend(

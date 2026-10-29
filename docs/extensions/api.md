@@ -1,6 +1,6 @@
 # API Reference
 
-Muxy injects a `muxy` object into extension code. On pages, most calls return
+Atur Terminal injects a `muxy` object into extension code. On pages, most calls return
 a Promise. In scripts and background scripts, most calls are synchronous.
 Exceptions are noted where they apply, such as `execAsync`, which returns a
 handle whose `result` you await.
@@ -59,7 +59,7 @@ const result = await muxy.exec({ shell: "ls | wc -l" });
 ```
 
 - Runs on the project's server, in the project folder, with your login `PATH`
-  and `MUXY_EXTENSION_ID` set.
+  and `ATUR_TERM_EXTENSION_ID` set.
 - Options: `cwd`, `env`, `stdin`, `timeoutMs` (default 30 s, up to 300 s).
 - Output is capped at 4 MiB per stream.
 - `execAsync(...)` returns `{ id, result, cancel }` right away, so a page or

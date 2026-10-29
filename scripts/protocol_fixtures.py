@@ -90,7 +90,7 @@ def read_by_last_release():
             env={
                 **os.environ,
                 "CARGO_TARGET_DIR": str(ROOT / "target"),
-                "MUXY_PROTOCOL_FIXTURES": str(ROOT / FIXTURES / f"v{version}"),
+                "ATUR_TERM_PROTOCOL_FIXTURES": str(ROOT / FIXTURES / f"v{version}"),
             },
         )
     finally:

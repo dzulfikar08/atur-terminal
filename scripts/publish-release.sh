@@ -47,26 +47,26 @@ check_source() {
 check_source
 
 cd "$ARTIFACTS"
-ASSETS=(install-muxy.sh install-desktop-linux.py muxy-desktop.apparmor)
+ASSETS=(install-atur-terminal.sh install-desktop-linux.py atur-terminal.apparmor)
 for ARCH in arm64 x86_64; do
-    ASSETS+=("muxy-${VERSION}-linux-${ARCH}.tar.gz")
-    ASSETS+=("muxy-desktop-${VERSION}-linux-${ARCH}.tar.gz" "Muxy-${VERSION}-linux-${ARCH}.AppImage")
+    ASSETS+=("atur-terminal-${VERSION}-linux-${ARCH}.tar.gz")
+    ASSETS+=("atur-terminal-desktop-${VERSION}-linux-${ARCH}.tar.gz" "AturTerminal-${VERSION}-linux-${ARCH}.AppImage")
     DEB_ARCH="$ARCH"
     [[ "$ARCH" != x86_64 ]] || DEB_ARCH=amd64
-    DEB_PACKAGE=muxy-desktop
-    [[ "$CHANNEL" != beta ]] || DEB_PACKAGE=muxy-desktop-beta
+    DEB_PACKAGE=atur-terminal
+    [[ "$CHANNEL" != beta ]] || DEB_PACKAGE=atur-terminal-beta
     ASSETS+=("${DEB_PACKAGE}_${VERSION}_${DEB_ARCH}.deb")
-    # A beta may skip Intel; a stable release is also how Intel Macs leave Muxy 1.x.
-    if [[ "$CHANNEL" == beta && "$ARCH" == x86_64 && ! -e "Muxy-${VERSION}-${ARCH}.dmg" && ! -e "muxy-${VERSION}-macos-${ARCH}.zip" ]]; then
+    # A beta may skip Intel; a stable release is also how Intel Macs leave the legacy Muxy 1.x updater.
+    if [[ "$CHANNEL" == beta && "$ARCH" == x86_64 && ! -e "AturTerminal-${VERSION}-${ARCH}.dmg" && ! -e "atur-terminal-${VERSION}-macos-${ARCH}.zip" ]]; then
         continue
     fi
-    ASSETS+=("Muxy-${VERSION}-${ARCH}.dmg" "muxy-${VERSION}-macos-${ARCH}.zip")
+    ASSETS+=("AturTerminal-${VERSION}-${ARCH}.dmg" "atur-terminal-${VERSION}-macos-${ARCH}.zip")
     if [[ "$CHANNEL" == stable ]]; then
         ASSETS+=("appcast-${ARCH}.xml")
     fi
 done
 if [[ "$CHANNEL" == stable ]]; then
-    # Muxy 1.x builds from before per-architecture feeds read appcast.xml.
+    # Legacy Muxy 1.x builds from before per-architecture feeds read appcast.xml.
     if [[ -f appcast-arm64.xml ]]; then
         cp appcast-arm64.xml appcast.xml
     fi
@@ -100,7 +100,7 @@ if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
         exit 0
     fi
 else
-    # RELEASE_NOTES, when given, replaces the generated notes. Otherwise, like Muxy 1.x: GitHub's
+    # RELEASE_NOTES, when given, replaces the generated notes. Otherwise, like upstream Muxy: GitHub's
     # generated changes, cleaned. A beta lists the changes since the previous beta; a stable
     # release lets GitHub choose the previous release.
     NOTES_ARGS=(-f "tag_name=$TAG" -f "target_commitish=$SOURCE")
@@ -125,7 +125,7 @@ else
         DRAFT_FLAGS+=(--prerelease)
     fi
     gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE" \
-        --title "Muxy $VERSION" "${DRAFT_FLAGS[@]}" --notes-file release-notes.md
+        --title "Atur Terminal $VERSION" "${DRAFT_FLAGS[@]}" --notes-file release-notes.md
 fi
 
 # A failed upload leaves a resumable draft, never a half-populated public release.
@@ -146,9 +146,9 @@ if [[ "$CHANNEL" == beta ]]; then
         --draft=false --prerelease --latest=false
     python3 "$ROOT/scripts/publish-update.py" "$VERSION"
 elif [[ "${DRAFT:-false}" == true ]]; then
-    echo "==> $TAG is a complete draft. Publishing it as the latest release updates Muxy 1.x and 2.x."
+    echo "==> $TAG is a complete draft. Publishing it as the latest release updates the stable feed."
 else
-    # The latest release is the stable feed of Muxy 2.x and of Muxy 1.x's updater.
+    # The latest release is the stable feed.
     gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE" \
         --draft=false --prerelease=false --latest
 fi

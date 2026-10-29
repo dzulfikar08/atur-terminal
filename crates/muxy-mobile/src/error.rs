@@ -6,7 +6,7 @@ use muxy_protocol::ErrorCode;
 /// Failures the app can act on.
 #[derive(Debug, uniffi::Error)]
 pub enum MobileError {
-    /// The text is not a Muxy pairing link.
+    /// The text is not an Atur Terminal pairing link.
     InvalidLink,
     /// The saved pairing is damaged; pair again.
     InvalidCredential,
@@ -35,7 +35,7 @@ pub enum MobileError {
 impl fmt::Display for MobileError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidLink => formatter.write_str("This is not a Muxy pairing code."),
+            Self::InvalidLink => formatter.write_str("This is not an Atur Terminal pairing code."),
             Self::InvalidCredential => formatter.write_str("The saved pairing is damaged."),
             Self::Unreachable { reason } => {
                 write!(formatter, "The server is unreachable: {reason}")
@@ -47,9 +47,8 @@ impl fmt::Display for MobileError {
             Self::IncompatibleVersion => {
                 formatter.write_str("The app and the server can't talk to each other.")
             }
-            Self::Unsupported => {
-                formatter.write_str("This needs a newer Muxy on the phone or the computer.")
-            }
+            Self::Unsupported => formatter
+                .write_str("This needs a newer Atur Terminal on the phone or the computer."),
             Self::Timeout => formatter.write_str("The server did not answer in time."),
             Self::Disconnected => formatter.write_str("Disconnected from the server."),
             Self::Server { reason } => formatter.write_str(reason),

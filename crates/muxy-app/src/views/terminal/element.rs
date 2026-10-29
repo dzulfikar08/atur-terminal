@@ -948,7 +948,7 @@ fn paint(painting: Painting, palette: &Palette, window: &mut Window, cx: &mut Ap
             use std::io::Write;
             let _ = writeln!(
                 std::io::stderr(),
-                "muxy-app: could not paint terminal text: {error}"
+                "atur-terminal: could not paint terminal text: {error}"
             );
         }
     }

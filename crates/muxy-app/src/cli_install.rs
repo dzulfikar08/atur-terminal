@@ -9,7 +9,7 @@ use gpui::{Context, SharedString};
 use muxy_core::capability::{Capability, Feature};
 use muxy_ui::tr;
 
-/// The installer links the `muxy` that was installed with the running app.
+/// The installer links the `atur-term` that was installed with the running app.
 pub(crate) const CAPABILITY: Capability = Capability::Supported;
 
 impl AppModel {
@@ -45,7 +45,7 @@ fn installation_message(result: io::Result<PathBuf>) -> (SharedString, String) {
                 std::env::split_paths(&value).any(|entry| Some(entry.as_path()) == path.parent())
             });
             let guidance = if on_path {
-                tr!("Run muxy --help in your terminal.")
+                tr!("Run atur-term --help in your terminal.")
             } else {
                 tr!(
                     "Add ~/.local/bin to your PATH. For this shell, run:\nexport PATH=\"$HOME/.local/bin:$PATH\""
@@ -66,7 +66,7 @@ fn installation_message(result: io::Result<PathBuf>) -> (SharedString, String) {
 fn install() -> io::Result<PathBuf> {
     let executable = muxy_core::executable::current_path()?;
     let target = installed_tool(&executable)?;
-    for executable in [&target, &target.with_file_name("muxy-server")] {
+    for executable in [&target, &target.with_file_name("atur-term-server")] {
         if crate::server::read_build_info(executable)? != muxy_protocol::BuildInfo::current() {
             return Err(io::Error::other(
                 tr!(
@@ -78,21 +78,21 @@ fn install() -> io::Result<PathBuf> {
     }
     let home = std::env::home_dir()
         .ok_or_else(|| io::Error::other(tr!("Home directory unavailable").to_string()))?;
-    let destination = home.join(".local/bin/muxy");
+    let destination = home.join(".local/bin/atur-term");
     if target != destination {
         install_link(&target, &destination)?;
     }
     Ok(destination)
 }
 
-/// The `muxy` installed with the app at `executable`: on Linux the app, the
+/// The `atur-term` installed with the app at `executable`: on Linux the app, the
 /// tool and the server sit in one directory. An app run from a temporary
 /// folder is not installed, and a link into it would not last.
 #[cfg(not(target_os = "macos"))]
 fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
     #[cfg(target_os = "linux")]
     if let Some(root) = muxy_core::bundle::linux_root(executable) {
-        if root.join("current/muxy-app").canonicalize()? != executable {
+        if root.join("current/atur-terminal").canonicalize()? != executable {
             return Err(io::Error::other(
                 tr!(
                     "The installed app changed. Reopen it before installing the command line tool."
@@ -100,14 +100,18 @@ fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
                 .to_string(),
             ));
         }
-        return Ok(root.join("current/muxy"));
+        return Ok(root.join("current/atur-term"));
     }
     let app_name = muxy_core::release::Channel::current().app_name();
     let temporary = [Path::new("/tmp"), Path::new("/var/tmp")]
         .into_iter()
         .chain([std::env::temp_dir().as_path()])
         .any(|folder| executable.starts_with(folder));
-    if temporary || executable.file_name().is_none_or(|name| name != "muxy-app") {
+    if temporary
+        || executable
+            .file_name()
+            .is_none_or(|name| name != "atur-terminal")
+    {
         return Err(io::Error::other(
             tr!(
                 "Install %@ and open it from there before installing its command line tool.",
@@ -116,10 +120,10 @@ fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
             .to_string(),
         ));
     }
-    Ok(executable.with_file_name("muxy"))
+    Ok(executable.with_file_name("atur-term"))
 }
 
-/// The `muxy` inside the app bundle at `executable`.
+/// The `atur-term` inside the app bundle at `executable`.
 #[cfg(target_os = "macos")]
 fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
     let app_name = muxy_core::release::Channel::current().app_name();
@@ -137,7 +141,9 @@ fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
                 .to_string(),
             )
         })?;
-    if executable.file_name().is_none_or(|name| name != "muxy-app")
+    if executable
+        .file_name()
+        .is_none_or(|name| name != "atur-terminal")
         || executable.parent() != Some(bundle.join("Contents/MacOS").as_path())
         || bundle.starts_with("/Volumes")
         || bundle.starts_with("/tmp")
@@ -162,13 +168,13 @@ fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
             .to_string(),
         ));
     }
-    Ok(bundle.join("Contents/MacOS/muxy"))
+    Ok(bundle.join("Contents/MacOS/atur-term"))
 }
 
 fn install_link(target: &Path, destination: &Path) -> io::Result<()> {
     if !target.is_absolute() || !target.is_file() {
         return Err(io::Error::other(
-            tr!("Bundled muxy executable is missing").to_string(),
+            tr!("Bundled atur-term executable is missing").to_string(),
         ));
     }
     let parent = destination
@@ -176,7 +182,7 @@ fn install_link(target: &Path, destination: &Path) -> io::Result<()> {
         .ok_or_else(|| io::Error::other(tr!("Missing installation directory").to_string()))?;
     fs::create_dir_all(parent)?;
     let _lock = muxy_client::local::try_lock(&parent.join(".muxy-cli-install.lock"))?;
-    let receipt = parent.join(".muxy-cli-link.json");
+    let receipt = parent.join(".atur-term-link.json");
     let managed: Vec<Vec<u8>> = match fs::read(&receipt) {
         Ok(bytes) => serde_json::from_slice(&bytes)?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
@@ -213,9 +219,9 @@ fn install_link(target: &Path, destination: &Path) -> io::Result<()> {
         Err(error) => return Err(error),
     };
     let staging = tempfile::Builder::new()
-        .prefix(".muxy-link-")
+        .prefix(".atur-term-link-")
         .tempdir_in(parent)?;
-    let link = staging.path().join("muxy");
+    let link = staging.path().join("atur-term");
     symlink(target, &link)?;
     let mut targets = vec![target.as_os_str().as_bytes().to_vec()];
     if let Some((_, _, previous)) = &existing {
@@ -253,14 +259,14 @@ mod tests {
     #[test]
     fn installs_repairs_managed_links_and_refuses_unrelated_paths() -> io::Result<()> {
         let root = tempfile::tempdir()?;
-        let target = root.path().join("App With Spaces/muxy");
+        let target = root.path().join("App With Spaces/atur-term");
         fs::create_dir(target.parent().ok_or_else(|| io::Error::other("parent"))?)?;
         fs::write(&target, b"executable")?;
-        let destination = root.path().join("bin/muxy");
+        let destination = root.path().join("bin/atur-term");
         install_link(&target, &destination)?;
         assert_eq!(fs::read_link(&destination)?, target);
         install_link(&target, &destination)?;
-        let next = root.path().join("moved-muxy");
+        let next = root.path().join("moved-atur-term");
         fs::rename(&target, &next)?;
         install_link(&next, &destination)?;
         assert_eq!(fs::read_link(&destination)?, next);
@@ -281,21 +287,21 @@ mod tests {
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn the_tool_is_found_beside_an_installed_app_wherever_that_is() -> io::Result<()> {
-        for folder in ["/usr/bin", "/opt/Muxy App/bin", "/home/me/.local/bin"] {
+        for folder in ["/usr/bin", "/opt/Atur App/bin", "/home/me/.local/bin"] {
             let folder = Path::new(folder);
             assert_eq!(
-                installed_tool(&folder.join("muxy-app"))?,
-                folder.join("muxy")
+                installed_tool(&folder.join("atur-terminal"))?,
+                folder.join("atur-term")
             );
         }
         for running in [
-            "/tmp/.mount_Muxy12/usr/bin/muxy-app",
-            "/var/tmp/build/muxy-app",
-            "/usr/bin/muxy",
+            "/tmp/.mount_Atur12/usr/bin/atur-terminal",
+            "/var/tmp/build/atur-terminal",
+            "/usr/bin/atur-term",
         ] {
             assert!(installed_tool(Path::new(running)).is_err(), "{running}");
         }
-        assert!(installed_tool(&std::env::temp_dir().join("muxy-app")).is_err());
+        assert!(installed_tool(&std::env::temp_dir().join("atur-terminal")).is_err());
         Ok(())
     }
 }

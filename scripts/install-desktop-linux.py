@@ -20,11 +20,11 @@ import time
 import urllib.request
 import urllib.parse
 
-RELEASES = "https://github.com/dzulfikar08/muxy/releases/download"
+RELEASES = "https://github.com/dzulfikar08/atur-terminal/releases/download"
 MAX_ARCHIVE = 2 * 1024**3
-FILES = {"muxy-app", "muxy", "muxy-server", "icon.png", "install.py", "LICENSE", "manifest.json"}
-BINARIES = {"muxy-app", "muxy", "muxy-server"}
-LOCK = ".muxy-beta-update.lock"
+FILES = {"atur-terminal", "atur-term", "atur-term-server", "icon.png", "install.py", "LICENSE", "manifest.json"}
+BINARIES = {"atur-terminal", "atur-term", "atur-term-server"}
+LOCK = ".atur-term-beta-update.lock"
 
 
 class HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -65,7 +65,7 @@ def data_home():
 
 
 def default_root(version):
-    return data_home() / ("muxy-desktop-beta" if channel(version) == "beta" else "muxy-desktop")
+    return data_home() / ("atur-terminal-beta" if channel(version) == "beta" else "atur-terminal")
 
 
 def owned_directory(path):
@@ -179,9 +179,9 @@ def extract(archive, destination, expected):
         seen = set()
         total = 0
         for member in source:
-            name = member.name.removeprefix("muxy-desktop/")
+            name = member.name.removeprefix("atur-terminal-desktop/")
             total += member.size
-            if (name not in FILES or member.name != f"muxy-desktop/{name}" or name in seen
+            if (name not in FILES or member.name != f"atur-terminal-desktop/{name}" or name in seen
                     or not member.isfile() or member.size < 0 or total > MAX_ARCHIVE):
                 raise ValueError("Unsafe or unexpected desktop archive entry")
             seen.add(name)
@@ -274,7 +274,7 @@ def restart(root, version, previous, parent):
         if current_version(root) != version:
             return
         try:
-            child = subprocess.Popen([str(root / "current/muxy-app")], start_new_session=True)
+            child = subprocess.Popen([str(root / "current/atur-terminal")], start_new_session=True)
         except OSError:
             child = None
     if child is not None:
@@ -287,26 +287,26 @@ def restart(root, version, previous, parent):
         if current_version(root) != version:
             return
         switch(root, previous)
-    subprocess.Popen([str(root / "current/muxy-app")], start_new_session=True)
+    subprocess.Popen([str(root / "current/atur-terminal")], start_new_session=True)
 
 
 def desktop_entry(root, version, appimage=False):
     beta = channel(version) == "beta"
     identifier = "com.joyodigitama.atur-terminal-beta" if beta else "com.joyodigitama.atur-terminal"
     path = data_home() / "applications" / f"{identifier}.desktop"
-    executable = str(root / ("usr/bin/muxy-app" if appimage else "current/muxy-app"))
+    executable = str(root / ("usr/bin/atur-terminal" if appimage else "current/atur-terminal"))
     executable = executable.replace("\\", "\\\\\\\\").replace('"', '\\\\"').replace("`", "\\\\`").replace("$", "\\\\$").replace("%", "%%")
     icon = str(root / (f"{identifier}.png" if appimage else "current/icon.png")).replace("\\", "\\\\")
     contents = (f"[Desktop Entry]\nType=Application\nName={'Atur Terminal Beta' if beta else 'Atur Terminal'}\n"
                 f'Exec="{executable}" %F\nIcon={icon}\nTerminal=false\nCategories=Development;TerminalEmulator;\n'
                 f"StartupWMClass={identifier}\n")
     if appimage:
-        contents += f"X-Muxy-AppImage={root.name}\n"
+        contents += f"X-AturTerminal-AppImage={root.name}\n"
     return path, contents
 
 
 def integrate_appimage(root, version):
-    if root.parent.resolve() != data_home() / "muxy-appimage" or not re.fullmatch(r"[0-9a-f]{64}", root.name):
+    if root.parent.resolve() != data_home() / "atur-terminal-appimage" or not re.fullmatch(r"[0-9a-f]{64}", root.name):
         raise ValueError("Invalid unpacked AppImage path")
     owned_directory(root)
     path, contents = desktop_entry(root, version, appimage=True)
@@ -314,7 +314,7 @@ def integrate_appimage(root, version):
         previous = path.read_text() if path.is_file() and not path.is_symlink() else ""
         if previous == contents:
             return
-        owner = re.search(r"^X-Muxy-AppImage=([0-9a-f]{64})$", previous, re.MULTILINE)
+        owner = re.search(r"^X-AturTerminal-AppImage=([0-9a-f]{64})$", previous, re.MULTILINE)
         if not owner or previous != desktop_entry(root.parent / owner[1], version, appimage=True)[1]:
             print(f"Kept existing desktop entry {path}", file=sys.stderr)
             return
@@ -338,7 +338,7 @@ def integrate(root, version):
     commands = Path.home() / ".local/bin"
     commands.mkdir(parents=True, exist_ok=True)
     suffix = "-beta" if channel(version) == "beta" else ""
-    for name in ("muxy", "muxy-server"):
+    for name in ("atur-term", "atur-term-server"):
         link = commands / (name + suffix)
         target = root / "current" / name
         try:
@@ -362,7 +362,7 @@ def uninstall(root):
         if path.is_file() and not path.is_symlink() and path.read_text() == contents:
             path.unlink()
         commands = Path.home() / ".local/bin"
-        for name in ("muxy", "muxy-server", "muxy-beta", "muxy-server-beta"):
+        for name in ("atur-term", "atur-term-server", "atur-term-beta", "atur-term-server-beta"):
             link = commands / name
             binary = name.removesuffix("-beta")
             if link.is_symlink() and os.readlink(link) == str(root / "current" / binary):
@@ -399,7 +399,7 @@ def latest(release_channel):
     """The newest version of a channel and the release tag that carries it."""
     import io
     url = (f"{RELEASES}/atur-beta/update.json" if release_channel == "beta"
-           else "https://github.com/dzulfikar08/muxy/releases/latest/download/update.json")
+           else "https://github.com/dzulfikar08/atur-terminal/releases/latest/download/update.json")
     metadata = io.BytesIO()
     fetch(url, metadata, 65536)
     feed = json.loads(metadata.getvalue())
@@ -425,7 +425,7 @@ def download(version, directory, tag=None):
     feed = json.loads(metadata.getvalue())
     arch = architecture()
     asset = feed["platforms"]["linux-aarch64" if arch == "arm64" else "linux-x86_64"]
-    url = f"{RELEASES}/{tag}/muxy-desktop-{version}-linux-{arch}.tar.gz"
+    url = f"{RELEASES}/{tag}/atur-terminal-desktop-{version}-linux-{arch}.tar.gz"
     size = asset["size"]
     if feed["schema"] != 1 or feed["version"] != version or asset["url"] != url or not 0 < size <= MAX_ARCHIVE:
         raise ValueError("Unexpected desktop release metadata")

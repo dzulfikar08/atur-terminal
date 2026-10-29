@@ -1,4 +1,4 @@
-//! `muxy mobile`: let phones connect, pair them, and revoke them.
+//! `atur-term mobile`: let phones connect, pair them, and revoke them.
 
 use std::collections::HashSet;
 use std::error::Error;
@@ -60,7 +60,7 @@ fn print_state(state: &RemoteAccessState) -> Result {
         (ListenerStatus::Disabled, false) => writeln!(stdout, "Mobile access: off")?,
         (ListenerStatus::Unrecognized(_), _) => writeln!(
             stdout,
-            "Mobile access: status unknown to this version of muxy"
+            "Mobile access: status unknown to this version of Atur Terminal"
         )?,
     }
     if state.devices.is_empty() {
@@ -124,7 +124,7 @@ fn pair(client: &Client, addresses: Vec<String>) -> Result {
     print_code(&mut stdout, &code)?;
     writeln!(
         stdout,
-        "\nScan with the Atur/Muxy mobile app, or open this link on the phone:\n{link}\n\nWaiting for the phone. The code expires in 5 minutes; Ctrl-C cancels it."
+        "\nScan with the Atur Terminal mobile app, or open this link on the phone:\n{link}\n\nWaiting for the phone. The code expires in 5 minutes; Ctrl-C cancels it."
     )?;
     stdout.flush()?;
     drop(stdout);

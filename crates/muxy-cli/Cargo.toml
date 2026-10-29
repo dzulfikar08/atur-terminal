@@ -1,6 +1,6 @@
 [package]
 name = "muxy-cli"
-description = "Muxy command-line and terminal client"
+description = "Atur Terminal command-line and terminal client"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,7 @@ authors.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "muxy"
+name = "atur-term"
 path = "src/main.rs"
 
 [lints]

@@ -8,7 +8,7 @@ The Rust source is in `crates/muxy-mobile`, and
 
 ## How it works
 
-The app embeds the SDK, which connects directly to `muxy-server` on the user's
+The app embeds the SDK, which connects directly to `atur-term-server` on the user's
 computer over TLS 1.3. There is no cloud service: the phone reaches the
 computer on the same network, through a VPN such as Tailscale, or at an
 address added to the pairing code.
@@ -68,7 +68,7 @@ screen and sends input.
 ## Getting the SDK
 
 Every release publishes the SDK next to the desktop app, on the
-[releases page](https://github.com/muxy-app/muxy/releases):
+[releases page](https://github.com/dzulfikar08/atur-terminal/releases):
 
 | File | Contents |
 | --- | --- |
@@ -85,7 +85,7 @@ set -euo pipefail
 VERSION=2.1.0
 SHA256=<the ios zip's sha256 from muxy-mobile-2.1.0.json>
 ZIP=muxy-mobile-$VERSION-ios.zip
-curl -fsSLO "https://github.com/muxy-app/muxy/releases/download/v$VERSION/$ZIP"
+curl -fsSLO "https://github.com/dzulfikar08/atur-terminal/releases/download/v$VERSION/$ZIP"
 echo "$SHA256  $ZIP" | shasum -a 256 -c
 unzip -oq "$ZIP" -d MuxyMobile
 ```
@@ -94,7 +94,7 @@ unzip -oq "$ZIP" -d MuxyMobile
   the target `MuxyMobile` to match the XCFramework, use the zip's URL and
   SHA-256, and add `muxy_mobile.swift` to a target that depends on it.
 - The phone connects to any Muxy build that shares one of its `protocol`
-  versions. `muxy --build-info` prints them for the computer's build. Move the
+  versions. `atur-term --build-info` prints them for the computer's build. Move the
   pin forward to use newer features; you only have to when the protocol
   version changes.
 
@@ -318,7 +318,7 @@ val projects = withContext(sdk) { connection.projects() }
 
 In the desktop app, the user turns on **Allow mobile devices** in Settings →
 Mobile and clicks **Show Pairing Code**. On a computer without the desktop
-app, `muxy mobile pair` prints the code in the terminal. Either way, the QR
+app, `atur-term mobile pair` prints the code in the terminal. Either way, the QR
 code holds a link:
 
 ```text
@@ -327,7 +327,7 @@ muxy://pair?v=1&h=192.168.1.20&h=100.101.7.12&h=studio.local&p=7419&f=<64 hex>&s
 
 - `h`: up to 8 addresses, tried in order. The computer lists its own. For a
   computer that phones reach by another name, such as a cloud server's public
-  name, `muxy mobile pair --address box.example.com` lists that name first.
+  name, `atur-term mobile pair --address box.example.com` lists that name first.
 - `p`: the TCP port, 7419 by default.
 - `f`: the SHA-256 of the server's certificate. The SDK accepts only that
   certificate.
@@ -370,7 +370,7 @@ that grants shell access to the computer. Keep every field.
 
 - `serverId` is stable; use it as the storage key.
 - `serverName` is the computer's name, for display.
-- `deviceId` is this phone's id, as `muxy mobile` lists it.
+- `deviceId` is this phone's id, as `atur-term mobile` lists it.
 - The addresses don't update. If the computer's address changes and no other
   address works, the user must pair again.
 
@@ -493,8 +493,8 @@ val connection = withContext(sdk) { Connection.connect(credential, events) }
 ## Connecting over SSH
 
 An app with its own SSH client can reach any computer the user can log in to,
-with no pairing and no open port. Muxy must be installed there. The bridge,
-`muxy stdio`, starts the computer's server when needed.
+with no pairing and no open port. Atur Terminal must be installed there. The bridge,
+`atur-term stdio`, starts the computer's server when needed.
 
 1. Log in with your SSH client. Host keys, keys, passwords, and agents belong
    to your SSH layer; the SDK never sees them.
@@ -966,7 +966,7 @@ try {
 - Over SSH, the app acts as the SSH user, so the limits above for paired
   phones don't apply. Never weaken your SSH layer's host-key checks.
 - The desktop withdraws its pairing code when Settings closes, and the CLI
-  withdraws its code when `muxy mobile pair` exits.
+  withdraws its code when `atur-term mobile pair` exits.
 
 ## Testing against a server
 
@@ -976,19 +976,19 @@ into a simulator. Without the desktop app, use the CLI:
 
 ```sh
 cargo build -p muxy-server -p muxy-cli
-target/debug/muxy mobile enable          # listen on 7419; add --port 7500 to change it
-target/debug/muxy mobile pair            # prints the QR code and link, then waits for the phone
-target/debug/muxy mobile                 # status and paired devices
-target/debug/muxy mobile revoke 3f2a     # revoke a device by the start of its id
-target/debug/muxy mobile disable
+target/debug/atur-term mobile enable          # listen on 7419; add --port 7500 to change it
+target/debug/atur-term mobile pair            # prints the QR code and link, then waits for the phone
+target/debug/atur-term mobile                 # status and paired devices
+target/debug/atur-term mobile revoke 3f2a     # revoke a device by the start of its id
+target/debug/atur-term mobile disable
 ```
 
-- The first time, macOS asks whether `muxy-server` may accept incoming
+- The first time, macOS asks whether `atur-term-server` may accept incoming
   connections. Allow it.
 - The iOS Simulator and the Android Emulator reach the Mac through the LAN
   address in the pairing link.
-- For SSH, use any computer with Muxy installed and an SSH login. From a Mac,
-  `muxy --host you@computer project list` checks that the bridge works there.
+- For SSH, use any computer with Atur Terminal installed and an SSH login. From a Mac,
+  `atur-term --host you@computer project list` checks that the bridge works there.
 - `cargo test -p muxy-mobile` pairs, connects, attaches, types, scrolls back,
   sends taps and scrolling, works with Git and files, and revokes against a
   real server. It also connects through a simulated SSH channel.

@@ -598,15 +598,15 @@ impl Registry {
         }
         let mut environment = vec![
             (
-                "MUXY_SERVER_ID".to_owned(),
+                "ATUR_TERM_SERVER_ID".to_owned(),
                 self.catalog.identity().to_string(),
             ),
-            ("MUXY_SESSION_ID".to_owned(), info.id.get().to_string()),
+            ("ATUR_TERM_SESSION_ID".to_owned(), info.id.get().to_string()),
         ];
         environment.extend(
-            std::env::var("MUXY_DIR")
+            std::env::var("ATUR_TERM_DIR")
                 .ok()
-                .map(|dir| ("MUXY_DIR".to_owned(), dir)),
+                .map(|dir| ("ATUR_TERM_DIR".to_owned(), dir)),
         );
         let project_name = self
             .catalog

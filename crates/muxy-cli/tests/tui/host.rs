@@ -1,4 +1,4 @@
-//! `muxy --host`: the TUI on the server of another computer, reached through
+//! `atur-term --host`: the TUI on the server of another computer, reached through
 //! a fake ssh that runs the bridge on this computer.
 
 use std::fs;
@@ -14,7 +14,7 @@ use super::remote::FakeRemote;
 
 fn remote_tui<'a>(fixture: &'a Fixture, remote: &FakeRemote) -> Result<Tui<'a>> {
     let ssh = remote.ssh().display().to_string();
-    Tui::launch(fixture, &[("MUXY_SSH", &ssh)], &["--host", "box"])
+    Tui::launch(fixture, &[("ATUR_TERM_SSH", &ssh)], &["--host", "box"])
 }
 
 /// The session's owner. The server refuses a listing while attachments
@@ -169,7 +169,7 @@ fn a_different_server_answering_after_a_reconnect_ends_the_tui_with_advice() -> 
     let fixture = Fixture::new()?;
     let elsewhere = FakeRemote::new()?;
     let remote = FakeRemote::with_script(
-        r#"echo $$ > "$HOME/bridge.pid"; if [ -e "$HOME/moved" ]; then MUXY_DIR=$(cat "$HOME/moved"); fi"#,
+        r#"echo $$ > "$HOME/bridge.pid"; if [ -e "$HOME/moved" ]; then ATUR_TERM_DIR=$(cat "$HOME/moved"); fi"#,
     )?;
     let mut tui = remote_tui(&fixture, &remote)?;
     tui.ready()?;
@@ -180,10 +180,10 @@ fn a_different_server_answering_after_a_reconnect_ends_the_tui_with_advice() -> 
     kill_bridge(&remote)?;
     assert_eq!(tui.exit()?.code, Some(1));
     tui.assert_restored()?;
-    let text = tui.text()?.join("\n");
+    let text = tui.text()?.join("");
     assert!(
         text.contains(
-            "muxy: A different Atur Terminal server now runs on box. Run muxy --host box again to use it."
+            "atur-term: A different Atur Terminal server now runs on box. Run atur-term --host box again to use it."
         ),
         "{text}"
     );

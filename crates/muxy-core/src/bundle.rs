@@ -145,11 +145,14 @@ mod tests {
     fn only_executables_inside_an_app_bundle_have_one() {
         assert_eq!(
             containing(Path::new(
-                "/Applications/Atur Terminal.app/Contents/MacOS/muxy-app"
+                "/Applications/Atur Terminal.app/Contents/MacOS/atur-terminal"
             )),
             Some(Path::new("/Applications/Atur Terminal.app"))
         );
-        assert_eq!(containing(Path::new("/repo/target/debug/muxy-app")), None);
+        assert_eq!(
+            containing(Path::new("/repo/target/debug/atur-terminal")),
+            None
+        );
     }
 
     #[test]

@@ -112,7 +112,7 @@ mod tests {
         assert!(SKILL.starts_with("---\nname: muxy-cli\n"));
         let commands: Vec<_> = SKILL
             .lines()
-            .filter_map(|line| line.split_once("muxy ").map(|(_, command)| command))
+            .filter_map(|line| line.split_once("atur-term ").map(|(_, command)| command))
             .filter(|command| !command.starts_with("<command>") && !command.starts_with("--help"))
             .map(|command| {
                 let command = command.split("  #").next().unwrap_or(command);
@@ -124,7 +124,7 @@ mod tests {
         for command in commands {
             assert!(
                 crate::args::parse(&words(command)).is_ok(),
-                "muxy {command}"
+                "atur-term {command}"
             );
         }
     }

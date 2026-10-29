@@ -24,8 +24,8 @@ fn browser(profile: &Path, args: &[&str]) -> Result<Output> {
     Ok(Command::new(support::binary())
         .arg("browser")
         .args(args)
-        .env("MUXY_DIR", profile)
-        .env_remove("MUXY_CLI_TIMEOUT")
+        .env("ATUR_TERM_DIR", profile)
+        .env_remove("ATUR_TERM_CLI_TIMEOUT")
         .output()?)
 }
 
@@ -57,7 +57,7 @@ fn app(
     }))
 }
 
-/// Runs `muxy browser args` against an app that answers with `reply`.
+/// Runs `atur-term browser args` against an app that answers with `reply`.
 fn exchange(args: &[&str], reply: std::result::Result<Value, String>) -> Result<(Request, Output)> {
     let profile = profile()?;
     let app = app(profile.path(), reply)?;
@@ -165,7 +165,7 @@ fn app_errors_fail_the_command() -> Result {
     assert!(output.stdout.is_empty());
     assert_eq!(
         std::str::from_utf8(&output.stderr)?,
-        "muxy: browser tab not found missing\n"
+        "atur-term: browser tab not found missing\n"
     );
     Ok(())
 }
@@ -177,7 +177,7 @@ fn commands_other_than_open_need_the_app_running() -> Result {
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(
         std::str::from_utf8(&output.stderr)?,
-        "muxy: the Atur Terminal desktop app is not running\n"
+        "atur-term: the Atur Terminal desktop app is not running\n"
     );
     Ok(())
 }

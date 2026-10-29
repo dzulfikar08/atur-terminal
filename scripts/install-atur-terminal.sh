@@ -6,7 +6,7 @@ export LC_ALL
 
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "Install $1 and retry."; }
-usage() { echo 'Usage: install-muxy.sh (--version X.Y.Z[-beta.N] [--tag atur-vX.Y.Z[-REVISION]] | --dev-archive < archive.tar.gz) [--install-dir PATH] [--replace]'; }
+usage() { echo 'Usage: install-atur-terminal.sh (--version X.Y.Z[-beta.N] [--tag atur-vX.Y.Z[-REVISION]] | --dev-archive < archive.tar.gz) [--install-dir PATH] [--replace]'; }
 VERSION=
 TAG=
 DEV_ARCHIVE=false
@@ -27,7 +27,7 @@ done
 if [ "$DEV_ARCHIVE" = true ]; then
     [ -z "$VERSION" ] || fail 'Use --dev-archive without --version.'
     VERSION=dev
-    FILES='muxy muxy-server'
+    FILES='atur-term atur-term-server'
     FILE_COUNT=2
 else
     # A stable X.Y.Z, or a beta X.Y.Z-beta.N where N is a commit count.
@@ -37,7 +37,7 @@ else
     fi
     case "$BASE" in [0-9]*.[0-9]*.[0-9]*) ;; *) fail 'Specify an exact version with --version X.Y.Z or X.Y.Z-beta.N.' ;; esac
     case "$BASE" in *[!0-9.]*|*..*|*.*.*.*) fail 'Invalid version.' ;; esac
-    FILES='muxy muxy-server LICENSE'
+    FILES='atur-term atur-term-server LICENSE'
     FILE_COUNT=3
     need curl
 fi
@@ -69,7 +69,7 @@ else
     fail 'Install sha256sum or shasum and retry.'
 fi
 
-ARCHIVE=muxy-$VERSION-$PLATFORM-$ARCH.$EXT
+ARCHIVE=atur-terminal-$VERSION-$PLATFORM-$ARCH.$EXT
 if [ "$DEV_ARCHIVE" = false ]; then
     TAG=${TAG:-atur-v$VERSION}
     SUFFIX=${TAG#atur-v"$VERSION"}
@@ -80,8 +80,8 @@ if [ "$DEV_ARCHIVE" = false ]; then
         *) fail "The release tag must be atur-v$VERSION or atur-v$VERSION-<revision>." ;;
     esac
 fi
-BASE=https://github.com/dzulfikar08/muxy/releases/download/${TAG:-}
-TEMP=$(mktemp -d "${TMPDIR:-/tmp}/muxy-install.XXXXXX")
+BASE=https://github.com/dzulfikar08/atur-terminal/releases/download/${TAG:-}
+TEMP=$(mktemp -d "${TMPDIR:-/tmp}/atur-terminal-install.XXXXXX")
 LOCK=
 STAGE=
 GENERATION=
@@ -147,7 +147,7 @@ cmp -s "$TEMP/expected" "$TEMP/sorted" || fail 'Unexpected archive members.'
 
 mkdir -p "$DEST"
 DEST=$(cd "$DEST" && pwd -P)
-MANAGED=$DEST/.muxy
+MANAGED=$DEST/.atur-terminal
 [ ! -L "$MANAGED" ] || fail "$MANAGED must not be a symlink."
 mkdir -p "$MANAGED"
 chmod 700 "$MANAGED"
@@ -165,20 +165,20 @@ for BINARY in $FILES; do
     fi
     [ -s "$STAGE/pair/$BINARY" ] || fail "Empty archive member: $BINARY"
 done
-chmod 755 "$STAGE/pair/muxy" "$STAGE/pair/muxy-server"
+chmod 755 "$STAGE/pair/atur-term" "$STAGE/pair/atur-term-server"
 [ "$DEV_ARCHIVE" = true ] || chmod 644 "$STAGE/pair/LICENSE"
 
 quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 replacement() {
     if [ "$DEV_ARCHIVE" = true ]; then
-        printf 'To replace an existing development build, use install-muxy.sh --dev-archive --replace with the archive on stdin.\n' >&2
+        printf 'To replace an existing development build, use install-atur-terminal.sh --dev-archive --replace with the archive on stdin.\n' >&2
         return
     fi
-    printf 'To replace the installed commands, run:\n  curl -fsSL %s/install-muxy.sh | sh -s -- --version %s --install-dir ' "$BASE" "$VERSION" >&2
+    printf 'To replace the installed commands, run:\n  curl -fsSL %s/install-atur-terminal.sh | sh -s -- --version %s --install-dir ' "$BASE" "$VERSION" >&2
     quote "$DEST" >&2
     printf ' --replace\n' >&2
 }
-for BINARY in muxy muxy-server; do
+for BINARY in atur-term atur-term-server; do
     if [ -e "$DEST/$BINARY" ] || [ -L "$DEST/$BINARY" ]; then
         [ -f "$DEST/$BINARY" ] || [ -L "$DEST/$BINARY" ] || fail "$DEST/$BINARY is not a file."
         if [ "$REPLACE" = false ]; then
@@ -190,8 +190,8 @@ for BINARY in muxy muxy-server; do
         fi
     fi
 done
-if [ ! -L "$DEST/muxy" ] && [ ! -L "$DEST/muxy-server" ] &&
-    cmp -s "$DEST/muxy" "$STAGE/pair/muxy" && cmp -s "$DEST/muxy-server" "$STAGE/pair/muxy-server"; then
+if [ ! -L "$DEST/atur-term" ] && [ ! -L "$DEST/atur-term-server" ] &&
+    cmp -s "$DEST/atur-term" "$STAGE/pair/atur-term" && cmp -s "$DEST/atur-term-server" "$STAGE/pair/atur-term-server"; then
     echo "Atur Terminal CLI and server $VERSION are already installed."
     exit 0
 fi
@@ -202,11 +202,11 @@ ln -s "${GENERATION##*/}" "$STAGE/current"
 
 # Preserve a usable previous pair while converting ordinary files or bundle
 # links. Public commands must never point at a missing or unrelated generation.
-if [ -f "$DEST/muxy" ] && [ -f "$DEST/muxy-server" ] &&
-    { [ ! -L "$DEST/muxy" ] || [ "$(readlink "$DEST/muxy")" != '.muxy/current/muxy' ] ||
-      [ ! -L "$DEST/muxy-server" ] || [ "$(readlink "$DEST/muxy-server")" != '.muxy/current/muxy-server' ]; }; then
+if [ -f "$DEST/atur-term" ] && [ -f "$DEST/atur-term-server" ] &&
+    { [ ! -L "$DEST/atur-term" ] || [ "$(readlink "$DEST/atur-term")" != '.atur-terminal/current/atur-term' ] ||
+      [ ! -L "$DEST/atur-term-server" ] || [ "$(readlink "$DEST/atur-term-server")" != '.atur-terminal/current/atur-term-server' ]; }; then
     PREVIOUS=$(mktemp -d "$MANAGED/pair-previous.XXXXXX")
-    cp -pL "$DEST/muxy" "$DEST/muxy-server" "$PREVIOUS/"
+    cp -pL "$DEST/atur-term" "$DEST/atur-term-server" "$PREVIOUS/"
     if [ -L "$MANAGED/current" ]; then
         cp -P "$MANAGED/current" "$STAGE/old-current"
     fi
@@ -216,14 +216,14 @@ fi
 
 # Existing managed commands already use this shared pointer. For the first
 # installation, prepare both public links with rollback before activating it.
-for BINARY in muxy-server muxy; do
-    if [ -L "$DEST/$BINARY" ] && [ "$(readlink "$DEST/$BINARY")" = ".muxy/current/$BINARY" ]; then
+for BINARY in atur-term-server atur-term; do
+    if [ -L "$DEST/$BINARY" ] && [ "$(readlink "$DEST/$BINARY")" = ".atur-terminal/current/$BINARY" ]; then
         continue
     fi
     if [ -e "$DEST/$BINARY" ] || [ -L "$DEST/$BINARY" ]; then
         cp -P "$DEST/$BINARY" "$STAGE/old-$BINARY"
     fi
-    ln -s ".muxy/current/$BINARY" "$STAGE/$BINARY"
+    ln -s ".atur-terminal/current/$BINARY" "$STAGE/$BINARY"
     CHANGED="$BINARY $CHANGED"
     mv -f "$MOVE_FLAG" "$STAGE/$BINARY" "$DEST/$BINARY"
 done

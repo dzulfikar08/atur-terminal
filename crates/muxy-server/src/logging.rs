@@ -25,7 +25,7 @@ impl log::Log for FileLogger {
                 .replace('\n', "\\n");
             let mut file = self.0.lock().unwrap_or_else(PoisonError::into_inner);
             if let Err(error) = writeln!(file, "{timestamp} {} {message}", record.level()) {
-                let _ = writeln!(io::stderr(), "muxy-server: logging failed: {error}");
+                let _ = writeln!(io::stderr(), "atur-term-server: logging failed: {error}");
             }
         }
     }

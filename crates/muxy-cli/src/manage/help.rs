@@ -1,6 +1,6 @@
 pub(crate) const ROOT: &str = "Atur Terminal - terminal client and server management
 
-Usage: muxy [--host DESTINATION] [COMMAND]
+Usage: atur-term [--host DESTINATION] [COMMAND]
 
   (no command)  Open the terminal UI; Ctrl-B ? shows help
   <folder>      Open a folder as a project in the desktop app, or in the
@@ -21,13 +21,13 @@ Usage: muxy [--host DESTINATION] [COMMAND]
   stdio         Connect stdin/stdout to the server; used over SSH
   --help | --version | --build-info
 
-Run muxy <command> --help or muxy help <command> for usage. Management
+Run atur-term <command> --help or atur-term help <command> for usage. Management
 commands accept --json.
 Commands connect directly to the server, starting it if needed, except server
 status/stop, which never start it. --host uses the server on another computer
 over SSH (user@host, an ssh_config alias or ssh://user@host:port); Atur Terminal must be
 installed there, and directories are absolute paths on that computer.
-MUXY_DIR selects the local profile, which also keeps the terminal UI layouts
+ATUR_TERM_DIR selects the local profile, which also keeps the terminal UI layouts
 for other computers. No desktop app is required, except by browser commands.
 Tabs, panes and workspaces belong to UI clients.
 Project selectors accept an exact ID, unique name or directory path.
@@ -36,7 +36,7 @@ Use ./NAME to open a folder named like a command.
 Use -- before literal arguments that start with a dash, or before the command
 of session create.";
 
-pub(crate) const MOBILE: &str = "Usage: muxy mobile [action]
+pub(crate) const MOBILE: &str = "Usage: atur-term mobile [action]
   (no action)               Mobile access status and paired devices
   enable [--port N]         Let phones connect; --port changes the port (7419)
   disable                   Turn mobile access off
@@ -46,7 +46,7 @@ pub(crate) const MOBILE: &str = "Usage: muxy mobile [action]
 Pairing codes list the server's own addresses. --address puts a DNS name or
 IPv4 address first, for a server that phones reach by another name, such as a
 cloud server's public name. Repeat it for more, up to 8 addresses in all.";
-pub(crate) const BROWSER: &str = "Usage: muxy browser <action>
+pub(crate) const BROWSER: &str = "Usage: atur-term browser <action>
   open [url] [--split] [--project PROJECT] [--worktree WORKTREE]
        [--profile PROFILE]          Open a tab and print its ID
   list [--project PROJECT] [--worktree WORKTREE] [--json]
@@ -87,16 +87,16 @@ Tabs open in the current project, or the one named by --project and
 Use the tab ID that open or list prints. Page actions print their result as
 JSON. Waits give up after --timeout-ms or ms (default 5000, 10000 for
 wait-for-navigation; maximum 60000).
-MUXY_CLI_TIMEOUT sets how many seconds the app has to answer (default 10).
+ATUR_TERM_CLI_TIMEOUT sets how many seconds the app has to answer (default 10).
 Text list columns: tab-id, title, url, profile, active (tab-separated).";
-pub(crate) const INSTALL_SKILLS: &str = "Usage: muxy install-skills [--dir DIR]...
+pub(crate) const INSTALL_SKILLS: &str = "Usage: atur-term install-skills [--dir DIR]...
 Installs the muxy-cli skill, which teaches AI coding agents to use this command,
 into each agent folder that exists: ~/.claude/skills, ~/.codex/skills and
 ~/.agents/skills. --dir adds another skills folder; repeat it for more.
 An installed copy, including the Muxy 1.x skill, is replaced.";
-pub(crate) const SERVER: &str = "Usage: muxy server start|status|stop [--json]
+pub(crate) const SERVER: &str = "Usage: atur-term server start|status|stop [--json]
   stop [--force]  Stop only if idle; --force ends all running terminals.";
-pub(crate) const PROJECT: &str = "Usage: muxy project <action> [--json]
+pub(crate) const PROJECT: &str = "Usage: atur-term project <action> [--json]
   list
   add <directory> [--name NAME] [--create] [--reuse]
   rename <project> <name>
@@ -108,7 +108,7 @@ pub(crate) const PROJECT: &str = "Usage: muxy project <action> [--json]
 Add creates a distinct project even when its directory is already registered;
 --reuse prints the existing one instead. --create makes the directory first.
 Text list columns: id, name, directory (tab-separated).";
-pub(crate) const SESSION: &str = "Usage: muxy session <action> [--json]
+pub(crate) const SESSION: &str = "Usage: atur-term session <action> [--json]
   list [--project PROJECT] [--all]  Live sessions; --all includes saved/ended ones
   create [project] [--directory PATH] [--cols N] [--rows N] [-- COMMAND...]
   send [id] <text>                 Send literal text without pressing Return
@@ -135,7 +135,7 @@ Read-screen returns the last N visible rows (default 50), not scrollback.
 History/search return one page as JSON, with next for --before; 0 starts paging.
 Text list columns: id, project-id, status, attached, directory.
 JSON session IDs and pagination cursors are strings to preserve all 64 bits.";
-pub(crate) const WORKTREE: &str = "Usage: muxy worktree <action> [--json]
+pub(crate) const WORKTREE: &str = "Usage: atur-term worktree <action> [--json]
   list <project>
   create <project> <name> [--branch NAME] [--base REF | --existing]
          [--directory PATH] [--hooks]
@@ -150,28 +150,29 @@ and the per-machine worktree.json, printing each one; without it none run.
 Remove deletes the worktree directory and its project, ending its terminals,
 and refuses uncommitted changes unless --force is given.
 Text list columns: project-id, branch, directory (tab-separated).";
-const SETTINGS: &str = "Usage: muxy settings get [--json]
-       muxy settings set <key> <value> [--json]
+const SETTINGS: &str = "Usage: atur-term settings get [--json]
+       atur-term settings set <key> <value> [--json]
 Keys: default-shell (absolute path or 'default'), history-budget-bytes (integer),
       shell-integration (true/false). Get returns JSON; paths are UTF-8 strings.";
-const ACTIVITY: &str = "Usage: muxy activity list [--json]
-       muxy activity ack <event-id>... [--json]
+const ACTIVITY: &str = "Usage: atur-term activity list [--json]
+       atur-term activity ack <event-id>... [--json]
 Text list columns: session-id, project-id, provider, state, event-id, event
 (tab-separated), one row per session. JSON returns the server's activity
 snapshot, with session/event IDs as strings.";
-const GIT: &str = "Usage: muxy git <project> <action-json> [--json]
-Examples: muxy git Home '\"Summary\"'
-          muxy git MyProject '{\"Log\":{\"max_count\":20,\"skip\":0}}'
+const GIT: &str = "Usage: atur-term git <project> <action-json> [--json]
+Examples: atur-term git Home '\"Summary\"'
+          atur-term git MyProject '{\"Log\":{\"max_count\":20,\"skip\":0}}'
 Uses the protocol GitAction JSON shape and returns GitReply JSON.
 Actions can modify the repository. Watch is unavailable on a one-shot client.
 Protocol ServerPath values are byte arrays, not strings.";
-const FILES: &str = "Usage: muxy files <project> <action-json> [--json]
-Examples: muxy files MyProject '{\"List\":[]}'
-          muxy files MyProject '{\"Read\":[82,69,65,68,77,69,46,109,100]}'
+const FILES: &str = "Usage: atur-term files <project> <action-json> [--json]
+Examples: atur-term files MyProject '{\"List\":[]}'
+          atur-term files MyProject '{\"Read\":[82,69,65,68,77,69,46,109,100]}'
 Uses the protocol FilesAction JSON shape and returns FilesReply JSON.
 Paths are project-relative byte arrays. Actions can write or delete files.
 Watch/unwatch are unavailable on a one-shot client.";
-const EXEC: &str = "Usage: muxy exec <project> [--json] [--timeout-ms N] -- <program> [args...]
+const EXEC: &str =
+    "Usage: atur-term exec <project> [--json] [--timeout-ms N] -- <program> [args...]
 Runs through the server in the project's directory, without a shell.
 For shell syntax, explicitly use /bin/sh -c '...'. Timeout defaults to 30000ms
 (maximum 300000ms). Text mode forwards stdout/stderr. JSON mode returns the

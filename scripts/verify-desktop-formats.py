@@ -28,8 +28,8 @@ def wait_for(check, message, timeout=30):
 
 
 def environment(home):
-    env = {key: value for key, value in os.environ.items() if not key.startswith("MUXY_")}
-    env.update(HOME=str(home), XDG_DATA_HOME=str(home / "data"), MUXY_DIR=str(home / "profile"),
+    env = {key: value for key, value in os.environ.items() if not key.startswith("ATUR_TERM_")}
+    env.update(HOME=str(home), XDG_DATA_HOME=str(home / "data"), ATUR_TERM_DIR=str(home / "profile"),
                SHELL="/bin/sh", PATH="/usr/bin:/bin")
     return env
 
@@ -37,7 +37,7 @@ def environment(home):
 def appimage(archive, version, desktop, fuse):
     if os.getuid() == 0:
         raise ValueError("Run the AppImage check as a non-root test user")
-    with tempfile.TemporaryDirectory(prefix="muxy-appimage-check-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="atur-terminal-appimage-check-") as temporary:
         home = Path(temporary)
         env = environment(home)
         command = [str(archive)] + ([] if fuse else ["--appimage-extract-and-run"])
@@ -53,28 +53,28 @@ def appimage(archive, version, desktop, fuse):
                 assert gui.poll() is None, "AppImage exited before its desktop was ready"
             else:
                 subprocess.run([*command, "--cli", "project", "list"], env=env, check=True, timeout=60, umask=0o027)
-            bundles = list((home / "data/muxy-appimage").glob("*/usr/bin"))
+            bundles = list((home / "data/atur-terminal-appimage").glob("*/usr/bin"))
             assert len(bundles) == 1
             binaries = bundles[0]
-            for binary in ("muxy-app", "muxy", "muxy-server"):
+            for binary in ("atur-terminal", "atur-term", "atur-term-server"):
                 check_build(version, binaries / binary)
             def cli(*args):
-                return subprocess.check_output([str(binaries / "muxy"), *args], env=env, text=True, timeout=15)
+                return subprocess.check_output([str(binaries / "atur-term"), *args], env=env, text=True, timeout=15)
             shell_env = home / "shell-environment"
             session = json.loads(cli("session", "create", "Home", "--json", "--directory", str(home), "--",
                                      f"env > {shlex.quote(str(shell_env))}"))["id"]
             wait_for(shell_env.exists, "Packaged terminal did not run its command")
             assert shell_env.stat().st_mode & 0o777 == 0o640, "AppImage changed the terminal's inherited umask"
             inherited = shell_env.read_text().splitlines()
-            assert not any(line.startswith(("MUXY_APPIMAGE_", "WEBKIT_EXEC_PATH=", "WEBKIT_INJECTED_BUNDLE_PATH=",
+            assert not any(line.startswith(("ATUR_TERM_APPIMAGE_", "WEBKIT_EXEC_PATH=", "WEBKIT_INJECTED_BUNDLE_PATH=",
                                             "GIO_EXTRA_MODULES=", "LD_LIBRARY_PATH=")) for line in inherited), inherited
             if gui is not None:
                 wait_for(lambda: (home / "profile/app.sock").exists(), "AppImage browser API did not start")
                 tab = cli("browser", "open", "about:blank", "--project", "Home").strip()
                 assert json.loads(cli("browser", "wait", tab, "--function", "document.readyState === 'complete'",
                                       "--timeout-ms", "10000")), "Packaged browser did not finish loading"
-                cli("browser", "eval", tab, "document.title = 'Muxy package check'")
-                assert json.loads(cli("browser", "read", tab, "--json"))["title"] == "Muxy package check"
+                cli("browser", "eval", tab, "document.title = 'Atur Terminal package check'")
+                assert json.loads(cli("browser", "read", tab, "--json"))["title"] == "Atur Terminal package check"
                 cli("browser", "close", tab)
                 os.killpg(gui.pid, signal.SIGTERM)
                 gui.wait(timeout=15)
@@ -94,20 +94,20 @@ def appimage(archive, version, desktop, fuse):
             if gui is not None and gui.poll() is None:
                 os.killpg(gui.pid, signal.SIGTERM)
                 gui.wait(timeout=15)
-            for cli in (home / "data/muxy-appimage").glob("*/usr/bin/muxy"):
+            for cli in (home / "data/atur-terminal-appimage").glob("*/usr/bin/atur-term"):
                 subprocess.run([str(cli), "server", "stop", "--force"], env=env, check=True, timeout=15)
 
 
 def deb(archive, version, user):
-    if os.getuid() != 0 or os.environ.get("MUXY_DISPOSABLE_PACKAGE_TEST") != "1":
-        raise ValueError("Debian lifecycle checks require root and MUXY_DISPOSABLE_PACKAGE_TEST=1 in a disposable guest")
+    if os.getuid() != 0 or os.environ.get("ATUR_TERM_DISPOSABLE_PACKAGE_TEST") != "1":
+        raise ValueError("Debian lifecycle checks require root and ATUR_TERM_DISPOSABLE_PACKAGE_TEST=1 in a disposable guest")
     _, identifier, suffix = identity(version)
-    package = "muxy-desktop" + suffix
+    package = "atur-terminal" + suffix
     status = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", package], capture_output=True, text=True)
     if status.stdout == "installed":
         raise ValueError("Refusing to replace a package that was installed before this check")
     account = pwd.getpwnam(user)
-    with tempfile.TemporaryDirectory(prefix="muxy-deb-check-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="atur-terminal-deb-check-") as temporary:
         home = Path(temporary)
         os.chown(home, account.pw_uid, account.pw_gid)
         env = environment(home)
@@ -118,18 +118,18 @@ def deb(archive, version, user):
         try:
             subprocess.run(["apt-get", "install", "-y", "--no-install-recommends", str(archive)], check=True)
             installed = True
-            for binary in ("muxy-app", "muxy", "muxy-server"):
+            for binary in ("atur-terminal", "atur-term", "atur-term-server"):
                 check_build(version, binaries / binary)
             assert Path(f"/usr/share/applications/{identifier}.desktop").is_file()
-            run(sys.executable, ROOT / "scripts/smoke-headless.py", binaries / "muxy", check=True)
-            run(binaries / "muxy", "project", "add", home, "--name", "Retained project", check=True)
-            before = {binary: digest(binaries / binary) for binary in ("muxy-app", "muxy", "muxy-server")}
+            run(sys.executable, ROOT / "scripts/smoke-headless.py", binaries / "atur-term", check=True)
+            run(binaries / "atur-term", "project", "add", home, "--name", "Retained project", check=True)
+            before = {binary: digest(binaries / binary) for binary in ("atur-terminal", "atur-term", "atur-term-server")}
             for command in (["dpkg", "--remove", package], ["dpkg", "--install", str(archive)]):
                 blocked = subprocess.run(command, capture_output=True)
                 assert blocked.returncode != 0 and b"stop its server" in blocked.stderr, blocked
                 assert before == {binary: digest(binaries / binary) for binary in before}
-                run(binaries / "muxy", "project", "list", check=True)
-            run(binaries / "muxy", "server", "stop", "--force", check=True)
+                run(binaries / "atur-term", "project", "list", check=True)
+            run(binaries / "atur-term", "server", "stop", "--force", check=True)
             subprocess.run(["apt-get", "install", "--reinstall", "-y", str(archive)], check=True)
             retained = {path: path.read_bytes() for path in (home / "profile").rglob("*")
                         if path.is_file() and not path.is_symlink()}
@@ -140,7 +140,7 @@ def deb(archive, version, user):
             print("Verified Debian package: APT dependencies, helpers, live-server upgrade/removal guard, reinstall and retained data")
         finally:
             if installed:
-                run(binaries / "muxy", "server", "stop", "--force", check=False, timeout=15)
+                run(binaries / "atur-term", "server", "stop", "--force", check=False, timeout=15)
                 subprocess.run(["dpkg", "--remove", package], check=True)
 
 

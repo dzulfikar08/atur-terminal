@@ -23,7 +23,7 @@ immediately, and Settings works while the server is offline.
 
 ## Files
 
-Settings are plain files in Muxy's
+Settings are plain files in Atur Terminal's
 [profile folder](../features/server.md#files). **Edit in…** at the top of a
 section opens its file.
 
@@ -37,7 +37,7 @@ section opens its file.
 - Restart the app after editing `settings.toml` by hand. If the file has an
   error or an unknown key, the app won't open; see
   [Troubleshooting](troubleshooting.md#the-app-doesnt-open).
-- Hand edits to `terminal.toml` apply when Muxy or Settings becomes active. If
+- Hand edits to `terminal.toml` apply when Atur Terminal or Settings becomes active. If
   the file has an error, Settings shows it and keeps the last good values.
 
 ## Terminal configuration
@@ -79,7 +79,7 @@ on it, including key bindings, to its default after you confirm.
 Themes remain in **Settings → Appearance**. Shell and history limits remain
 in **Settings → Server**. Quick Terminal opacity combines with terminal opacity.
 
-On the first launch without `terminal.toml`, Muxy imports the supported values
+On the first launch without `terminal.toml`, Atur Terminal imports the supported values
 from its old `ghostty.conf`, including included files and custom terminal key
 bindings. The original files stay intact. Later edits to those old files have
 no effect. Any unsupported legacy options appear under **Imported settings**
@@ -89,8 +89,8 @@ and glass presets become native background vibrancy.
 
 ## Themes
 
-Muxy ships about 490 themes. Pick the app's light and dark themes in
-**Settings → Appearance**, or press `Cmd+Shift+K`. Muxy follows the macOS
+Atur Terminal ships about 490 themes. Pick the app's light and dark themes in
+**Settings → Appearance**, or press `Cmd+Shift+K`. Atur Terminal follows the macOS
 appearance.
 
 Custom themes in the profile's `themes/` folder show up too. The chosen theme
@@ -101,7 +101,7 @@ colors the app and its terminals.
 - **Export…** saves a `.muxy` file with your settings, `terminal.toml`, themes,
   server settings, extension preferences, remote server list, and local
   projects with their layouts.
-- **Choose file…** under **Restore backup** restores on the next launch. Muxy
+- **Choose file…** under **Restore backup** restores on the next launch. Atur Terminal
   keeps a recovery copy in the profile's `Backups/` folder. Existing projects
   are kept and get the saved layouts.
 - Backups never include running terminals, paired phones, extension packages,
@@ -110,7 +110,7 @@ colors the app and its terminals.
 ## Import from Muxy 1.x
 
 **Import installed 1.x** reads Muxy 1.x's settings from this Mac. **Choose
-file…** takes a 1.x `.muxy` backup or `settings.json`. Muxy imports supported
+file…** takes a 1.x `.muxy` backup or `settings.json`. Atur Terminal imports supported
 settings, shortcuts, custom commands, local projects, workspaces, worktrees, and
 terminal tabs, and lists what it skipped. Projects, tabs, and workspaces you
 already have are kept. **Import installed 1.x** also brings the default shell

@@ -28,7 +28,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            let _ = writeln!(io::stderr(), "muxy: {error}");
+            let _ = writeln!(io::stderr(), "atur-term: {error}");
             ExitCode::FAILURE
         }
     }
@@ -39,7 +39,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Command::Help => writeln!(io::stdout(), "{}", manage::help::ROOT)?,
         Command::Usage(usage) => writeln!(io::stdout(), "{usage}")?,
-        Command::Version => writeln!(io::stdout(), "muxy {}", env!("CARGO_PKG_VERSION"))?,
+        Command::Version => writeln!(io::stdout(), "atur-term {}", env!("CARGO_PKG_VERSION"))?,
         Command::BuildInfo => {
             serde_json::to_writer(io::stdout().lock(), &muxy_protocol::BuildInfo::current())?;
         }

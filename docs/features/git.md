@@ -14,7 +14,7 @@ tool you already have.
 
 **Commit** asks the AI for a commit message, then commits. Before it starts,
 pick the AI tool, whether to include unstaged changes or only what's staged,
-and whether to push. Muxy remembers these choices for next time. You can also
+and whether to push. Atur Terminal remembers these choices for next time. You can also
 add one-off instructions for the AI.
 
 ## Create a pull request
@@ -27,7 +27,7 @@ changes and a GitHub remote named `origin`.
 When the branch has a pull request, the status bar shows its number, state,
 and checks. From there you can merge (merge commit, squash, or rebase), update
 it from its base branch, close it, or open it on GitHub. In a worktree, you can
-also remove the worktree after merging: Muxy asks first, then switches to the
+also remove the worktree after merging: Atur Terminal asks first, then switches to the
 primary checkout.
 
 Pull request features need the [`gh`](https://cli.github.com) CLI, installed and
@@ -35,7 +35,7 @@ signed in on the project's server.
 
 ## AI tools
 
-Muxy uses the first installed of: Claude Code (`claude`), Codex (`codex`),
+Atur Terminal uses the first installed of: Claude Code (`claude`), Codex (`codex`),
 OpenCode (`opencode`), GitHub Copilot (`copilot`), Cursor (`cursor-agent`),
 Droid (`droid`), Grok (`grok`), Kiro CLI (`kiro-cli`), Pi (`pi`), Xal (`xal`),
 Antigravity (`agy`), and Oh My Pi (`omp`).
@@ -44,8 +44,8 @@ In **Settings → AI**, pick the tool for commits and for pull requests, and edi
 their prompts. A project can have its own pull request prompt, set from the
 **Create PR** menu.
 
-- Sign in to the tool in a terminal first. Muxy runs it without prompts.
+- Sign in to the tool in a terminal first. Atur Terminal runs it without prompts.
 - The tool runs on this Mac, in the project folder. For a
   [remote project](remote-servers.md), the same folder must exist here.
-- Muxy itself always does the staging, committing, pushing, and pull request.
+- Atur Terminal itself always does the staging, committing, pushing, and pull request.
   The AI only writes the text.

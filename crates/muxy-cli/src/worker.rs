@@ -449,7 +449,7 @@ impl Core {
             (None, _) => {}
             (Some(store), Target::Ssh { host, .. }) if store.state.server != catalog.server => {
                 return Err(format!(
-                    "A different Atur Terminal server now runs on {host}. Run muxy --host {host} again to use it."
+                    "A different Atur Terminal server now runs on {host}. Run atur-term --host {host} again to use it."
                 ));
             }
             (Some(_), _) => return Ok(()),
@@ -1019,7 +1019,7 @@ fn send_input(shared: &Mutex<Shared>, writer: &InputWriter, input: Input) -> Res
 }
 
 pub(crate) fn hosting_session(server: ServerIdentity) -> Option<SessionId> {
-    let inherited: ServerIdentity = std::env::var("MUXY_SERVER_ID").ok()?.parse().ok()?;
+    let inherited: ServerIdentity = std::env::var("ATUR_TERM_SERVER_ID").ok()?.parse().ok()?;
     (inherited == server).then_some(())?;
-    SessionId::new(std::env::var("MUXY_SESSION_ID").ok()?.parse().ok()?)
+    SessionId::new(std::env::var("ATUR_TERM_SESSION_ID").ok()?.parse().ok()?)
 }

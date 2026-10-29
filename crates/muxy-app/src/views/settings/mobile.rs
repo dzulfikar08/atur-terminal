@@ -143,7 +143,7 @@ fn pairing(
         .gap(px(10.0))
         .child(code(pairing.code.clone()))
         .child(div().text_color(pane.theme.fg_muted).child(tr!(
-            "Scan with the Atur/Muxy mobile app. The code works once and expires in 5 minutes."
+            "Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes."
         )))
         .child(
             div()

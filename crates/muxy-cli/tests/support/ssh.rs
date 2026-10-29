@@ -1,5 +1,5 @@
 //! A fake remote computer for SSH tests. Its fake ssh runs the remote command
-//! on this computer, with the remote's own home, PATH, and Muxy profile.
+//! on this computer, with the remote's own home, PATH, and Atur Terminal profile.
 //!
 //! Include it with `#[path = "support/ssh.rs"]` next to `mod support;`.
 
@@ -18,7 +18,7 @@ pub(super) struct FakeRemote {
 }
 
 impl FakeRemote {
-    /// A remote with Muxy on its PATH.
+    /// A remote with Atur Terminal on its PATH.
     pub(super) fn new() -> Result<Self> {
         Self::with_script("")
     }
@@ -39,8 +39,8 @@ impl FakeRemote {
         )?;
         let ssh = format!(
             "#!/bin/sh\n\
-             export HOME={home} MUXY_DIR={profile} PATH={bin}:/usr/bin:/bin SHELL=/bin/sh\n\
-             unset MUXY_SERVER_BIN MUXY_PANE_ID XDG_STATE_HOME\n\
+             export HOME={home} ATUR_TERM_DIR={profile} PATH={bin}:/usr/bin:/bin SHELL=/bin/sh\n\
+             unset ATUR_TERM_SERVER_BIN ATUR_TERM_PANE_ID XDG_STATE_HOME\n\
              {script}\n\
              for last; do :; done\n\
              exec /bin/sh -c \"exec $last\"\n",
@@ -60,15 +60,15 @@ impl FakeRemote {
         Ok(SshTarget::new("box")?.with_program(self.ssh()))
     }
 
-    /// Runs `muxy` as the fake ssh would, on the remote side.
+    /// Runs `atur-term` as the fake ssh would, on the remote side.
     pub(super) fn muxy(&self, args: &[&str]) -> Command {
         let mut command = Command::new(super::support::binary());
         command
             .args(args)
             .env("HOME", self.home())
-            .env("MUXY_DIR", self.profile())
-            .env_remove("MUXY_SERVER_BIN")
-            .env_remove("MUXY_PANE_ID");
+            .env("ATUR_TERM_DIR", self.profile())
+            .env_remove("ATUR_TERM_SERVER_BIN")
+            .env_remove("ATUR_TERM_PANE_ID");
         command
     }
 
