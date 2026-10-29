@@ -21,7 +21,7 @@ hello/
 {
   "name": "hello",
   "version": "0.1.0",
-  "muxy": {
+  "atur-terminal": {
     "description": "Says hello",
     "permissions": ["panels:write", "notifications:write"],
     "panels": [{ "id": "hello", "title": "Hello", "entry": "panel.html" }],
@@ -44,11 +44,11 @@ hello/
 
 ```html
 <!doctype html>
-<body style="background: var(--muxy-background); color: var(--muxy-foreground)">
+<body style="background: var(--atur-background); color: var(--atur-foreground)">
   <button id="hi">Say hello</button>
   <script>
     document.getElementById("hi").onclick = () =>
-      muxy.notifications.notify({ title: "Hello", body: "From my extension" });
+      atur.notifications.notify({ title: "Hello", body: "From my extension" });
   </script>
 </body>
 ```
@@ -93,14 +93,13 @@ the build. Only `dist/` is published.
 - Add [tabs](tabs.md), [panels](panels.md), [bar items](bar-items.md), and
   [commands](commands.md).
 - Work with [files](files.md), [Git](git.md), and [events](events.md).
-- [Publish it](contributing.md).
 
 ## Coming from 1.x
 
 Most 1.x extensions work unchanged. The differences:
 
 - **Install folder.** Extensions live in Atur Terminal's profile folder, not
-  `~/.config/muxy/extensions`. Importing the installed 1.x copies them over.
+  `~/.config/atur-terminal/extensions`. Importing the installed 1.x copies them over.
 - **No scaffold.** There is no **Create** button or starter kit. Use
   **Load Unpacked…**.
 - **Lowercase names.** Pages only load for names made of `a-z`, `0-9`, `.`,

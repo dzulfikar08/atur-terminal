@@ -773,11 +773,11 @@ fn panel_class(superclass: &AnyClass) -> Result<&'static AnyClass, String> {
     if let Some(class) = CLASS.get() {
         return Ok(class);
     }
-    if let Some(class) = AnyClass::get(c"MuxyQuickTerminalGPUIPanel") {
+    if let Some(class) = AnyClass::get(c"AturQuickTerminalGPUIPanel") {
         let _ = CLASS.set(class);
         return Ok(class);
     }
-    let mut builder = ClassBuilder::new(c"MuxyQuickTerminalGPUIPanel", superclass)
+    let mut builder = ClassBuilder::new(c"AturQuickTerminalGPUIPanel", superclass)
         .ok_or_else(|| "failed to allocate the Quick Terminal panel subclass".to_owned())?;
     unsafe {
         builder.add_method::<AnyObject, _>(

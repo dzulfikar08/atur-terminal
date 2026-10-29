@@ -147,7 +147,7 @@ mod tests {
         let board = NSPasteboard::pasteboardWithUniqueName();
         let original = vec![vec![
             ("public.utf8-plain-text".into(), b"hello".to_vec()),
-            ("app.muxy.test".into(), vec![0, 1, 2]),
+            ("app.atur.test".into(), vec![0, 1, 2]),
         ]];
         write(&board, &original)?;
         let mut lease = Lease::capture_board(board.clone())?;

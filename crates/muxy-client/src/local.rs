@@ -18,7 +18,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub fn server_executable() -> io::Result<PathBuf> {
-    if let Some(path) = std::env::var_os("ATUR_TERM_SERVER_BIN") {
+    if let Some(path) = muxy_core::env::var_os("ATUR_TERM_SERVER_BIN") {
         if path.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -115,7 +115,7 @@ fn spawn(executable: &Path, arguments: &[OsString]) -> io::Result<()> {
         .stderr(Stdio::null())
         .spawn()?;
     thread::Builder::new()
-        .name("muxy-server-wait".into())
+        .name("atur-server-wait".into())
         .spawn(move || {
             let _ = child.wait();
         })?;

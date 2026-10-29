@@ -114,11 +114,11 @@
 "Add a GitHub remote named origin to open a pull request" = "Add a GitHub remote named origin to open a pull request";
 "Add space between terminal lines using pixels or a percentage, such as 10%%." = "Add space between terminal lines using pixels or a percentage, such as 10%%.";
 "Add ~/.local/bin to your PATH. For this shell, run:\nexport PATH=\"$HOME/.local/bin:$PATH\"" = "Add ~/.local/bin to your PATH. For this shell, run:\nexport PATH=\"$HOME/.local/bin:$PATH\"";
-"Added %lld projects and %lld workspaces from Muxy 1.x. Projects, tabs, and workspaces you already had are unchanged." = "Added %lld projects and %lld workspaces from Muxy 1.x. Projects, tabs, and workspaces you already had are unchanged.";
+"Added %lld projects and %lld workspaces from Atur Terminal 1.x. Projects, tabs, and workspaces you already had are unchanged." = "Added %lld projects and %lld workspaces from Atur Terminal 1.x. Projects, tabs, and workspaces you already had are unchanged.";
 "Additional Prompt" = "Additional Prompt";
 "Additional instructions" = "Additional instructions";
 "Additional prompt" = "Additional prompt";
-"Adds %lld extensions from Muxy 1.x." = "Adds %lld extensions from Muxy 1.x.";
+"Adds %lld extensions from Atur Terminal 1.x." = "Adds %lld extensions from Atur Terminal 1.x.";
 "Adjust character spacing by pixels or a percentage, such as 10%%." = "Adjust character spacing by pixels or a percentage, such as 10%%.";
 "Adjust mouse wheel scrolling speed." = "Adjust mouse wheel scrolling speed.";
 "Adjust smooth scrolling speed." = "Adjust smooth scrolling speed.";
@@ -174,6 +174,9 @@
 "Atur Terminal %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there." = "Atur Terminal %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there.";
 "Atur Terminal %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain." = "Atur Terminal %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain.";
 "Atur Terminal %@ will install and restart the app when all terminal sessions end. Currently %lld sessions are running, including idle shells and detached sessions." = "Atur Terminal %@ will install and restart the app when all terminal sessions end. Currently %lld sessions are running, including idle shells and detached sessions.";
+"Atur Terminal 1.x has no projects or workspaces to import." = "Atur Terminal 1.x has no projects or workspaces to import.";
+"Atur Terminal 1.x was imported. Check these items:" = "Atur Terminal 1.x was imported. Check these items:";
+"Atur Terminal 1.x was not imported. Try again from Settings → Backup & Restore. %@" = "Atur Terminal 1.x was not imported. Try again from Settings → Backup & Restore. %@";
 "Atur Terminal Settings" = "Atur Terminal Settings";
 "Atur Terminal Update" = "Atur Terminal Update";
 "Atur Terminal can open copies only of files in %@'s projects and Home." = "Atur Terminal can open copies only of files in %@'s projects and Home.";
@@ -293,7 +296,6 @@
 "Choose Icon…" = "Choose Icon…";
 "Choose Logo" = "Choose Logo";
 "Choose Tab Focused from the layout menu at the top of the expanded sidebar to list every project's tabs there. By default, ⌘1–⌘9 then select tabs across projects." = "Choose Tab Focused from the layout menu at the top of the expanded sidebar to list every project's tabs there. By default, ⌘1–⌘9 then select tabs across projects.";
-"Choose a .muxy backup or a 1.x settings.json file. Review the import before applying it on the next launch." = "Choose a .muxy backup or a 1.x settings.json file. Review the import before applying it on the next launch.";
 "Choose a PNG, JPEG, GIF, or WebP image up to 8192 pixels and 64 MB decoded." = "Choose a PNG, JPEG, GIF, or WebP image up to 8192 pixels and 64 MB decoded.";
 "Choose a branch…" = "Choose a branch…";
 "Choose a folder inside the home folder on %@." = "Choose a folder inside the home folder on %@.";
@@ -303,6 +305,7 @@
 "Choose a readable multilingual GGML voice model in Settings → Composer." = "Choose a readable multilingual GGML voice model in Settings → Composer.";
 "Choose a supported dictation language in Settings → Composer." = "Choose a supported dictation language in Settings → Composer.";
 "Choose a target branch that exists on the remote" = "Choose a target branch that exists on the remote";
+"Choose an .aturbackup file or a 1.x settings.json file. Review the import before applying it on the next launch." = "Choose an .aturbackup file or a 1.x settings.json file. Review the import before applying it on the next launch.";
 "Choose an existing folder, or use Create & Add Project." = "Choose an existing folder, or use Create & Add Project.";
 "Choose an extension folder containing package.json or a built dist folder" = "Choose an extension folder containing package.json or a built dist folder";
 "Choose an image smaller than 20 MB." = "Choose an image smaller than 20 MB.";
@@ -438,7 +441,7 @@
 "Could not install the update: %@" = "Could not install the update: %@";
 "Could not install update (%@) or restore the previous app (%@). The previous app is at %@" = "Could not install update (%@) or restore the previous app (%@). The previous app is at %@";
 "Could not install update; the previous app was restored: %@" = "Could not install update; the previous app was restored: %@";
-"Could not load .muxy/layouts: %@" = "Could not load .muxy/layouts: %@";
+"Could not load .atur-terminal/layouts: %@" = "Could not load .atur-terminal/layouts: %@";
 "Could not load layout “%@”: %@" = "Could not load layout “%@”: %@";
 "Could not load logo: %@" = "Could not load logo: %@";
 "Could not load match" = "Could not load match";
@@ -709,7 +712,7 @@
 "Ignore key" = "Ignore key";
 "Image submission" = "Image submission";
 "Import cancelled." = "Import cancelled.";
-"Import from Muxy 1.x" = "Import from Muxy 1.x";
+"Import from Atur Terminal 1.x" = "Import from Atur Terminal 1.x";
 "Import from another browser" = "Import from another browser";
 "Import installed 1.x" = "Import installed 1.x";
 "Import projects and workspaces" = "Import projects and workspaces";
@@ -746,7 +749,7 @@
 "Install failed: %@" = "Install failed: %@";
 "Install the Silero speech detection model at %@ to use offline dictation." = "Install the Silero speech detection model at %@ to use offline dictation.";
 "Install whisper-cli 1.9.5 or later to use offline dictation." = "Install whisper-cli 1.9.5 or later to use offline dictation.";
-"Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under muxy/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish." = "Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under muxy/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish.";
+"Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under atur-terminal/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish." = "Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under atur-terminal/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish.";
 "Installed" = "Installed";
 "Installed %@.\n\n%@" = "Installed %@.\n\n%@";
 "Installing atur-term-server, then testing connection…" = "Installing atur-term-server, then testing connection…";
@@ -865,9 +868,6 @@
 "Move to Bottom" = "Move to Bottom";
 "Move to Left Sidebar" = "Move to Left Sidebar";
 "Move to Right" = "Move to Right";
-"Muxy 1.x has no projects or workspaces to import." = "Muxy 1.x has no projects or workspaces to import.";
-"Muxy 1.x was imported. Check these items:" = "Muxy 1.x was imported. Check these items:";
-"Muxy 1.x was not imported. Try again from Settings → Backup & Restore. %@" = "Muxy 1.x was not imported. Try again from Settings → Backup & Restore. %@";
 "Name" = "Name";
 "Needs input" = "Needs input";
 "Needs your attention" = "Needs your attention";
@@ -896,7 +896,7 @@
 "Next Tab" = "Next Tab";
 "Next Tip" = "Next Tip";
 "Next match" = "Next match";
-"No Muxy 1.x configuration was found on this computer. Choose a 1.x backup file instead." = "No Muxy 1.x configuration was found on this computer. Choose a 1.x backup file instead.";
+"No Atur Terminal 1.x configuration was found on this computer. Choose a 1.x backup file instead." = "No Atur Terminal 1.x configuration was found on this computer. Choose a 1.x backup file instead.";
 "No Shortcut" = "No Shortcut";
 "No agents running" = "No agents running";
 "No commit was created" = "No commit was created";
@@ -906,7 +906,7 @@
 "No extensions installed" = "No extensions installed";
 "No fonts found" = "No fonts found";
 "No items" = "No items";
-"No layouts found in .muxy/layouts" = "No layouts found in .muxy/layouts";
+"No layouts found in .atur-terminal/layouts" = "No layouts found in .atur-terminal/layouts";
 "No matches" = "No matches";
 "No matching commands" = "No matching commands";
 "No matching extensions" = "No matching extensions";
@@ -979,7 +979,7 @@
 "Opens files you click in a terminal. An extension opener opens only the files it supports; other files open in the project editor." = "Opens files you click in a terminal. An extension opener opens only the files it supports; other files open in the project editor.";
 "Option as Alt" = "Option as Alt";
 "Option-Return inserts a new line." = "Option-Return inserts a new line.";
-"Optional setup commands: add setup to .muxy/worktree.json in the project or $XDG_CONFIG_HOME/muxy/worktree.json (defaults to ~/.config/muxy/worktree.json)." = "Optional setup commands: add setup to .muxy/worktree.json in the project or $XDG_CONFIG_HOME/muxy/worktree.json (defaults to ~/.config/muxy/worktree.json).";
+"Optional setup commands: add setup to .atur-terminal/worktree.json in the project or $XDG_CONFIG_HOME/atur-terminal/worktree.json (defaults to ~/.config/atur-terminal/worktree.json)." = "Optional setup commands: add setup to .atur-terminal/worktree.json in the project or $XDG_CONFIG_HOME/atur-terminal/worktree.json (defaults to ~/.config/atur-terminal/worktree.json).";
 "Optional teardown commands (review before enabling):" = "Optional teardown commands (review before enabling):";
 "Orange" = "Orange";
 "Order the worktree switcher by recent use" = "Order the worktree switcher by recent use";
@@ -1176,7 +1176,7 @@
 "SSH host" = "SSH host";
 "SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect." = "SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect.";
 "Save" = "Save";
-"Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file.";
+"Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file.";
 "Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes." = "Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes.";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
@@ -1353,6 +1353,7 @@
 "The extension changed. Check for updates and try again." = "The extension changed. Check for updates and try again.";
 "The extension kept an open view. Save or close it before continuing." = "The extension kept an open view. Save or close it before continuing.";
 "The extension kept an open view. Save or close it before reloading." = "The extension kept an open view. Save or close it before reloading.";
+"The extension marketplace is not configured" = "The extension marketplace is not configured";
 "The extension view could not be closed. Try reloading again." = "The extension view could not be closed. Try reloading again.";
 "The extension was updated but could not be enabled: %@" = "The extension was updated but could not be enabled: %@";
 "The extension's page could not be loaded." = "The extension's page could not be loaded.";
@@ -1550,7 +1551,7 @@
 "Worktree created, but its location preference could not be saved: %@" = "Worktree created, but its location preference could not be saved: %@";
 "Worktree created, but setup failed" = "Worktree created, but setup failed";
 "Worktrees" = "Worktrees";
-"Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.muxy/worktrees." = "Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.muxy/worktrees.";
+"Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.atur-terminal/worktrees." = "Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.atur-terminal/worktrees.";
 "Writing PR" = "Writing PR";
 "Writing message" = "Writing message";
 "X11 returned an empty keyboard map." = "X11 returned an empty keyboard map.";

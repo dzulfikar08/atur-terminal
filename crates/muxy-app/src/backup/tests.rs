@@ -38,7 +38,7 @@ fn backup_round_trip_is_portable_and_restore_waits_for_restart() {
         "history_budget_bytes = 1048576\nshell_integration = false\n",
     )
     .unwrap();
-    let archive = source.path().join("test.muxy");
+    let archive = source.path().join("test.aturbackup");
     export(source.path(), &archive, &state).unwrap();
     let (files, legacy, restore) = archive::read(&archive).unwrap();
     assert!(!legacy);
@@ -93,7 +93,7 @@ fn backup_round_trip_is_portable_and_restore_waits_for_restart() {
 #[test]
 fn invalid_archive_and_cancel_leave_current_configuration_untouched() {
     let directory = profile();
-    let archive = directory.path().join("test.muxy");
+    let archive = directory.path().join("test.aturbackup");
     export(directory.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
     stage(
         directory.path(),
@@ -135,7 +135,7 @@ fn legacy_archive(path: &Path, extra: &str) {
 #[test]
 fn native_one_x_archive_and_manual_json_use_the_same_conversion() {
     let directory = profile();
-    let archive = directory.path().join("legacy.muxy");
+    let archive = directory.path().join("legacy.aturbackup");
     legacy_archive(&archive, "");
     let import = prepare(directory.path(), &archive).unwrap();
     assert!(
@@ -174,7 +174,7 @@ fn native_one_x_archive_and_manual_json_use_the_same_conversion() {
 #[test]
 fn traversal_symlinks_missing_manifest_and_unknown_versions_are_rejected() {
     let directory = profile();
-    let archive = directory.path().join("unsafe.muxy");
+    let archive = directory.path().join("unsafe.aturbackup");
     for name in [
         "../escape",
         "/absolute",
@@ -188,7 +188,7 @@ fn traversal_symlinks_missing_manifest_and_unknown_versions_are_rejected() {
     zip.start_file("manifest.json", zip::write::SimpleFileOptions::default())
         .unwrap();
     zip.write_all(
-        br#"{"schemaVersion":2,"format":"muxy.configuration","files":["settings.toml"]}"#,
+        br#"{"schemaVersion":2,"format":"atur.configuration","files":["settings.toml"]}"#,
     )
     .unwrap();
     zip.add_symlink(
@@ -221,7 +221,7 @@ fn ghostty_includes_are_resolved_and_untrusted_imports_cannot_read_external_file
         "font-size = 12\nconfig-file = included.conf\n",
     )
     .unwrap();
-    let archive = directory.path().join("test.muxy");
+    let archive = directory.path().join("test.aturbackup");
     export(directory.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
     let (mut files, _, _) = archive::read(&archive).unwrap();
     let source = String::from_utf8_lossy(&files["terminal.toml"]);
@@ -246,7 +246,7 @@ fn recovery_archive_resolves_includes_and_keeps_original_files_for_rollback() {
     let original = "font-size = 12\nconfig-file = included.conf\n";
     fs::write(target.path().join("ghostty.conf"), original).unwrap();
     fs::write(target.path().join("included.conf"), "font-size = 21\n").unwrap();
-    let archive = source.path().join("test.muxy");
+    let archive = source.path().join("test.aturbackup");
     export(source.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
     stage(target.path(), &prepare(target.path(), &archive).unwrap()).unwrap();
     assert!(apply_pending(target.path()).unwrap().is_none());
@@ -261,7 +261,7 @@ fn recovery_archive_resolves_includes_and_keeps_original_files_for_rollback() {
         original
     );
     fs::remove_file(target.path().join("included.conf")).unwrap();
-    let import = prepare(target.path(), &recovery.join("recovery.muxy")).unwrap();
+    let import = prepare(target.path(), &recovery.join("recovery.aturbackup")).unwrap();
     stage(target.path(), &import).unwrap();
     assert!(apply_pending(target.path()).unwrap().is_none());
     let terminal = TerminalSettings::load_native(&target.path().join("terminal.toml")).unwrap();
@@ -338,7 +338,7 @@ fn native_backup_ignores_stale_legacy_includes_and_old_backups_replace_native_se
         "config-file = missing.conf",
     )
     .unwrap();
-    let archive = source.path().join("native.muxy");
+    let archive = source.path().join("native.aturbackup");
     export(source.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
     let (files, _, _) = archive::read(&archive).unwrap();
     assert!(!files.contains_key("ghostty.conf"));
@@ -349,7 +349,7 @@ fn native_backup_ignores_stale_legacy_includes_and_old_backups_replace_native_se
         terminal
     );
 
-    let old = source.path().join("old.muxy");
+    let old = source.path().join("old.aturbackup");
     let files = Files::from([
         (
             "settings.toml".into(),
@@ -387,7 +387,7 @@ fn recovery_of_first_partial_terminal_migration_restores_legacy_preferences() {
         .unwrap()
         .unwrap()
         .path()
-        .join("recovery.muxy");
+        .join("recovery.aturbackup");
     let native = directory.path().join("terminal.toml");
     assert_eq!(
         TerminalSettings::load_native(&native)
@@ -478,7 +478,7 @@ fn full_restore_resets_omitted_configuration_and_partial_import_keeps_it() {
     apply_pending(target.path()).unwrap();
     assert!(target.path().join("server.toml").exists());
     assert!(target.path().join("themes/custom").exists());
-    let archive = source.path().join("test.muxy");
+    let archive = source.path().join("test.aturbackup");
     export(source.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
     stage(target.path(), &prepare(target.path(), &archive).unwrap()).unwrap();
     apply_pending(target.path()).unwrap();
@@ -499,7 +499,7 @@ fn mobile_preferences_exclude_credentials_and_apply_through_the_server() {
     let raw = br#"{"enabled":true,"port":7420,"certificate":"secret-certificate","private_key":"secret-key","devices":["secret-device"]}"#;
     fs::write(source.path().join("remote.json"), raw).unwrap();
     fs::write(target.path().join("remote.json"), raw).unwrap();
-    let archive = source.path().join("test.muxy");
+    let archive = source.path().join("test.aturbackup");
     export(source.path(), &archive, &AppState::bootstrap().unwrap()).unwrap();
     let import = prepare(target.path(), &archive).unwrap();
     assert!(!import.files.contains_key("remote.json"));
@@ -530,7 +530,7 @@ fn legacy_package(folder: &Path, name: &str) {
     fs::create_dir_all(folder).unwrap();
     fs::write(
         folder.join("package.json"),
-        serde_json::json!({"name":name,"version":"1.0.0","muxy":{}}).to_string(),
+        serde_json::json!({"name":name,"version":"1.0.0","atur-terminal":{}}).to_string(),
     )
     .unwrap();
 }
@@ -716,4 +716,41 @@ fn automatic_one_x_import_leaves_used_imported_and_staged_profiles_alone() {
         fs::read_to_string(staged.path().join(PENDING)).unwrap(),
         "staged by the user"
     );
+}
+
+#[test]
+fn backups_and_staged_imports_of_earlier_releases_are_still_read() {
+    let directory = profile();
+    let archive = directory.path().join("earlier.muxy");
+    let mut zip = zip::ZipWriter::new(fs::File::create(&archive).unwrap());
+    zip.start_file("manifest.json", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    zip.write_all(br#"{"schemaVersion":2,"format":"muxy.configuration","files":["themes"]}"#)
+        .unwrap();
+    zip.start_file("themes/earlier", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    zip.write_all(b"background = 111111").unwrap();
+    zip.finish().unwrap();
+    let (files, legacy, _) = archive::read(&archive).unwrap();
+    assert!(!legacy);
+    assert!(files.contains_key("themes/earlier"));
+
+    let target = profile();
+    fs::copy(&archive, target.path().join("pending-import.muxy")).unwrap();
+    assert_eq!(
+        pending_path(target.path()),
+        Some(target.path().join("pending-import.muxy"))
+    );
+    assert!(apply_pending(target.path()).unwrap().is_none());
+    assert!(target.path().join("themes/earlier").exists());
+    assert!(pending_path(target.path()).is_none());
+
+    let import = prepare(target.path(), &archive).unwrap();
+    fs::copy(&archive, target.path().join("pending-import.muxy")).unwrap();
+    stage(target.path(), &import).unwrap();
+    assert_eq!(
+        pending_path(target.path()),
+        Some(target.path().join(PENDING))
+    );
+    assert!(!target.path().join("pending-import.muxy").exists());
 }

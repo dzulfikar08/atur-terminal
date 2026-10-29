@@ -25,6 +25,18 @@ pub(crate) use linux::{CAPABILITY, Installation, PreparedUpdate};
 #[cfg(target_os = "macos")]
 pub(crate) use macos::{CAPABILITY, Installation, PreparedUpdate};
 
+/// Prefix of the folders an update is staged in, next to the app.
+#[cfg(target_os = "macos")]
+pub(crate) const STAGING_PREFIX: &str = ".atur-beta-update-";
+/// What earlier releases named them; folders they left are still recognised.
+#[cfg(target_os = "macos")]
+const LEGACY_STAGING_PREFIX: &str = ".muxy-beta-update-";
+
+#[cfg(target_os = "macos")]
+pub(crate) fn is_staging_name(name: &str) -> bool {
+    name.starts_with(STAGING_PREFIX) || name.starts_with(LEGACY_STAGING_PREFIX)
+}
+
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub(crate) const RELEASES: &str = "https://github.com/dzulfikar08/atur-terminal/releases/download";

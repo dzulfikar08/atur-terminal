@@ -32,6 +32,30 @@ fn text(bytes: &[u8]) -> Result<String> {
         .map(|s| s.trim_end_matches('\n').to_owned())
         .map_err(error)
 }
+/// Marks a branch as the checkout of a pull request.
+const PULL_REQUEST_KEY: &str = "atur-pr-number";
+/// What branches checked out by earlier builds are marked with.
+const LEGACY_PULL_REQUEST_KEY: &str = "muxy-pr-number";
+
+/// The git config key a branch's pull request number is stored under.
+fn pull_request_key(branch: &str) -> String {
+    format!("branch.{branch}.{PULL_REQUEST_KEY}")
+}
+
+/// The pull request number recorded for `branch`, from this build's marker or
+/// else the one earlier builds wrote.
+fn pull_request_number(repository: &Path, branch: &str) -> Option<String> {
+    [PULL_REQUEST_KEY, LEGACY_PULL_REQUEST_KEY]
+        .into_iter()
+        .find_map(|key| {
+            run(
+                repository,
+                &["config", "--get", &format!("branch.{branch}.{key}")],
+            )
+            .ok()
+            .and_then(|bytes| text(&bytes).ok())
+        })
+}
 fn path(bytes: &ServerPath) -> &Path {
     Path::new(OsStr::from_bytes(&bytes.0))
 }

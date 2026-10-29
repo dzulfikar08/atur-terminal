@@ -184,7 +184,7 @@ fn retention_migrates_old_entries_once_and_prunes_on_startup() -> TestResult {
 struct Profile(PathBuf);
 impl Profile {
     fn new() -> io::Result<Self> {
-        let directory = std::env::temp_dir().join(format!("muxy-recovery-{}", OperationId::new()));
+        let directory = std::env::temp_dir().join(format!("atur-recovery-{}", OperationId::new()));
         fs::create_dir(&directory)?;
         Ok(Self(directory))
     }

@@ -5,10 +5,29 @@ use serde_json::Value;
 
 use crate::{AppError, AppState, Axis, Layout, Pane, PaneContent, PaneId, ProjectId, Tab};
 
-pub const DIRECTORY: &str = ".muxy/layouts";
+pub const DIRECTORY: &str = ".atur-terminal/layouts";
+/// Where projects made for earlier releases keep their layouts. Still listed
+/// after [`DIRECTORY`].
+pub const LEGACY_DIRECTORY: &str = ".muxy/layouts";
 const MAX_BYTES: usize = 256 * 1024;
 const MAX_DEPTH: usize = 32;
 const MAX_PANES: usize = 64;
+
+/// Layouts of [`DIRECTORY`] followed by those of [`LEGACY_DIRECTORY`] that
+/// the first does not already provide by name, in sorted order.
+pub fn merge(current: Vec<Descriptor>, legacy: Vec<Descriptor>) -> Vec<Descriptor> {
+    let mut layouts = current;
+    for layout in legacy {
+        if !layouts
+            .iter()
+            .any(|known| known.name.eq_ignore_ascii_case(&layout.name))
+        {
+            layouts.push(layout);
+        }
+    }
+    layouts.sort_by_cached_key(|layout| (layout.name.to_lowercase(), layout.path.0.clone()));
+    layouts
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Descriptor {

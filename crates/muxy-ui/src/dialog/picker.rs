@@ -70,7 +70,7 @@ fn open(
 ) -> FolderPicker {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!(
-        "muxy_{}_{}",
+        "atur_{}_{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     );
@@ -290,14 +290,14 @@ mod tests {
     #[test]
     fn a_request_is_found_where_the_portal_puts_it() {
         assert_eq!(
-            request_path_for(":1.42", "muxy_7_0"),
-            "/org/freedesktop/portal/desktop/request/1_42/muxy_7_0"
+            request_path_for(":1.42", "atur_7_0"),
+            "/org/freedesktop/portal/desktop/request/1_42/atur_7_0"
         );
     }
 
     #[test]
     fn the_dialog_starts_in_the_nearest_existing_folder_with_its_exact_bytes() {
-        let root = std::env::temp_dir().join(format!("muxy-picker-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("atur-picker-{}", std::process::id()));
         let odd = root.join(OsStr::from_bytes(b"caf\xc3\xa9 \xff"));
         std::fs::create_dir_all(&odd).expect("folder");
         let expected = [odd.as_os_str().as_bytes(), &[0]].concat();
@@ -307,12 +307,12 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("cleanup");
 
         let chooser = Chooser::new("Select a project folder", "", &odd, false);
-        let options = chooser.options("muxy_7_0");
+        let options = chooser.options("atur_7_0");
         assert_eq!(options["directory"], Value::from(true));
-        assert_eq!(options["handle_token"], Value::from("muxy_7_0"));
+        assert_eq!(options["handle_token"], Value::from("atur_7_0"));
         assert!(!options.contains_key("accept_label"));
         let chooser = Chooser::new("Choose a private key", "Use Key", &odd, true);
-        let options = chooser.options("muxy_7_1");
+        let options = chooser.options("atur_7_1");
         assert_eq!(options["directory"], Value::from(false));
         assert_eq!(options["accept_label"], Value::from("Use Key"));
     }

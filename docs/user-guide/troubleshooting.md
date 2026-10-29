@@ -44,7 +44,7 @@ your `PATH`:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-If `atur-term --version` shows 1.x, Muxy 1.x's CLI comes first on your `PATH`.
+If `atur-term --version` shows 1.x, the 1.x CLI comes first on your `PATH`.
 
 ## A remote server won't connect
 
@@ -59,7 +59,7 @@ If `atur-term --version` shows 1.x, Muxy 1.x's CLI comes first on your `PATH`.
 - **Terminals end when SSH disconnects (Linux):** run `loginctl enable-linger`.
 - **Changed SSH settings or keys don't apply:** Atur Terminal keeps one SSH connection
   per host open for 10 minutes and reuses it, from a socket in
-  `$XDG_RUNTIME_DIR/muxy-ssh`. Run `ssh -O exit -S "$XDG_RUNTIME_DIR/muxy-ssh/%C" <host>`
+  `$XDG_RUNTIME_DIR/atur-term-ssh`. Run `ssh -O exit -S "$XDG_RUNTIME_DIR/atur-term-ssh/%C" <host>`
   to close it, or wait for it to expire. Without `XDG_RUNTIME_DIR` every
   connection logs in again.
 
@@ -122,8 +122,8 @@ and uses SSH, so the connection works but without the benefit.
 2. Quit Atur Terminal.
 3. Move the [profile folder](../features/server.md#files) somewhere else.
 
-Muxy 1.x data and `~/.config/ghostty` are not touched. The next launch imports
-Muxy 1.x again; to start empty, also move `~/Library/Application Support/Atur Terminal`.
+1.x data and `~/.config/ghostty` are not touched. The next launch imports
+1.x again; to start empty, also move `~/Library/Application Support/Atur Terminal`.
 
 ## Reporting a bug
 

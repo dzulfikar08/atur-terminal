@@ -1,15 +1,15 @@
 # Manifest
 
 The manifest is the `package.json` at the root of the extension. `name` and
-`version` sit at the top level; everything Muxy-specific sits under `muxy`.
+`version` sit at the top level; everything Atur Terminal-specific sits under `atur-terminal`.
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/muxy-app/muxy/main/docs/extensions/schema/manifest.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dzulfikar08/atur-terminal/main/docs/extensions/schema/manifest.schema.json",
   "name": "hello",
   "version": "0.1.0",
   "scripts": { "build": "vite build && cp package.json dist/" },
-  "muxy": {
+  "atur-terminal": {
     "description": "Says hello",
     "permissions": ["notifications:write"],
     "commands": [{ "id": "ping", "title": "Hello: Ping" }]
@@ -39,9 +39,9 @@ doesn't know.
 | `version` | yes | Semver. Bump it for every published change. |
 | `scripts.build` | to publish | Must leave `package.json` in `dist/`. |
 
-## `muxy` fields
+## `atur-terminal` fields
 
-The `muxy` object is required; its fields are optional.
+The `atur-terminal` object is required; its fields are optional.
 
 | Field | Type | See |
 | --- | --- | --- |
@@ -59,7 +59,6 @@ The `muxy` object is required; its fields are optional.
 | `statusBarItems` | object[] | [Bar items](bar-items.md) |
 | `localizations` | object[] | [Localizations](localizations.md) |
 | `settings` | object[] | [Settings](#settings) below |
-| `marketplace` | object | Listing details. [Contributing](contributing.md) |
 
 `homeViews` and `remoteMethods` are accepted for 1.x compatibility but do
 nothing yet.

@@ -60,7 +60,7 @@ impl Fixture {
 
     fn with_storage(script: &str, persistent: bool) -> TestResult<Self> {
         let directory = std::env::temp_dir().join(format!(
-            "muxy-client-{}-{}",
+            "atur-client-{}-{}",
             std::process::id(),
             NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
         ));

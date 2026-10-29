@@ -27,10 +27,10 @@ mod adapter {
         unsafe {
             window.setReleasedWhenClosed(false);
         }
-        window.setTitle(&NSString::from_str("Muxy Native Scroll Probe"));
+        window.setTitle(&NSString::from_str("Atur Native Scroll Probe"));
         let positions = Rc::new(RefCell::new(Vec::new()));
         let received = Rc::clone(&positions);
-        let native = NativeScrollView::new("Muxy Native Scroll Probe", move |position| {
+        let native = NativeScrollView::new("Atur Native Scroll Probe", move |position| {
             received.borrow_mut().push(position);
         })
         .ok_or("native scroll view missing")?;

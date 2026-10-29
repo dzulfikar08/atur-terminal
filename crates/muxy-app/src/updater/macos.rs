@@ -95,7 +95,7 @@ impl Installation {
     pub(crate) fn prepare(&self, release: Release) -> Result<PreparedUpdate> {
         let client = client()?;
         let staging = tempfile::Builder::new()
-            .prefix(".muxy-beta-update-")
+            .prefix(super::STAGING_PREFIX)
             .tempdir_in(
                 self.bundle
                     .parent()
@@ -176,7 +176,7 @@ impl Installation {
         path.parent() == self.bundle.parent()
             && path
                 .file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with(".muxy-beta-update-"))
+                .is_some_and(|name| super::is_staging_name(&name.to_string_lossy()))
             && std::fs::symlink_metadata(path).is_ok_and(|m| m.is_dir() && !m.is_symlink())
     }
 
@@ -243,7 +243,7 @@ impl Installation {
         for (key, expected) in [
             ("CFBundleIdentifier", Channel::current().bundle_identifier()),
             ("CFBundleExecutable", "atur-terminal"),
-            ("MuxyVersion", version),
+            ("AturVersion", version),
         ] {
             let actual = run(Command::new("/usr/bin/plutil")
                 .args(["-extract", key, "raw", "-o", "-"])
@@ -429,7 +429,7 @@ fn restart(bundle: &Path) -> Result<()> {
         .args([
             "-c",
             "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.1; done; /usr/bin/open \"$2\"",
-            "muxy-beta-restart",
+            "atur-beta-restart",
         ])
         .arg(std::process::id().to_string())
         .arg(bundle)
@@ -566,9 +566,16 @@ mod retirement_tests {
     use super::*;
 
     #[test]
+    fn staging_folders_of_earlier_releases_are_still_recognised() {
+        assert!(super::super::is_staging_name(".atur-beta-update-abc"));
+        assert!(super::super::is_staging_name(".muxy-beta-update-abc"));
+        assert!(!super::super::is_staging_name(".beta-update-abc"));
+    }
+
+    #[test]
     fn discarded_downloads_respect_installation_locks_and_recovery_files() -> Result<()> {
         let root = tempfile::tempdir()?;
-        let staging = root.path().join(".muxy-beta-update-superseded");
+        let staging = root.path().join(".atur-beta-update-superseded");
         std::fs::create_dir(&staging)?;
         let update = PreparedUpdate {
             version: "2.0.0-beta.10".into(),
@@ -611,7 +618,7 @@ mod retirement_tests {
             ("recovery", false, 0),
             ("unused", true, 0),
         ] {
-            let path = root.path().join(format!(".muxy-beta-update-{name}"));
+            let path = root.path().join(format!(".atur-beta-update-{name}"));
             std::fs::create_dir_all(path.join("previous.app"))?;
             write_record(
                 &path.join("retained.json"),

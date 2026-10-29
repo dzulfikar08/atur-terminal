@@ -172,7 +172,7 @@ mod tests {
 
     fn directory() -> io::Result<PathBuf> {
         let directory =
-            std::env::temp_dir().join(format!("muxy-remote-{}", muxy_protocol::OperationId::new()));
+            std::env::temp_dir().join(format!("atur-remote-{}", muxy_protocol::OperationId::new()));
         fs::create_dir(&directory)?;
         Ok(directory)
     }

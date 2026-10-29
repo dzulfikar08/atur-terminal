@@ -232,7 +232,7 @@ impl AppModel {
                 Err(error) => {
                     let _ = model.update(cx, |model, _| {
                         let message = model.server_message(server, &error);
-                        model.extension_log("", format!("[muxy] {message}"));
+                        model.extension_log("", format!("[atur] {message}"));
                     });
                     return;
                 }
@@ -275,7 +275,7 @@ impl AppModel {
                                 model.disconnect_extensions(server);
                                 let message = model
                                     .server_message(server, "extension server connection closed");
-                                model.extension_log("", format!("[muxy] {message}"));
+                                model.extension_log("", format!("[atur] {message}"));
                                 if model.ready(server) && model.quitting == super::Quitting::Idle {
                                     model.extension_client(server, cx);
                                 }
@@ -694,7 +694,7 @@ impl AppModel {
                 self.extension_evaluate(
                     &job.call.reply,
                     &format!(
-                        "globalThis.__muxyResolveExec?.({}, {});",
+                        "globalThis.__aturResolveExec?.({}, {});",
                         job.call.args["id"],
                         envelope(error)
                     ),

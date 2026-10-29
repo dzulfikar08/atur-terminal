@@ -158,7 +158,7 @@ impl Registration {
         let alive = registration.alive.clone();
         let registered = registration.registered.clone();
         std::thread::Builder::new()
-            .name("muxy-quick-shortcut".into())
+            .name("atur-quick-shortcut".into())
             .spawn(move || {
                 let mut pressed = false;
                 let mut released_at = None;

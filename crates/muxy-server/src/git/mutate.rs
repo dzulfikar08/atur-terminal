@@ -57,15 +57,7 @@ pub(super) fn push(repository: &Path, set_upstream: bool) -> Result<()> {
     if !set_upstream {
         let summary = read::summary(repository)?;
         if let (Some(branch), Some(upstream)) = (&summary.branch, &summary.upstream)
-            && run(
-                repository,
-                &[
-                    "config",
-                    "--get",
-                    &format!("branch.{branch}.muxy-pr-number"),
-                ],
-            )
-            .is_ok()
+            && super::pull_request_number(repository, branch).is_some()
             && let Some((remote, branch)) = upstream.split_once('/')
         {
             command::network(

@@ -1,4 +1,4 @@
-//! Rust core for the Muxy mobile apps, exposed to Swift and Kotlin through `UniFFI`.
+//! Rust core for the Atur Terminal mobile apps, exposed to Swift and Kotlin through `UniFFI`.
 //!
 //! An app pairs once from a scanned link, keeps the returned credential in secure
 //! storage, and connects with it afterwards. It can also connect through an SSH

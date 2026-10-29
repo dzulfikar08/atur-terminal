@@ -60,7 +60,7 @@ impl Capture {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let directory = parent.join(format!("muxy-profile-{}-{unix_ms}", std::process::id()));
+        let directory = parent.join(format!("atur-profile-{}-{unix_ms}", std::process::id()));
         fs::DirBuilder::new().mode(0o700).create(&directory)?;
         let executable = std::env::current_exe().ok();
         let executable_metadata = executable.as_ref().and_then(|path| fs::metadata(path).ok());

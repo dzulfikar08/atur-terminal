@@ -1,6 +1,6 @@
 [package]
 name = "muxy-mobile"
-description = "Rust core for the Muxy mobile apps"
+description = "Rust core for the Atur Terminal mobile apps"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

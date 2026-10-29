@@ -16,7 +16,7 @@ fn pairing_links_round_trip_and_stay_compact() -> Result<(), ErrorCode> {
     assert_eq!(
         link,
         format!(
-            "muxy://pair?v=1&h=192.168.1.5&h=studio-mac.local&p=7419&f={}&s={}",
+            "atur://pair?v=1&h=192.168.1.5&h=studio-mac.local&p=7419&f={}&s={}",
             "c3".repeat(32),
             "ab".repeat(16)
         )
@@ -24,6 +24,19 @@ fn pairing_links_round_trip_and_stay_compact() -> Result<(), ErrorCode> {
     assert_eq!(PairingInvite::parse_link(&link)?, invite);
     let uppercase = link.replace(&"c3".repeat(32), &"C3".repeat(32));
     assert_eq!(PairingInvite::parse_link(&uppercase)?, invite);
+    Ok(())
+}
+
+#[test]
+fn pairing_links_of_earlier_builds_are_still_accepted() -> Result<(), ErrorCode> {
+    let invite = invite();
+    let legacy = invite.to_link().replacen("atur://", "muxy://", 1);
+    assert!(legacy.starts_with("muxy://pair?v=1&"));
+    assert_eq!(PairingInvite::parse_link(&legacy)?, invite);
+    assert_eq!(
+        PairingInvite::parse_link(&legacy.replace("v=1", "v=2")),
+        Err(ErrorCode::BadRequest)
+    );
     Ok(())
 }
 
@@ -49,7 +62,7 @@ fn malformed_pairing_links_are_rejected() {
         format!("{link}&p=7420"),
         format!("{link}&x=1"),
         format!("{link}&h"),
-        format!("muxy://pair?v=1{too_many_hosts}&p=7419&f={fingerprint}&s={secret}"),
+        format!("atur://pair?v=1{too_many_hosts}&p=7419&f={fingerprint}&s={secret}"),
         format!("{link}&h={}", "a".repeat(4096)),
     ];
     for case in cases {

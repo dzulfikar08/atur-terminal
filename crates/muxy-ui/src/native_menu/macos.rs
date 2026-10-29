@@ -13,7 +13,7 @@ define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
     #[ivars = Cell<Option<usize>>]
-    #[name = "MuxyNativeMenuTarget"]
+    #[name = "AturNativeMenuTarget"]
     struct MenuTarget;
 
     unsafe impl NSObjectProtocol for MenuTarget {}

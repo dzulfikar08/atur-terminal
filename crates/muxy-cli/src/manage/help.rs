@@ -17,7 +17,7 @@ Usage: atur-term [--host DESTINATION [--udp]] [COMMAND]
   mobile        Enable access, pair phones and revoke devices
   browser       Drive browser tabs in the desktop app on this computer
   install-skills
-                Install the muxy-cli skill for AI coding agents
+                Install the atur-term-cli skill for AI coding agents
   stdio         Connect stdin/stdout to the server; used over SSH
   --help | --version | --build-info
 
@@ -94,10 +94,10 @@ wait-for-navigation; maximum 60000).
 ATUR_TERM_CLI_TIMEOUT sets how many seconds the app has to answer (default 10).
 Text list columns: tab-id, title, url, profile, active (tab-separated).";
 pub(crate) const INSTALL_SKILLS: &str = "Usage: atur-term install-skills [--dir DIR]...
-Installs the muxy-cli skill, which teaches AI coding agents to use this command,
+Installs the atur-term-cli skill, which teaches AI coding agents to use this command,
 into each agent folder that exists: ~/.claude/skills, ~/.codex/skills and
 ~/.agents/skills. --dir adds another skills folder; repeat it for more.
-An installed copy, including the Muxy 1.x skill, is replaced.";
+An installed copy, including one left by an older release, is replaced.";
 pub(crate) const SERVER: &str = "Usage: atur-term server start|status|stop [--json]
   stop [--force]  Stop only if idle; --force ends all running terminals.";
 pub(crate) const PROJECT: &str = "Usage: atur-term project <action> [--json]
@@ -149,7 +149,7 @@ pub(crate) const WORKTREE: &str = "Usage: atur-term worktree <action> [--json]
 
 Create makes a new branch named after the worktree from HEAD; --existing checks
 out a branch that exists. The directory defaults to the worktree location in
-Settings. --hooks runs the setup or teardown commands from .muxy/worktree.json
+Settings. --hooks runs the setup or teardown commands from .atur-terminal/worktree.json
 and the per-machine worktree.json, printing each one; without it none run.
 Remove deletes the worktree directory and its project, ending its terminals,
 and refuses uncommitted changes unless --force is given.

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::release::{Channel, Version};
 
-/// Files carried over from a Muxy data directory on first start. Sessions,
+/// Files carried over from an earlier install's data directory on first start. Sessions,
 /// sockets, logs, locks and shell integration belong to the running install
 /// and are never copied.
 const MIGRATED_FILES: [&str; 5] = [
@@ -20,7 +20,7 @@ const MIGRATED_FILES: [&str; 5] = [
 
 pub fn muxy_dir() -> io::Result<PathBuf> {
     let linux = cfg!(target_os = "linux");
-    let override_path = env::var_os("ATUR_TERM_DIR");
+    let override_path = crate::env::var_os("ATUR_TERM_DIR");
     let overridden = override_path.is_some();
     let home = env::var_os("HOME");
     let state_home = env::var_os("XDG_STATE_HOME");
@@ -40,7 +40,7 @@ pub fn muxy_dir() -> io::Result<PathBuf> {
 }
 
 /// Releases of each channel and local builds never share data. The second
-/// name is the Muxy directory the same channel used before the rename.
+/// name is the legacy directory the same channel used before the rename.
 fn directory_names(version: &str, debug: bool, linux: bool) -> (&'static str, &'static str) {
     let channel = Version::parse(version)
         .filter(|_| !debug)
@@ -55,7 +55,7 @@ fn directory_names(version: &str, debug: bool, linux: bool) -> (&'static str, &'
     }
 }
 
-/// Copies the allowlisted configuration of a Muxy install into `directory`
+/// Copies the allowlisted configuration of an earlier install into `directory`
 /// when `directory` does not exist yet. The old directory is never modified.
 /// Files are staged in a sibling directory and renamed into place, so a
 /// crash leaves either no new directory or a complete one.

@@ -1,4 +1,4 @@
-//! Narrow primitives that are genuinely shared across Muxy boundaries.
+//! Narrow primitives that are genuinely shared across Atur Terminal boundaries.
 //!
 //! Wire-visible types belong in `muxy-protocol`; app and server concepts stay
 //! in their respective domain crates. The shared shortcut catalog, the app
@@ -8,6 +8,7 @@
 pub mod bundle;
 pub mod capability;
 pub mod dirs;
+pub mod env;
 pub mod executable;
 pub mod file_lock;
 pub mod l10n;

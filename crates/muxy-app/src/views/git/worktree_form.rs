@@ -313,7 +313,7 @@ pub(super) fn hooks(form: &Form, model: &AppModel, cx: &mut Context<AppModel>) -
         )));
     } else if let Some(hooks) = &form.hooks {
         if hooks.is_empty() {
-            content = content.child(tr!("Optional setup commands: add setup to .muxy/worktree.json in the project or $XDG_CONFIG_HOME/muxy/worktree.json (defaults to ~/.config/muxy/worktree.json)."));
+            content = content.child(tr!("Optional setup commands: add setup to .atur-terminal/worktree.json in the project or $XDG_CONFIG_HOME/atur-terminal/worktree.json (defaults to ~/.config/atur-terminal/worktree.json)."));
         } else {
             content = content.child(tr!(
                 "Commands run in the new worktree. Review project commands before enabling them."

@@ -50,7 +50,7 @@ define_class!(
     #[unsafe(super = NSView)]
     #[thread_kind = MainThreadOnly]
     #[derive(Debug)]
-    #[name = "MuxyScrollDocument"]
+    #[name = "AturScrollDocument"]
     struct Document;
 
     unsafe impl NSObjectProtocol for Document {}
@@ -66,7 +66,7 @@ define_class!(
     #[thread_kind = MainThreadOnly]
     #[ivars = ScrollState]
     #[derive(Debug)]
-    #[name = "MuxyScrollView"]
+    #[name = "AturScrollView"]
     struct ScrollView;
 
     unsafe impl NSObjectProtocol for ScrollView {}

@@ -300,11 +300,11 @@ fn navigation_scripts_hidden_screenshots_and_extension_isolation() {
     page.loaded();
     assert_eq!(page.eval("return await Promise.resolve(42)"), json!(42));
     assert_eq!(
-        page.eval("return typeof window.webkit?.messageHandlers?.muxy"),
+        page.eval("return typeof window.webkit?.messageHandlers?.atur"),
         json!("undefined")
     );
     assert_eq!(
-        page.eval("return typeof window.__muxyPaste"),
+        page.eval("return typeof window.__aturPaste"),
         json!("undefined")
     );
     page.eval("history.pushState({}, '', '/next'); document.title = 'Changed'; return true;");

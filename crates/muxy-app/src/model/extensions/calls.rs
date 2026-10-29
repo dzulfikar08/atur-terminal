@@ -638,7 +638,7 @@ impl AppModel {
                     model.extension_evaluate(
                         &call.reply,
                         &format!(
-                            "globalThis.__muxyResolveExec?.({}, {});",
+                            "globalThis.__aturResolveExec?.({}, {});",
                             json!(id),
                             envelope(result)
                         ),

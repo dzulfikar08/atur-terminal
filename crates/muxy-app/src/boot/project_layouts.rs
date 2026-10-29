@@ -1,18 +1,25 @@
-use muxy_app_core::project_layouts::{Config, DIRECTORY, Descriptor, discover};
+use muxy_app_core::project_layouts::{
+    Config, DIRECTORY, Descriptor, LEGACY_DIRECTORY, discover, merge,
+};
 use muxy_client::Client;
 use muxy_protocol::{FilesAction, FilesReply, FilesRequest, ProjectId, ServerPath};
 use muxy_ui::tr;
 
 pub(super) fn list(client: &Client, project: ProjectId) -> Result<Vec<Descriptor>, String> {
-    match client
+    let list = |directory: &str| match client
         .files(FilesRequest {
             project,
-            action: FilesAction::List(ServerPath(DIRECTORY.as_bytes().to_vec())),
+            action: FilesAction::List(ServerPath(directory.as_bytes().to_vec())),
         })
         .map_err(|error| error.to_string())?
     {
         FilesReply::Entries(entries) => Ok(discover(entries)),
         _ => Err(tr!("Unexpected layout directory response").to_string()),
+    };
+    match (list(DIRECTORY), list(LEGACY_DIRECTORY)) {
+        (Ok(current), Ok(legacy)) => Ok(merge(current, legacy)),
+        (Ok(layouts), Err(_)) | (Err(_), Ok(layouts)) => Ok(layouts),
+        (Err(error), Err(_)) => Err(error),
     }
 }
 

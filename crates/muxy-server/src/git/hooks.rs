@@ -31,7 +31,19 @@ fn global_path() -> Result<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
         .ok_or_else(|| error("Home directory is unavailable"))?;
-    Ok(root.join("muxy/worktree.json"))
+    Ok(preferred(
+        root.join("atur-terminal/worktree.json"),
+        root.join("muxy/worktree.json"),
+    ))
+}
+
+/// `current`, unless only the file earlier builds read exists.
+fn preferred(current: PathBuf, legacy: PathBuf) -> PathBuf {
+    if current.exists() || !legacy.exists() {
+        current
+    } else {
+        legacy
+    }
 }
 
 fn load(path: &Path, teardown: bool, project: bool) -> Result<Vec<WorktreeHook>> {
@@ -96,7 +108,11 @@ pub(super) fn resolve(
 
 fn resolve_at(repository: &Path, global: &Path, teardown: bool) -> Result<Vec<WorktreeHook>> {
     let mut global = load(global, teardown, false)?;
-    let mut project = load(&repository.join(".muxy/worktree.json"), teardown, true)?;
+    let project = preferred(
+        repository.join(".atur-terminal/worktree.json"),
+        repository.join(".muxy/worktree.json"),
+    );
+    let mut project = load(&project, teardown, true)?;
     let hooks = if teardown {
         project.append(&mut global);
         project
@@ -159,4 +175,26 @@ pub(super) fn run(
         })?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_legacy_file_is_used_only_when_the_current_one_is_missing() {
+        let root =
+            std::env::temp_dir().join(format!("atur-hooks-{}", muxy_protocol::OperationId::new()));
+        let current = root.join("atur-terminal/worktree.json");
+        let legacy = root.join("muxy/worktree.json");
+        std::fs::create_dir_all(current.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+
+        assert_eq!(preferred(current.clone(), legacy.clone()), current);
+        std::fs::write(&legacy, "{}").unwrap();
+        assert_eq!(preferred(current.clone(), legacy.clone()), legacy);
+        std::fs::write(&current, "{}").unwrap();
+        assert_eq!(preferred(current.clone(), legacy), current);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

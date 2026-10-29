@@ -41,9 +41,9 @@ pub(crate) fn herdr(directory: &Path) -> io::Result<Option<HerdrConfig>> {
     };
     resolve(
         file,
-        std::env::var("ATUR_TERM_BACKEND").ok(),
-        std::env::var_os("ATUR_TERM_HERDR_BIN").map(PathBuf::from),
-        std::env::var_os("ATUR_TERM_HERDR_SOCKET").map(PathBuf::from),
+        muxy_core::env::var("ATUR_TERM_BACKEND"),
+        muxy_core::env::var_os("ATUR_TERM_HERDR_BIN").map(PathBuf::from),
+        muxy_core::env::var_os("ATUR_TERM_HERDR_SOCKET").map(PathBuf::from),
     )
 }
 

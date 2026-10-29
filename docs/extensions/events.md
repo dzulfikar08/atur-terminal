@@ -1,7 +1,7 @@
 # Events
 
 Pages and background scripts can subscribe to workspace events. List every
-workspace event you use in `muxy.events`; some also need a permission.
+workspace event you use in `atur.events`; some also need a permission.
 
 ```json
 "events": ["tab.focused", "agent.status"],
@@ -9,7 +9,7 @@ workspace event you use in `muxy.events`; some also need a permission.
 ```
 
 ```js
-const unsubscribe = muxy.events.subscribe("agent.status", (event) => {
+const unsubscribe = atur.events.subscribe("agent.status", (event) => {
   console.log(event.providerID, event.status);
 });
 ```
@@ -61,10 +61,10 @@ An extension's pages and background script can message each other with
 
 ```js
 // page
-await muxy.events.emit("extension.refresh", { reason: "button" });
+await atur.events.emit("extension.refresh", { reason: "button" });
 
 // background
-muxy.events.subscribe("extension.refresh", (payload) => { /* ... */ });
+atur.events.subscribe("extension.refresh", (payload) => { /* ... */ });
 ```
 
 A page's message needs the background script running. Payloads are JSON, up to
@@ -72,15 +72,15 @@ A page's message needs the background script running. Payloads are JSON, up to
 
 ## Background scripts
 
-Set `muxy.background` to a script path to run code while the extension is
+Set `atur.background` to a script path to run code while the extension is
 enabled. It starts with the extension, restarts when the extension updates,
 and stops when it is disabled or reloaded. Use it to react to events, keep
 state, or update [bar items](bar-items.md). Most extensions don't need one.
 
 ```js
 // background.js
-muxy.events.subscribe("tab.focused", () => {
-  muxy.statusbar.set({ id: "count", text: String(muxy.agents.list().length) });
+atur.events.subscribe("tab.focused", () => {
+  atur.statusbar.set({ id: "count", text: String(atur.agents.list().length) });
 });
 ```
 

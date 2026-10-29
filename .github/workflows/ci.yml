@@ -1,7 +1,7 @@
 name: ci
 
 # Checks Atur Terminal on Linux x86_64 (headless and desktop) and macOS arm64.
-# Adapted from upstream Muxy's CI: the arm64 Linux runners are dropped because
+# Adapted from the upstream CI: the arm64 Linux runners are dropped because
 # releases do not ship them.
 on:
   push:

@@ -17,7 +17,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Result<Self> {
         let directory = tempfile::tempdir()?;
-        let profile = std::env::temp_dir().join(format!("muxy-m-{}", OperationId::new()));
+        let profile = std::env::temp_dir().join(format!("atur-m-{}", OperationId::new()));
         std::fs::create_dir(&profile)?;
         Ok(Self { directory, profile })
     }
@@ -379,9 +379,9 @@ fn worktrees_use_the_default_location_and_run_hooks_only_when_asked() -> Result 
             trees.display()
         ),
     )?;
-    std::fs::create_dir(f.directory.path().join(".muxy"))?;
+    std::fs::create_dir(f.directory.path().join(".atur-terminal"))?;
     std::fs::write(
-        f.directory.path().join(".muxy/worktree.json"),
+        f.directory.path().join(".atur-terminal/worktree.json"),
         r#"{"setup": ["touch \"$ATUR_TERM_PROJECT_PATH/setup-ran\""],
             "teardown": ["touch \"$ATUR_TERM_PROJECT_PATH/teardown-ran\""]}"#,
     )?;

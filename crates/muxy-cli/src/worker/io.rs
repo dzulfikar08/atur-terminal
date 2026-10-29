@@ -242,7 +242,7 @@ pub(super) fn reader(
 ) -> Result<JoinHandle<()>> {
     let events = client.events().ok_or("Connection events already taken")?;
     thread::Builder::new()
-        .name("muxy-tui-events".into())
+        .name("atur-tui-events".into())
         .spawn(move || {
             while let Ok(event) = events.recv() {
                 let mut state = lock(&shared);
@@ -346,7 +346,7 @@ impl InputWriter {
         let queued = Arc::new(AtomicUsize::new(0));
         let count = Arc::clone(&queued);
         let worker = thread::Builder::new()
-            .name("muxy-tui-input".into())
+            .name("atur-tui-input".into())
             .spawn(move || {
                 while let Ok(input) = receiver.recv() {
                     let (client, channel, bytes) = match input {
@@ -466,7 +466,7 @@ impl Fetcher {
     pub(crate) fn new(shared: Arc<Mutex<Shared>>) -> Result<Self> {
         let (sender, receiver) = mpsc::sync_channel::<Fetch>(64);
         let worker = thread::Builder::new()
-            .name("muxy-tui-history".into())
+            .name("atur-tui-history".into())
             .spawn(move || {
                 while let Ok(fetch) = receiver.recv() {
                     let mut next = Some(fetch);

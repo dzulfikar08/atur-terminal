@@ -349,7 +349,7 @@ impl AppModel {
         if let Err(error) = self.create_panel(&owner, &kind, definition, panel.data, window, cx) {
             self.extension_log(
                 &owner,
-                format!("[muxy] could not reopen panel {kind}: {error}"),
+                format!("[atur] could not reopen panel {kind}: {error}"),
             );
             self.panel_event("panel.closed", &owner, &kind, cx);
         }

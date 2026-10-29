@@ -261,7 +261,7 @@ impl Connection {
         let terminals = Arc::<Terminals>::default();
         let pump = (client.clone(), Arc::clone(&terminals));
         thread::Builder::new()
-            .name("muxy-mobile-events".into())
+            .name("atur-mobile-events".into())
             .spawn(move || deliver(&pump.0, &events, &pump.1, listener.as_ref()))
             .map_err(|error| MobileError::Unreachable {
                 reason: error.to_string(),

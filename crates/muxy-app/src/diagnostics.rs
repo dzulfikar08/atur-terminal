@@ -16,7 +16,7 @@ struct Trace {
 }
 
 pub(crate) fn init(directory: &Path) {
-    if !cfg!(debug_assertions) && std::env::var_os("ATUR_TERM_DIAGNOSTICS").is_none() {
+    if !cfg!(debug_assertions) && muxy_core::env::var_os("ATUR_TERM_DIAGNOSTICS").is_none() {
         return;
     }
     let path = directory.join(format!("app-diagnostics-{}.log", std::process::id()));
@@ -27,7 +27,7 @@ pub(crate) fn init(directory: &Path) {
     let previous = path.with_extension("previous.log");
     let output = path.clone();
     let worker = std::thread::Builder::new()
-        .name("muxy-diagnostics".into())
+        .name("atur-diagnostics".into())
         .spawn(move || {
             let mut written = 0;
             for line in receiver {

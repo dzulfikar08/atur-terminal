@@ -1,12 +1,12 @@
 # Getting Started
 
-Atur Terminal is part of Atur by Joyo Digitama and is a fork of [Muxy](https://github.com/muxy-app/muxy).
+Atur Terminal is part of Atur by Joyo Digitama.
 Releases are published at <https://github.com/dzulfikar08/atur-terminal/releases>.
 
 Install: [macOS](#macos-desktop-app) · [Linux](#linux-desktop-app) ·
 [CLI and server only](#cli-and-server-only)
 
-After installing: [First steps](#first-steps) · [Coming from Muxy](#coming-from-muxy)
+After installing: [First steps](#first-steps) · [Upgrading from an earlier install](#upgrading-from-an-earlier-install)
 
 ## Requirements
 
@@ -16,8 +16,8 @@ After installing: [First steps](#first-steps) · [Coming from Muxy](#coming-from
 | `atur-term` CLI and server | macOS 14 or newer, or Linux x86_64 with glibc 2.35 or newer. musl is unsupported. |
 
 The binaries are `atur-terminal` (desktop app), `atur-term` (CLI) and `atur-term-server`; the
-environment variables are `ATUR_TERM_*`. The Muxy wire protocol is unchanged, but the data directory and
-socket moved, so stock Muxy clients no longer find an Atur Terminal server.
+environment variables are `ATUR_TERM_*`. The data directory and socket are named after Atur Terminal, so
+older clients that look elsewhere do not find its server.
 
 ## macOS desktop app
 
@@ -172,13 +172,13 @@ Run `atur-term --version` and `atur-term-server --version`, then `atur-term` to 
 running [server](../features/server.md#lifetime); stop it to switch to the new
 version.
 
-## Coming from Muxy
+## Upgrading from an earlier install
 
-On first start, if the Atur Terminal data directory does not exist yet and the matching Muxy one
+On first start, if the Atur Terminal data directory does not exist yet and the matching one from an earlier install
 does, Atur Terminal copies `server.toml`, `catalog.json`, `remote.json`, `backend.toml` and
-`herdr.json` from it. The Muxy directory is left untouched, and sessions are not carried over.
+`herdr.json` from it. The old directory is left untouched, and sessions are not carried over.
 Nothing is copied when `ATUR_TERM_DIR` is set. Unless you already have
-projects or workspaces, the first launch imports a Muxy 1.x setup: supported
+projects or workspaces, the first launch imports a 1.x setup: supported
 settings, shortcuts, local projects, workspaces, terminal tabs, the default shell,
 and extensions. Projects, workspaces, and extensions that could not be imported are
 listed, and your 1.x data stays where it was. To import again later, open

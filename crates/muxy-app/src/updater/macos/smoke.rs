@@ -227,7 +227,7 @@ fn replace_bundle(
     identity: &str,
 ) -> Result<PathBuf> {
     let staging = tempfile::Builder::new()
-        .prefix(".muxy-beta-update-")
+        .prefix(crate::updater::STAGING_PREFIX)
         .tempdir_in(installation.bundle.parent().ok_or("parent")?)?
         .keep();
     let candidate = staging.join("Atur Terminal Beta.app");

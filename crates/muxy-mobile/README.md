@@ -1,6 +1,6 @@
 # Mobile SDK
 
-How to build the Muxy phone apps on `muxy-mobile`, the Rust client library
+How to build the Atur Terminal phone apps on `muxy-mobile`, the Rust client library
 with generated Swift and Kotlin bindings. This guide explains behavior. For
 exact signatures, read the generated `muxy_mobile.swift` or `muxy_mobile.kt`.
 The Rust source is in `crates/muxy-mobile`, and
@@ -93,14 +93,14 @@ unzip -oq "$ZIP" -d MuxyMobile
 - On iOS, the zip also works as a Swift Package Manager binary target. Name
   the target `MuxyMobile` to match the XCFramework, use the zip's URL and
   SHA-256, and add `muxy_mobile.swift` to a target that depends on it.
-- The phone connects to any Muxy build that shares one of its `protocol`
+- The phone connects to any Atur Terminal build that shares one of its `protocol`
   versions. `atur-term --build-info` prints them for the computer's build. Move the
   pin forward to use newer features; you only have to when the protocol
   version changes.
 
 ## Build the SDK
 
-The SDK builds from the Muxy repository on a Mac with Xcode and `rustup`. The
+The SDK builds from the Atur Terminal repository on a Mac with Xcode and `rustup`. The
 script installs the Rust targets it needs. It builds Android libraries only
 when [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) and the Android NDK are
 installed.
@@ -145,18 +145,18 @@ target/mobile-sdk/
 ```xml
 <!-- Asked the first time the app connects to a local network address -->
 <key>NSLocalNetworkUsageDescription</key>
-<string>Muxy connects to your computer on this network.</string>
+<string>Atur Terminal connects to your computer on this network.</string>
 
 <!-- Only if the app scans the pairing code itself -->
 <key>NSCameraUsageDescription</key>
-<string>Scan the pairing code that Muxy shows on your computer.</string>
+<string>Scan the pairing code that Atur Terminal shows on your computer.</string>
 
 <!-- Lets the Camera app open pairing links in the app -->
 <key>CFBundleURLTypes</key>
 <array>
   <dict>
     <key>CFBundleURLSchemes</key>
-    <array><string>muxy</string></array>
+    <array><string>atur</string></array>
   </dict>
 </array>
 ```
@@ -183,7 +183,7 @@ Security exception is needed, because the SDK doesn't use HTTP.
     <action android:name="android.intent.action.VIEW" />
     <category android:name="android.intent.category.DEFAULT" />
     <category android:name="android.intent.category.BROWSABLE" />
-    <data android:scheme="muxy" android:host="pair" />
+    <data android:scheme="atur" android:host="pair" />
   </intent-filter>
 </activity>
 ```
@@ -295,7 +295,7 @@ A serial queue per connection keeps calls in order and off the main thread.
 ```swift
 /// Runs blocking SDK calls one at a time, off the main thread.
 enum SDK {
-    private static let queue = DispatchQueue(label: "app.muxy.sdk")
+    private static let queue = DispatchQueue(label: "app.atur.sdk")
 
     static func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
@@ -322,7 +322,7 @@ app, `atur-term mobile pair` prints the code in the terminal. Either way, the QR
 code holds a link:
 
 ```text
-muxy://pair?v=1&h=192.168.1.20&h=100.101.7.12&h=studio.local&p=7419&f=<64 hex>&s=<32 hex>
+atur://pair?v=1&h=192.168.1.20&h=100.101.7.12&h=studio.local&p=7419&f=<64 hex>&s=<32 hex>
 ```
 
 - `h`: up to 8 addresses, tried in order. The computer lists its own. For a
@@ -334,8 +334,11 @@ muxy://pair?v=1&h=192.168.1.20&h=100.101.7.12&h=studio.local&p=7419&f=<64 hex>&s
 - `s`: a one-time secret. It works once, expires after 5 minutes, and a newer
   code replaces it.
 
+Links that older versions made start with `muxy://pair?` instead; the SDK
+reads them too. Register the `muxy` scheme next to `atur` in the app to open them.
+
 Get the link from an in-app scanner (VisionKit's `DataScannerViewController`,
-or Google's code scanner or ML Kit) or from the `muxy://pair` deep link.
+or Google's code scanner or ML Kit) or from the `atur://pair` deep link.
 Support pasting a link too; it helps in simulators.
 
 ```swift
@@ -523,7 +526,7 @@ final class ExecWriter: ChannelWriter, @unchecked Sendable {
 
 let exec = try await ssh.openExec(command: bridgeCommand())
 let channel = try BridgeChannel(writer: ExecWriter(exec))
-let output = DispatchQueue(label: "app.muxy.ssh-output")   // one queue keeps the bytes in order
+let output = DispatchQueue(label: "app.atur.ssh-output")   // one queue keeps the bytes in order
 exec.onStdout { data in output.async { channel.receive(bytes: data) } }
 exec.onStderr { data in output.async { channel.receiveError(bytes: data) } }
 exec.onClose { status in output.async { channel.finish(exitStatus: status) } }   // nil if unknown
@@ -578,7 +581,7 @@ val connection = withContext(sdk) { Connection.connectChannel(channel, "dev@box"
   `BridgeChannel` for each attempt.
 - Login, host-key, and network failures happen in your SSH layer, before the
   channel exists. If the bridge can't start, `connectChannel` throws
-  `Unreachable(reason)`, where `reason` says why, such as "Muxy isn't
+  `Unreachable(reason)`, where `reason` says why, such as "Atur Terminal isn't
   installed on dev@box (looked on PATH and in ~/.local/bin)." Show it.
 - Reconnect as for a paired connection; see [Reconnecting](#reconnecting).
 
@@ -773,7 +776,7 @@ withContext(sdk) {
 
 ## Agent activity
 
-Muxy tracks AI coding agents running in sessions. `activity()` returns each
+Atur Terminal tracks AI coding agents running in sessions. `activity()` returns each
 agent's state and recent notifications.
 
 - `Agent.provider` is a display name such as "Claude Code" or "Codex".
@@ -868,7 +871,7 @@ files.writeText("notes.md", text)
   replaces it. A folder without a repository needs a new watch after
   `initRepository`. `ProjectFiles.watch` follows up to 32 projects until
   `unwatch`. Watches end with the connection.
-- An older Muxy on the computer fails `readBytes` and `writeBytes` with
+- An older Atur Terminal on the computer fails `readBytes` and `writeBytes` with
   `Unsupported`, never marks a diff `binary`, and reports a taken worktree
   folder in the system's words.
 - Ids and paths are strings, so names that aren't UTF-8 can't be used. The SDK
@@ -896,14 +899,14 @@ for each case.
 
 | Case | When | Tell the user | Retry |
 | --- | --- | --- | --- |
-| `InvalidLink` | The text isn't a Muxy pairing link | "This isn't a Muxy pairing code." | No |
+| `InvalidLink` | The text isn't a Atur Terminal pairing link | "This isn't a Atur Terminal pairing code." | No |
 | `InvalidCredential` | The saved credential is damaged | "Pair this phone again." | No |
 | `Unreachable(reason)` | No address answered. The computer may be asleep or on another network, mobile access may be off, or a firewall or a declined local network permission blocked it. Over SSH, the bridge didn't start | "Can't reach *serverName*. Check that it's awake and on the same network or VPN." Over SSH, show `reason` | Yes |
 | `IdentityMismatch` | A server with a different certificate answered | "This computer's identity changed. Pair again." | No |
 | `Unauthorized` | The phone was revoked, or while pairing, the code expired, was used, or was replaced | "This phone isn't paired anymore." or "Show a new code on your computer." | No |
-| `IncompatibleVersion` | The app's SDK and the server share no protocol version | "Update Muxy on your phone or computer." | No |
-| `Unsupported` | The server is older than the SDK and can't do this, or newer and answered in a form the SDK can't read | "Update Muxy on your phone and computer to use this." | No |
-| `Timeout` | The server didn't answer in time | "Muxy isn't responding." | Yes |
+| `IncompatibleVersion` | The app's SDK and the server share no protocol version | "Update Atur Terminal on your phone or computer." | No |
+| `Unsupported` | The server is older than the SDK and can't do this, or newer and answered in a form the SDK can't read | "Update Atur Terminal on your phone and computer to use this." | No |
+| `Timeout` | The server didn't answer in time | "Atur Terminal isn't responding." | Yes |
 | `Disconnected` | The connection closed during the call | Reconnect | Yes |
 | `Server(reason)` | The server refused the request; `reason` is readable text | Show `reason` | Depends |
 
@@ -970,7 +973,7 @@ try {
 
 ## Testing against a server
 
-Run a server on a Mac from the same Muxy commit as the SDK. In the desktop
+Run a server on a Mac from the same Atur Terminal commit as the SDK. In the desktop
 app, use Settings → Mobile; **Copy Link** copies the pairing link for pasting
 into a simulator. Without the desktop app, use the CLI:
 

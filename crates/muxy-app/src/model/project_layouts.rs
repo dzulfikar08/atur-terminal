@@ -198,9 +198,9 @@ impl AppModel {
         } else if listing.pending {
             PickerStatus::Loading(tr!("Loading layouts…"))
         } else if let Some(error) = &listing.error {
-            PickerStatus::Error(tr!("Could not load .muxy/layouts: %@", error))
+            PickerStatus::Error(tr!("Could not load .atur-terminal/layouts: %@", error))
         } else if items.is_empty() {
-            PickerStatus::Empty(tr!("No layouts found in .muxy/layouts"))
+            PickerStatus::Empty(tr!("No layouts found in .atur-terminal/layouts"))
         } else {
             PickerStatus::Ready
         };

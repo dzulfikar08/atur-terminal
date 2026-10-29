@@ -1,14 +1,14 @@
 # Source explicitly from your interactive Bash startup file. Bash startup is not redirected.
 [[ $- == *i* && ${ATUR_TERM_SHELL_INTEGRATION-} == 1 ]] || return
-[[ ${_muxy_installed-} == 1 ]] && return
-_muxy_installed=1
-_muxy_running=0
-_muxy_in_prompt=0
-_muxy_debug_checked=0
-_muxy_prompt=''
-_muxy_user_prompt=''
+[[ ${_atur_installed-} == 1 ]] && return
+_atur_installed=1
+_atur_running=0
+_atur_in_prompt=0
+_atur_debug_checked=0
+_atur_prompt=''
+_atur_user_prompt=''
 
-_muxy_directory() {
+_atur_directory() {
     local LC_ALL=C encoded='' char hex i
     for (( i=0; i<${#PWD}; i++ )); do
         char=${PWD:i:1}
@@ -20,48 +20,48 @@ _muxy_directory() {
     printf '\e]7;file://%s\a' "$encoded"
 }
 
-_muxy_precmd() {
+_atur_precmd() {
     local result=$?
-    if (( _muxy_running )); then
+    if (( _atur_running )); then
         printf '\e]133;D;%d\a' "$result"
     fi
-    _muxy_running=0
-    _muxy_in_prompt=1
-    _muxy_status=$result
+    _atur_running=0
+    _atur_in_prompt=1
+    _atur_status=$result
     return "$result"
 }
 
-_muxy_prompt_end() {
-    _muxy_directory
-    [[ $PS1 != "$_muxy_prompt" ]] && _muxy_user_prompt=$PS1
-    _muxy_prompt=$'\[\e]133;A\a\]'"$_muxy_user_prompt"$'\[\e]133;B\a\]'
-    PS1=$_muxy_prompt
-    _muxy_in_prompt=0
-    return "$_muxy_status"
+_atur_prompt_end() {
+    _atur_directory
+    [[ $PS1 != "$_atur_prompt" ]] && _atur_user_prompt=$PS1
+    _atur_prompt=$'\[\e]133;A\a\]'"$_atur_user_prompt"$'\[\e]133;B\a\]'
+    PS1=$_atur_prompt
+    _atur_in_prompt=0
+    return "$_atur_status"
 }
 
-_muxy_prompt_status() {
-    return "$_muxy_status"
+_atur_prompt_status() {
+    return "$_atur_status"
 }
 
 # Bash 5 hides the caller's DEBUG trap while sourcing. Inspect it afterward,
 # directly in PROMPT_COMMAND, without replacing a user's trap.
-read -r -d '' _muxy_debug_setup <<'ATUR_TERM_DEBUG_SETUP' || :
-if [[ ${_muxy_debug_checked-0} == 0 ]]; then
-    _muxy_debug_checked=1
+read -r -d '' _atur_debug_setup <<'ATUR_TERM_DEBUG_SETUP' || :
+if [[ ${_atur_debug_checked-0} == 0 ]]; then
+    _atur_debug_checked=1
     if [[ -z $(trap -p DEBUG) ]]; then
-        trap 'if [[ $_muxy_running == 0 && $_muxy_in_prompt == 0 && $BASH_COMMAND != _muxy_* && $BASH_COMMAND != "$PROMPT_COMMAND" ]]; then _muxy_running=1; printf "\e]133;C\a"; fi' DEBUG
+        trap 'if [[ $_atur_running == 0 && $_atur_in_prompt == 0 && $BASH_COMMAND != _atur_* && $BASH_COMMAND != "$PROMPT_COMMAND" ]]; then _atur_running=1; printf "\e]133;C\a"; fi' DEBUG
     fi
 fi
-_muxy_prompt_status
+_atur_prompt_status
 ATUR_TERM_DEBUG_SETUP
 if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 1) )); then
-    PROMPT_COMMAND=(_muxy_precmd "$_muxy_debug_setup" "${PROMPT_COMMAND[@]}" _muxy_prompt_end)
+    PROMPT_COMMAND=(_atur_precmd "$_atur_debug_setup" "${PROMPT_COMMAND[@]}" _atur_prompt_end)
 else
-    PROMPT_COMMAND=$'_muxy_precmd\n'"$_muxy_debug_setup"$'\n'"${PROMPT_COMMAND-}"$'\n_muxy_prompt_end'
+    PROMPT_COMMAND=$'_atur_precmd\n'"$_atur_debug_setup"$'\n'"${PROMPT_COMMAND-}"$'\n_atur_prompt_end'
 fi
 
-_muxy_bind_keys() {
+_atur_bind_keys() {
     local keymap sequence bindings
     for keymap in emacs-standard vi-insert vi-command; do
         bindings=$(bind -m "$keymap" -p; bind -m "$keymap" -s)
@@ -72,5 +72,5 @@ _muxy_bind_keys() {
         done
     done
 }
-_muxy_bind_keys
-unset -f _muxy_bind_keys
+_atur_bind_keys
+unset -f _atur_bind_keys

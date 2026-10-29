@@ -59,7 +59,8 @@ fn call_once_listening(
 }
 
 fn reply_time() -> Result<Duration, Box<dyn Error>> {
-    let Some(seconds) = std::env::var_os("ATUR_TERM_CLI_TIMEOUT").filter(|value| !value.is_empty())
+    let Some(seconds) =
+        muxy_core::env::var_os("ATUR_TERM_CLI_TIMEOUT").filter(|value| !value.is_empty())
     else {
         return Ok(REPLY_TIME);
     };

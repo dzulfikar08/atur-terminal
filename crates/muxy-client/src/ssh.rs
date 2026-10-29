@@ -239,7 +239,10 @@ impl SshTarget {
                 "Custom commands manage their own SSH settings and authentication",
             ));
         }
-        let program = program(self.program.as_deref(), std::env::var_os("ATUR_TERM_SSH"))?;
+        let program = program(
+            self.program.as_deref(),
+            muxy_core::env::var_os("ATUR_TERM_SSH"),
+        )?;
         let output = Command::new(program)
             .args(["-G", "--", &self.destination])
             .stdin(Stdio::null())
@@ -267,7 +270,10 @@ impl SshTarget {
     /// Runs `remote` there through the same ssh and login as the bridge,
     /// such as an installer. Its output is the caller's to read.
     pub fn command(&self, remote: &str) -> io::Result<Command> {
-        let program = program(self.program.as_deref(), std::env::var_os("ATUR_TERM_SSH"))?;
+        let program = program(
+            self.program.as_deref(),
+            muxy_core::env::var_os("ATUR_TERM_SSH"),
+        )?;
         let mut command = Command::new(program);
         command
             .args(self.arguments_for(remote))
@@ -409,7 +415,7 @@ fn private_control_directory() -> Option<PathBuf> {
     if !runtime.is_absolute() {
         return None;
     }
-    let directory = runtime.join("muxy-ssh");
+    let directory = runtime.join("atur-term-ssh");
     std::fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
@@ -533,7 +539,7 @@ impl ErrorTail {
         match stderr {
             Some(stderr) => {
                 thread::Builder::new()
-                    .name("muxy-ssh-stderr".into())
+                    .name("atur-ssh-stderr".into())
                     .spawn(move || filling.fill(stderr))?;
             }
             None => filling.finish(),
@@ -665,13 +671,13 @@ mod tests {
 
     #[test]
     fn shared_connections_use_one_private_master_that_outlives_the_bridge() {
-        let directory = Path::new("/run/user/1000/muxy-ssh");
+        let directory = Path::new("/run/user/1000/atur-term-ssh");
         let options = sharing_options(Some(directory));
         assert_eq!(
             options,
             [
                 "ControlMaster=auto",
-                "ControlPath=/run/user/1000/muxy-ssh/%C",
+                "ControlPath=/run/user/1000/atur-term-ssh/%C",
                 "ControlPersist=600"
             ]
         );

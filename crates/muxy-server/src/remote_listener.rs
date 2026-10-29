@@ -134,7 +134,7 @@ fn accept(listener: &TlsListener, registry: &Weak<Registry>, connections: &Conne
 
 /// Loopback in tests keeps developer runs off the network and the firewall prompt.
 fn bind_address() -> io::Result<Ipv4Addr> {
-    match std::env::var_os("ATUR_TERM_REMOTE_BIND") {
+    match muxy_core::env::var_os("ATUR_TERM_REMOTE_BIND") {
         None => Ok(Ipv4Addr::UNSPECIFIED),
         Some(address) => address
             .to_str()

@@ -119,7 +119,7 @@ impl BridgeChannel {
         let writer = Arc::clone(&self.writer);
         let pumping = self.socket.try_clone().and_then(|outgoing| {
             thread::Builder::new()
-                .name("muxy-mobile-channel".into())
+                .name("atur-mobile-channel".into())
                 .spawn(move || pump(outgoing, writer.as_ref()))
         });
         if let Err(error) = pumping {

@@ -118,7 +118,7 @@ impl Worker {
             redraw,
         };
         let worker = thread::Builder::new()
-            .name("muxy-tui-requests".into())
+            .name("atur-tui-requests".into())
             .spawn(move || {
                 core.run(first, &receiver);
                 lock(&core.shared).exit.get_or_insert(Ok(()));
@@ -309,7 +309,7 @@ impl Core {
         let (sender, connected) = mpsc::sync_channel(1);
         let target = self.target.clone();
         let spawned = thread::Builder::new()
-            .name("muxy-tui-connect".into())
+            .name("atur-tui-connect".into())
             .spawn(move || {
                 let _ = sender.send(target.connect(Start::IfNeeded));
             });

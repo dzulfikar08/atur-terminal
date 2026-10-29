@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use super::{Error, Result, Settings};
 use crate::ServerId;
 
-/// Another computer whose Muxy server this app reaches over SSH.
+/// Another computer whose Atur Terminal server this app reaches over SSH.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ServerEntry {

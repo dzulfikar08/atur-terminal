@@ -1,11 +1,14 @@
-//! The muxy-cli skill, which teaches AI coding agents to use this command,
+//! The atur-term-cli skill, which teaches AI coding agents to use this command,
 //! and installing it where agents look for skills.
 
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-const SKILL: &str = include_str!("../skills/muxy-cli/SKILL.md");
+const SKILL: &str = include_str!("../skills/atur-term-cli/SKILL.md");
+
+/// Skill folder name written by releases before the rename; replaced on install.
+const LEGACY_FOLDER: &str = "muxy-cli";
 
 /// Agent folders in the home folder; each keeps its skills in `skills`.
 const AGENTS: [&str; 3] = [".claude", ".codex", ".agents"];
@@ -31,7 +34,11 @@ pub(crate) fn install(home: Option<&Path>, directories: &[PathBuf]) -> io::Resul
     roots
         .into_iter()
         .map(|root| {
-            let folder = root.join("muxy-cli");
+            let legacy = root.join(LEGACY_FOLDER);
+            if legacy.join("SKILL.md").is_file() {
+                fs::remove_dir_all(&legacy)?;
+            }
+            let folder = root.join("atur-term-cli");
             fs::create_dir_all(&folder)?;
             let file = folder.join("SKILL.md");
             fs::write(&file, SKILL)?;
@@ -54,8 +61,8 @@ mod tests {
         assert_eq!(
             written,
             [
-                home.path().join(".claude/skills/muxy-cli/SKILL.md"),
-                chosen.join("muxy-cli/SKILL.md"),
+                home.path().join(".claude/skills/atur-term-cli/SKILL.md"),
+                chosen.join("atur-term-cli/SKILL.md"),
             ]
         );
         assert!(!home.path().join(".codex").exists());
@@ -64,11 +71,23 @@ mod tests {
     }
 
     #[test]
+    fn replaces_a_skill_folder_left_by_the_old_name() -> io::Result<()> {
+        let directory = tempfile::tempdir()?;
+        let old = directory.path().join(LEGACY_FOLDER);
+        fs::create_dir(&old)?;
+        fs::write(old.join("SKILL.md"), "old")?;
+        install(None, &[directory.path().to_path_buf()])?;
+        assert!(!old.exists());
+        assert!(directory.path().join("atur-term-cli/SKILL.md").is_file());
+        Ok(())
+    }
+
+    #[test]
     fn installs_into_a_chosen_folder_without_a_home() -> io::Result<()> {
         let directory = tempfile::tempdir()?;
         let chosen = directory.path().join("skills");
         let written = install(None, std::slice::from_ref(&chosen))?;
-        assert_eq!(written, [chosen.join("muxy-cli/SKILL.md")]);
+        assert_eq!(written, [chosen.join("atur-term-cli/SKILL.md")]);
         assert_eq!(fs::read_to_string(&written[0])?, SKILL);
         assert!(
             matches!(install(None, &[]), Err(error) if error.kind() == io::ErrorKind::NotFound)
@@ -109,7 +128,7 @@ mod tests {
 
     #[test]
     fn every_command_in_the_skill_parses() {
-        assert!(SKILL.starts_with("---\nname: muxy-cli\n"));
+        assert!(SKILL.starts_with("---\nname: atur-term-cli\n"));
         let commands: Vec<_> = SKILL
             .lines()
             .filter_map(|line| line.split_once("atur-term ").map(|(_, command)| command))

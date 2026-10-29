@@ -116,7 +116,7 @@ impl Trash {
             percent_encode(original.as_os_str().as_bytes())
         );
         for _ in 0..32 {
-            let name = format!("muxy-{}", OperationId::new());
+            let name = format!("atur-{}", OperationId::new());
             let info_name = format!("{name}.trashinfo");
             let mut info = match fs::openat(
                 &self.info,

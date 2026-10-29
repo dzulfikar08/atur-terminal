@@ -53,7 +53,7 @@ worktree switcher by recent use** to list them in sidebar order.
 for:
 
 - A name, and a new branch (from a base branch) or an existing one.
-- A location: **Default** (`~/.muxy/worktrees/<project>/<name>`), a
+- A location: **Default** (`~/.atur-terminal/worktrees/<project>/<name>`), a
   **Template**, or a **Folder**. Templates must contain `{branch}` and can use
   `{base-dir}` and `{project-name}`, for example `../{base-dir}.{branch}`.
   Set the default in **Settings → General**; each project remembers its choice.
@@ -64,8 +64,8 @@ ends its terminals. Atur Terminal warns about uncommitted changes.
 ### Setup and teardown commands
 
 Atur Terminal can run commands when it creates or removes a worktree. List them in
-`.muxy/worktree.json` in the project, or for every project in
-`~/.config/muxy/worktree.json` (`$XDG_CONFIG_HOME/muxy/worktree.json`):
+`.atur-terminal/worktree.json` in the project, or for every project in
+`~/.config/atur-terminal/worktree.json` (`$XDG_CONFIG_HOME/atur-terminal/worktree.json`):
 
 ```json
 {
@@ -84,5 +84,5 @@ Atur Terminal can run commands when it creates or removes a worktree. List them 
 
 ## Layouts
 
-Check a `.muxy/layouts/` folder into a project to open a ready-made set of
+Check a `.atur-terminal/layouts/` folder into a project to open a ready-made set of
 split terminals. See [Layouts](../layouts/overview.md).

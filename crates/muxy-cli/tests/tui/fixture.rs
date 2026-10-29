@@ -22,7 +22,7 @@ pub(super) struct Fixture {
 impl Fixture {
     pub(super) fn new() -> Result<Self> {
         let directory = tempfile::Builder::new()
-            .prefix("muxy-tui-")
+            .prefix("atur-tui-")
             .tempdir_in("/tmp")?;
         fs::create_dir(directory.path().join("home"))?;
         fs::write(

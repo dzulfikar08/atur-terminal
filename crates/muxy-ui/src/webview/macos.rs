@@ -86,7 +86,7 @@ fn part(text: Option<Retained<NSString>>) -> String {
 define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
-    #[name = "MuxyWebviewDelegate"]
+    #[name = "AturWebviewDelegate"]
     #[ivars = State]
     #[derive(Debug)]
     struct Delegate;
@@ -254,7 +254,7 @@ define_class!(
 
 fn fail_asset(task: &ProtocolObject<dyn WKURLSchemeTask>) {
     let error = unsafe {
-        NSError::errorWithDomain_code_userInfo(&NSString::from_str("MuxyWebviewAsset"), 1, None)
+        NSError::errorWithDomain_code_userInfo(&NSString::from_str("AturWebviewAsset"), 1, None)
     };
     unsafe {
         task.didFailWithError(&error);
@@ -295,10 +295,12 @@ impl NativeWebview {
         let configuration = unsafe { WKWebViewConfiguration::new(mtm) };
         let controller = unsafe { configuration.userContentController() };
         unsafe {
-            configuration.setURLSchemeHandler_forURLScheme(
-                Some(ProtocolObject::from_ref(&*delegate)),
-                &NSString::from_str("muxy-ext"),
-            );
+            for scheme in [rules::SCHEME, rules::LEGACY_SCHEME] {
+                configuration.setURLSchemeHandler_forURLScheme(
+                    Some(ProtocolObject::from_ref(&*delegate)),
+                    &NSString::from_str(scheme),
+                );
+            }
             controller.addScriptMessageHandlerWithReply_contentWorld_name(
                 ProtocolObject::from_ref(&*delegate),
                 &WKContentWorld::pageWorld(mtm),
@@ -353,8 +355,8 @@ impl NativeWebview {
         self.host.set_shortcuts(modal, shortcuts);
     }
 
-    /// Whether Muxy shows this page focused. Keys reach the page only while it
-    /// is, or after a click into it until Muxy catches up. A page that takes
+    /// Whether Atur Terminal shows this page focused. Keys reach the page only while it
+    /// is, or after a click into it until Atur Terminal catches up. A page that takes
     /// the native focus itself, as when its script focuses an element, doesn't
     /// get them.
     pub(super) fn set_focused(&self, focused: bool) {
@@ -362,7 +364,7 @@ impl NativeWebview {
     }
 
     /// Sends clicks on the resize grips drawn over the page, in window
-    /// coordinates, to Muxy and shows each grip's cursor there. The page's
+    /// coordinates, to Atur Terminal and shows each grip's cursor there. The page's
     /// pixels don't change. Call after [`Self::occlude`].
     pub(super) fn set_grips(&self, grips: &[(Bounds<Pixels>, CursorStyle)]) {
         self.host.set_grips(grips);

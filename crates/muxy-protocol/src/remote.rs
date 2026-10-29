@@ -16,7 +16,9 @@ const MAX_HOST: usize = 253;
 const MAX_SERVER_NAME: usize = 255;
 const MAX_STATUS: usize = 1024;
 const MAX_LINK: usize = 4096;
-const LINK_PREFIX: &str = "muxy://pair?";
+const LINK_PREFIX: &str = "atur://pair?";
+/// What links made by earlier builds start with. Still accepted.
+const LEGACY_LINK_PREFIX: &str = "muxy://pair?";
 const LINK_VERSION: &str = "1";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -186,6 +188,7 @@ impl PairingInvite {
     pub fn parse_link(link: &str) -> Result<Self, ErrorCode> {
         let query = link
             .strip_prefix(LINK_PREFIX)
+            .or_else(|| link.strip_prefix(LEGACY_LINK_PREFIX))
             .filter(|_| link.len() <= MAX_LINK)
             .ok_or(ErrorCode::BadRequest)?;
         let mut version = None;

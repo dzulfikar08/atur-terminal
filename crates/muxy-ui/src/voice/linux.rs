@@ -70,6 +70,19 @@ pub(super) fn start(language: String, model: String) -> Result<Recorder, String>
     Ok(Recorder { shared })
 }
 
+/// Where the voice models live: `atur-terminal/voice` under the user data
+/// folder, or the `muxy/voice` folder earlier releases used while the new one
+/// does not exist.
+fn voice_directory(data: &Path) -> PathBuf {
+    let current = data.join("atur-terminal/voice");
+    let earlier = data.join("muxy/voice");
+    if !current.is_dir() && earlier.is_dir() {
+        earlier
+    } else {
+        current
+    }
+}
+
 fn prepare(model: &str, shared: &Shared) -> Result<(Tools, PathBuf), String> {
     let data = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
@@ -80,8 +93,8 @@ fn prepare(model: &str, shared: &Shared) -> Result<(Tools, PathBuf), String> {
         .filter(|path| path.is_absolute())
         .ok_or_else(|| {
             tr!("The user data folder is unavailable. Set XDG_DATA_HOME or HOME to use offline dictation.").to_string()
-        })?
-        .join("muxy/voice");
+        })
+        .map(|data| voice_directory(&data))?;
     let model = if model.is_empty() {
         data.join("ggml-base.bin")
     } else {

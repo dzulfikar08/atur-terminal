@@ -344,8 +344,8 @@ impl AppModel {
         if !self.webviews.initialized {
             self.webviews.initialized = true;
             if cfg!(debug_assertions)
-                && std::env::var("ATUR_TERM_WEBVIEW_DEMO").is_ok_and(|value| value == "1")
-                && std::env::var_os("ATUR_TERM_DIR").is_some()
+                && muxy_core::env::var("ATUR_TERM_WEBVIEW_DEMO").is_some_and(|value| value == "1")
+                && muxy_core::env::var_os("ATUR_TERM_DIR").is_some()
             {
                 self.webviews.registered.insert(
                     ("foundation".into(), "demo".into()),

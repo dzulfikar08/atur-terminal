@@ -34,7 +34,7 @@ impl AppModel {
         for name in stopped {
             if let Some(background) = self.extensions.backgrounds.remove(&name) {
                 self.extensions.scripts.remove(&background.script);
-                self.extension_log(&name, "[muxy] exited cleanly".into());
+                self.extension_log(&name, "[atur] exited cleanly".into());
             }
         }
     }
@@ -108,11 +108,11 @@ impl AppModel {
                             );
                             model.extension_log(
                                 &owner,
-                                format!("[muxy] started {owner} v{version}"),
+                                format!("[atur] started {owner} v{version}"),
                             );
                         }
                         Err(error) => {
-                            model.extension_log(&owner, format!("[muxy] failed to start: {error}"));
+                            model.extension_log(&owner, format!("[atur] failed to start: {error}"));
                         }
                     }
                 });

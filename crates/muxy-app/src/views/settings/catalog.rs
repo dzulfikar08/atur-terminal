@@ -67,7 +67,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "backup-export",
         label: tr_key!("Export backup"),
         description: tr_key!(
-            "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file."
+            "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file."
         ),
         category: Category::Backup,
         section: tr_key!("Backup & Restore"),
@@ -76,14 +76,14 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "backup-restore",
         label: tr_key!("Restore backup"),
         description: tr_key!(
-            "Choose a .muxy backup or a 1.x settings.json file. Review the import before applying it on the next launch."
+            "Choose an .aturbackup file or a 1.x settings.json file. Review the import before applying it on the next launch."
         ),
         category: Category::Backup,
         section: tr_key!("Backup & Restore"),
     },
     Setting {
         id: "backup-legacy",
-        label: tr_key!("Import from Muxy 1.x"),
+        label: tr_key!("Import from Atur Terminal 1.x"),
         description: tr_key!(
             "Import supported settings and local projects from the installed 1.x app, only its projects and workspaces, or a backup file. Unsupported options are skipped."
         ),
@@ -290,7 +290,7 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "worktree-folder",
         label: tr_key!("Default worktree folder"),
         description: tr_key!(
-            "Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.muxy/worktrees."
+            "Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.atur-terminal/worktrees."
         ),
         category: Category::General,
         section: tr_key!("Worktrees"),

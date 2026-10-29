@@ -392,7 +392,7 @@ mod tests {
     impl TestDirectory {
         fn new() -> Self {
             let path = std::env::temp_dir()
-                .join(format!("muxy-exec-{}", muxy_protocol::OperationId::new()));
+                .join(format!("atur-exec-{}", muxy_protocol::OperationId::new()));
             std::fs::create_dir(&path).unwrap();
             Self(path)
         }

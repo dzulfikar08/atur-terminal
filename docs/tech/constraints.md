@@ -92,15 +92,15 @@ microphone permission dialog in this backend.
 Download a multilingual GGML model, such as `ggml-base.bin` (about 142 MiB),
 from [whisper.cpp's model collection](https://huggingface.co/ggerganov/whisper.cpp).
 Select its absolute path in Settings → Composer → Offline voice model, or put
-it at `$XDG_DATA_HOME/muxy/voice/ggml-base.bin` (by default
-`~/.local/share/muxy/voice/ggml-base.bin`). English-only models are rejected so
+it at `$XDG_DATA_HOME/atur-terminal/voice/ggml-base.bin` (by default
+`~/.local/share/atur-terminal/voice/ggml-base.bin`). English-only models are rejected so
 they cannot silently override the selected language.
 
 Also install the [Silero](https://github.com/snakers4/silero-vad) speech
 detection model
 [`ggml-silero-v6.2.0.bin`](https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin)
-(885,098 bytes) at `$XDG_DATA_HOME/muxy/voice/ggml-silero-v6.2.0.bin`, or
-`~/.local/share/muxy/voice/ggml-silero-v6.2.0.bin` when `XDG_DATA_HOME` is unset.
+(885,098 bytes) at `$XDG_DATA_HOME/atur-terminal/voice/ggml-silero-v6.2.0.bin`, or
+`~/.local/share/atur-terminal/voice/ggml-silero-v6.2.0.bin` when `XDG_DATA_HOME` is unset.
 Its SHA256 is
 `2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987`.
 This model is required even when the voice model is stored elsewhere. Atur Terminal

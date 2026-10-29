@@ -52,7 +52,7 @@ pub(crate) fn listen(path: &Path) -> io::Result<(AppSocket, async_channel::Recei
     let (requests, incoming) = async_channel::bounded(64);
     let busy = Arc::new(AtomicUsize::new(0));
     std::thread::Builder::new()
-        .name("muxy-app-socket".into())
+        .name("atur-app-socket".into())
         .spawn(move || {
             for stream in listener.incoming().flatten() {
                 if requests.is_closed() {
@@ -65,7 +65,7 @@ pub(crate) fn listen(path: &Path) -> io::Result<(AppSocket, async_channel::Recei
                 }
                 busy.fetch_add(1, Ordering::AcqRel);
                 let spawned = std::thread::Builder::new()
-                    .name("muxy-app-request".into())
+                    .name("atur-app-request".into())
                     .spawn({
                         let busy = Arc::clone(&busy);
                         move || {

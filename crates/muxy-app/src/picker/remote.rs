@@ -85,7 +85,7 @@ impl RemoteFolders {
                 let result = run(&checking, project, job, vec![
                 "/bin/sh".into(), "-c".into(),
                 "if [ -d \"$1\" ]; then printf directory; elif [ -e \"$1\" ] || [ -L \"$1\" ]; then printf file; else printf missing; fi".into(),
-                "muxy-check-folder".into(), path.into(),
+                "atur-check-folder".into(), path.into(),
             ])?;
                 match result.as_str() {
                     "directory" => Ok(TypedPathState::Directory),

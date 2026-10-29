@@ -23,7 +23,7 @@ pub(crate) struct ExtensionShortcut {
 
 /// Runs an extension command, or fires `command.<id>` for a runtime shortcut.
 #[derive(Clone, PartialEq, gpui::Action)]
-#[action(namespace = muxy, no_json)]
+#[action(namespace = atur, no_json)]
 pub(crate) struct RunCommand {
     pub owner: String,
     pub command: String,

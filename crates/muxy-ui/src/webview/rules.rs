@@ -1,9 +1,12 @@
 //! What a page may do, whichever engine shows it.
 
 /// The scheme an extension's pages and their assets are served from.
-pub(super) const SCHEME: &str = "muxy-ext";
+pub(super) const SCHEME: &str = "atur-ext";
+/// The scheme earlier releases served them from. Pages and assets under it
+/// are still served, and are the extension's own just the same.
+pub(super) const LEGACY_SCHEME: &str = "muxy-ext";
 /// The name pages post their requests to.
-pub(super) const HANDLER: &str = "muxy";
+pub(super) const HANDLER: &str = "atur";
 
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 const MAX_PENDING_REPLIES: usize = 128;
@@ -18,7 +21,7 @@ pub(super) const INVALID_RESPONSE: &str = "invalid host response";
 
 /// Whether a URL with this scheme and host is one of `owner`'s own pages.
 pub(super) fn owns(scheme: &str, host: &str, owner: &str) -> bool {
-    scheme == SCHEME && host == owner
+    (scheme == SCHEME || scheme == LEGACY_SCHEME) && host == owner
 }
 
 /// Whether a frame may go to a URL with this scheme and host: the
@@ -79,20 +82,24 @@ mod tests {
         let allowed = |url: &str| {
             origin(url).is_some_and(|(scheme, host)| may_navigate(scheme, host, "git.tools"))
         };
+        assert!(allowed("atur-ext://git.tools/index.html"));
+        assert!(allowed("atur-ext://git.tools"));
         assert!(allowed("muxy-ext://git.tools/index.html"));
         assert!(allowed("muxy-ext://git.tools"));
         assert!(allowed("about:blank"));
         assert!(allowed("about:srcdoc"));
         for url in [
+            "atur-ext://other/index.html",
+            "atur-ext://git.tools@other/index.html",
+            "atur-ext://git.tools:80/index.html",
             "muxy-ext://other/index.html",
-            "muxy-ext://git.tools@other/index.html",
             "muxy-ext://git.tools:80/index.html",
-            "muxy-ext://git.tools.other/index.html",
-            "muxy-ext:/git.tools/index.html",
+            "atur-ext://git.tools.other/index.html",
+            "atur-ext:/git.tools/index.html",
             "https://git.tools/index.html",
             "file:///etc/passwd",
             "data:text/html,hello",
-            "blob:muxy-ext://git.tools/1",
+            "blob:atur-ext://git.tools/1",
             "javascript:alert(1)",
             "git.tools/index.html",
         ] {
@@ -103,19 +110,19 @@ mod tests {
     #[test]
     fn asset_paths_are_decoded_once_and_stop_at_the_query() {
         assert_eq!(
-            path("muxy-ext://owner/a%20b/c.js?x=/1#y").as_deref(),
+            path("atur-ext://owner/a%20b/c.js?x=/1#y").as_deref(),
             Some("/a b/c.js")
         );
         assert_eq!(
-            path("muxy-ext://owner/%2e%2e/secret").as_deref(),
+            path("atur-ext://owner/%2e%2e/secret").as_deref(),
             Some("/../secret")
         );
-        assert_eq!(path("muxy-ext://owner/%2541").as_deref(), Some("/%41"));
-        assert_eq!(path("muxy-ext://owner").as_deref(), Some(""));
-        assert_eq!(path("muxy-ext://owner?x=/y").as_deref(), Some(""));
-        assert_eq!(path("muxy-ext://owner/%zz"), None);
-        assert_eq!(path("muxy-ext://owner/%ff"), None);
-        assert_eq!(path("muxy-ext://owner/%4"), None);
+        assert_eq!(path("atur-ext://owner/%2541").as_deref(), Some("/%41"));
+        assert_eq!(path("atur-ext://owner").as_deref(), Some(""));
+        assert_eq!(path("atur-ext://owner?x=/y").as_deref(), Some(""));
+        assert_eq!(path("atur-ext://owner/%zz"), None);
+        assert_eq!(path("atur-ext://owner/%ff"), None);
+        assert_eq!(path("atur-ext://owner/%4"), None);
     }
 
     #[test]

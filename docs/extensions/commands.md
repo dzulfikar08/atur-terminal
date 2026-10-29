@@ -41,7 +41,7 @@ and run when a [bar item](bar-items.md) or panel header button is clicked.
 - Extension shortcuts are listed in **Settings → Keyboard**, where users can
   change or unassign them.
 - Add shortcuts at runtime with
-  [`muxy.shortcuts.register`](api.md#shortcuts).
+  [`atur.shortcuts.register`](api.md#shortcuts).
 
 ## Scripts
 
@@ -54,8 +54,8 @@ quick automation.
 
 ```js
 // scripts/count.js (needs tabs:read and notifications:write)
-const tabs = muxy.tabs.list();
-muxy.notifications.notify({ title: "Tabs", body: `${tabs.length} open` });
+const tabs = atur.tabs.list();
+atur.notifications.notify({ title: "Tabs", body: `${tabs.length} open` });
 ```
 
 - Calls are synchronous. Timers keep the script alive until they finish.

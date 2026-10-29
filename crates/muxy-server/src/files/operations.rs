@@ -118,7 +118,7 @@ impl Root {
             Err(rustix::io::Errno::NOENT) => None,
             Err(cause) => return Err(error(cause)),
         };
-        let temporary = format!(".muxy-write-{}", OperationId::new());
+        let temporary = format!(".atur-write-{}", OperationId::new());
         let mut file = fs::openat(
             &target.parent,
             &temporary,

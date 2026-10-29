@@ -16,7 +16,7 @@ type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// bytes, and the app's socket lives in the profile.
 fn profile() -> Result<tempfile::TempDir> {
     Ok(tempfile::Builder::new()
-        .prefix("muxy-browser-")
+        .prefix("atur-browser-")
         .tempdir_in("/tmp")?)
 }
 

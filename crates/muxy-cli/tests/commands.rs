@@ -12,7 +12,7 @@ type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 struct Profile(PathBuf);
 impl Profile {
     fn new() -> Result<Self> {
-        let path = std::env::temp_dir().join(format!("muxy-cli-{}", OperationId::new()));
+        let path = std::env::temp_dir().join(format!("atur-cli-{}", OperationId::new()));
         fs::create_dir(&path)?;
         Ok(Self(path))
     }

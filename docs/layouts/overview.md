@@ -6,7 +6,7 @@ click.
 
 ```mermaid
 flowchart LR
-    FILES[".muxy/layouts/*.yaml"] --> PICK["Apply Layout…"]
+    FILES[".atur-terminal/layouts/*.yaml"] --> PICK["Apply Layout…"]
     PICK --> CONFIRM{"Confirm"}
     CONFIRM -->|"yes"| TABS["Project tabs replaced<br/>commands run"]
 ```
@@ -20,7 +20,7 @@ flowchart LR
 
 ## How it works
 
-- Put layout files in `.muxy/layouts/` inside a project or worktree folder.
+- Put layout files in `.atur-terminal/layouts/` inside a project or worktree folder.
   Remote projects work too.
 - Use `.yaml`, `.yml`, or `.json`. The file name, without its extension, is the
   layout's name.
@@ -37,7 +37,7 @@ Only apply layouts you trust: their commands run as you.
 
 ```
 my-project/
-  .muxy/
+  .atur-terminal/
     layouts/
       dev.yaml
       release.yaml

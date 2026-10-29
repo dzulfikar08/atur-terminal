@@ -1,6 +1,6 @@
 //! A native page shown over GPUI. The page sits in a container view that
 //! follows its pane, hides the parts app content covers, and shares the
-//! keyboard with Muxy's shortcuts. Extension pages and browser pages both
+//! keyboard with Atur Terminal's shortcuts. Extension pages and browser pages both
 //! live in one.
 
 use std::cell::{Cell, RefCell};
@@ -25,7 +25,7 @@ use objc2_web_kit::WKWebView;
 
 use super::Snapshot;
 
-/// What the page hands back to Muxy: keys it keeps, and clicks.
+/// What the page hands back to Atur Terminal: keys it keeps, and clicks.
 #[derive(Debug)]
 pub(crate) enum Signal {
     Escape,
@@ -33,7 +33,7 @@ pub(crate) enum Signal {
     Clicked,
 }
 
-/// How Muxy shows the page, as the key monitor sees it.
+/// How Atur Terminal shows the page, as the key monitor sees it.
 #[derive(Debug, Default)]
 struct Focus {
     focused: Cell<bool>,
@@ -84,10 +84,10 @@ fn contains_point(rect: NSRect, point: NSPoint) -> bool {
 
 define_class!(
     /// Holds the page. Clicks on the parts app content covers pass through
-    /// to Muxy, and its layer mask hides them.
+    /// to Atur Terminal, and its layer mask hides them.
     #[unsafe(super(NSView))]
     #[thread_kind = MainThreadOnly]
-    #[name = "MuxyPageContainer"]
+    #[name = "AturPageContainer"]
     #[ivars = HitTestRegions]
     #[derive(Debug)]
     struct Container;
@@ -108,7 +108,7 @@ define_class!(
     /// and its cursor rects keep WebKit from changing the cursor there.
     #[unsafe(super(NSView))]
     #[thread_kind = MainThreadOnly]
-    #[name = "MuxyWebviewGrips"]
+    #[name = "AturWebviewGrips"]
     #[ivars = RefCell<Vec<(NSRect, CursorStyle)>>]
     #[derive(Debug)]
     struct GripOverlay;
@@ -238,7 +238,7 @@ impl Host {
         &self.container
     }
 
-    /// Starts routing keys for `page`, a view inside the container. Keys Muxy
+    /// Starts routing keys for `page`, a view inside the container. Keys Atur Terminal
     /// keeps, and clicks into the page, go to `on_signal`, which reports
     /// whether it took them.
     pub(crate) fn attach(
@@ -260,8 +260,8 @@ impl Host {
         *self.focus.shortcuts.borrow_mut() = shortcuts;
     }
 
-    /// Whether Muxy shows this page focused. Keys reach the page only while it
-    /// is, or after a click into it until Muxy catches up. A page that takes
+    /// Whether Atur Terminal shows this page focused. Keys reach the page only while it
+    /// is, or after a click into it until Atur Terminal catches up. A page that takes
     /// the native focus itself, as when its script focuses an element, doesn't
     /// get them.
     pub(crate) fn set_focused(&self, focused: bool) {
@@ -280,7 +280,7 @@ impl Host {
     }
 
     /// Sends clicks on the resize grips drawn over the page, in window
-    /// coordinates, to Muxy and shows each grip's cursor there. The page's
+    /// coordinates, to Atur Terminal and shows each grip's cursor there. The page's
     /// pixels don't change. Call after [`Self::occlude`].
     pub(crate) fn set_grips(&self, grips: &[(Bounds<Pixels>, CursorStyle)]) {
         let frame = self.parent.bounds();
@@ -667,7 +667,7 @@ fn monitor(
             event_ref.r#type(),
             NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown
         ) {
-            // Muxy hears of a click from the page itself, which can be late.
+            // Atur Terminal hears of a click from the page itself, which can be late.
             let clicked = container
                 .window()
                 .filter(|window| event_ref.window(container.mtm()).as_ref() == Some(window))
@@ -696,8 +696,8 @@ fn monitor(
                     .is_some_and(|responder| responder.isDescendantOf(&container))
             })
         };
-        // Keys follow Muxy's focus: pages take the native focus on their own,
-        // even from each other, and a click on Muxy never takes it back.
+        // Keys follow Atur Terminal's focus: pages take the native focus on their own,
+        // even from each other, and a click on Atur Terminal never takes it back.
         let focused = focus.focused.get() || focus.clicked.get();
         let holds_focus = page_responder().is_some();
         if holds_focus && !focused {

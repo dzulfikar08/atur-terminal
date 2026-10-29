@@ -20,7 +20,7 @@ pub(super) struct Workspace {
 
 impl Workspace {
     pub(super) fn new() -> Self {
-        let path = std::env::temp_dir().join(format!("muxy-files-{}", OperationId::new()));
+        let path = std::env::temp_dir().join(format!("atur-files-{}", OperationId::new()));
         std::fs::create_dir(&path).unwrap();
         let path = path.canonicalize().unwrap();
         let (send, _) = mpsc::channel();
@@ -119,7 +119,7 @@ fn atomic_utf8_writes_preserve_modes_and_enforce_both_limits() {
             .unwrap()
             .file_name()
             .to_string_lossy()
-            .starts_with(".muxy-write-")
+            .starts_with(".atur-write-")
     }));
 }
 

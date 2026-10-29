@@ -1,9 +1,9 @@
 //! Terminals owned by a herdr server.
 //!
-//! In this mode the server runs no PTYs. Each Muxy session is a herdr tab with
+//! In this mode the server runs no PTYs. Each Atur Terminal session is a herdr tab with
 //! one pane in the workspace of its project; a control stream mirrors the pane's
 //! screen into the session owner's terminal, and input, resize and mouse go back
-//! through it. Projects, git, files, exec, settings and activity stay Muxy's.
+//! through it. Projects, git, files, exec, settings and activity stay Atur Terminal's.
 
 mod api;
 mod base64;
@@ -73,6 +73,11 @@ fn unavailable(error: impl std::fmt::Display) -> ServerError {
 /// The label of a session's herdr tab; also how a session is found again after
 /// herdr restarts and renumbers its terminals.
 fn tab_label(session: SessionId) -> String {
+    format!("atur-{:08x}", session.get() >> 32)
+}
+
+/// The label tabs made by earlier builds carry.
+fn legacy_tab_label(session: SessionId) -> String {
     format!("muxy-{:08x}", session.get() >> 32)
 }
 
@@ -220,9 +225,12 @@ impl Herdr {
             // herdr numbers terminals afresh after it restarts; the tab label survives.
             let by_label = || {
                 let label = tab_label(session);
-                let tab = tabs
-                    .iter()
-                    .find(|tab| tab["label"].as_str() == Some(label.as_str()))?;
+                let legacy = legacy_tab_label(session);
+                let tab = tabs.iter().find(|tab| {
+                    tab["label"]
+                        .as_str()
+                        .is_some_and(|found| found == label || found == legacy)
+                })?;
                 panes
                     .iter()
                     .find(|pane| pane["tab_id"].as_str() == tab["tab_id"].as_str())
@@ -661,7 +669,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn herdr_agent_labels_and_states_map_to_muxy_ones() {
+    fn herdr_agent_labels_and_states_map_to_atur_ones() {
         assert_eq!(provider("omp"), Some(AgentProvider::OhMyPi));
         assert_eq!(provider("github_copilot"), Some(AgentProvider::Copilot));
         assert_eq!(provider("amp"), None);
@@ -669,6 +677,17 @@ mod tests {
         assert_eq!(agent_state("working"), AgentState::Working);
         assert_eq!(agent_state("blocked"), AgentState::Blocked);
         assert_eq!(agent_state("unknown"), AgentState::Unknown);
+    }
+
+    #[test]
+    fn tabs_are_labelled_anew_and_tabs_of_earlier_builds_are_still_recognised() {
+        let session = SessionId::new(0xabcd_ef01_2345_6789).unwrap();
+        let current = tab_label(session);
+        let legacy = legacy_tab_label(session);
+        assert!(current.starts_with("atur-"));
+        assert!(legacy.starts_with("muxy-"));
+        assert_eq!(current, "atur-abcdef01");
+        assert_eq!(legacy, "muxy-abcdef01");
     }
 
     #[test]

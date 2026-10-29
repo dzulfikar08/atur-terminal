@@ -819,7 +819,9 @@ impl ExtensionsView {
                                     .child(tr!("Extensions")),
                             ),
                     )
-                    .child(self.tab_control(cx)),
+                    .when(marketplace::available(), |row| {
+                        row.child(self.tab_control(cx))
+                    }),
             )
             .when(self.tab == Tab::Installed, |header| {
                 header.child(self.header_actions(cx))
@@ -875,13 +877,14 @@ impl ExtensionsView {
                 cx,
             ))
             .when(
-                self.model.upgrade().is_some_and(|model| {
-                    let registry = &model.read(cx).extensions.registry;
-                    registry
-                        .extensions
-                        .keys()
-                        .any(|name| !registry.is_unpacked(name))
-                }),
+                marketplace::available()
+                    && self.model.upgrade().is_some_and(|model| {
+                        let registry = &model.read(cx).extensions.registry;
+                        registry
+                            .extensions
+                            .keys()
+                            .any(|name| !registry.is_unpacked(name))
+                    }),
                 |actions| {
                     actions.child(self.button(
                         "extension-update-all",
@@ -1087,7 +1090,7 @@ impl ExtensionsView {
             .iter()
             .find(|(extension, _, _)| extension.name == name);
         let updates = local
-            .filter(|(_, _, unpacked)| !unpacked)
+            .filter(|(_, _, unpacked)| !unpacked && marketplace::available())
             .map(|(extension, _, _)| self.update_section(extension, details, cx));
         let details = local.map_or_else(
             || details.clone(),

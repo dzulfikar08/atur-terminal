@@ -44,12 +44,12 @@ fn cancelling_an_async_editor_dialog_prevents_closing_the_document() {
         r#"
         globalThis.window = globalThis;
         globalThis.document = {{ documentElement: {{ style: {{ setProperty() {{}} }} }}, addEventListener() {{}} }};
-        window.webkit = {{ messageHandlers: {{ muxy: {{ postMessage(message) {{
-            return Promise.resolve(JSON.parse(__muxyNative(JSON.stringify(message))));
+        window.webkit = {{ messageHandlers: {{ atur: {{ postMessage(message) {{
+            return Promise.resolve(JSON.parse(__aturNative(JSON.stringify(message))));
         }} }} }} }};
         {}({{ owner: 'files', id: 'editor', surface: 'tab', data: null, theme: {{}} }}, {});
         muxy.lifecycle.onBeforeClose(async () => await muxy.dialog.confirm({{ buttons: ["Save", "Discard", "Cancel"] }}) === "Cancel");
-        __muxyBeforeClose('close-1', 'tab', 'editor');
+        __aturBeforeClose('close-1', 'tab', 'editor');
         "#,
         include_str!("../views/webview/bridge.js"),
         include_str!("bridge.js")
@@ -143,7 +143,7 @@ fn unchanged_find_in_files_script_uses_query_callbacks_and_async_exec() {
                 reply(&call, &Value::Null);
                 if !query_sent {
                     query_sent = true;
-                    script.evaluate("__muxyDeliverModalQuery('native:2','1','needle',{})".into());
+                    script.evaluate("__aturDeliverModalQuery('native:2','1','needle',{})".into());
                 } else if started {
                     break;
                 }
@@ -153,7 +153,7 @@ fn unchanged_find_in_files_script_uses_query_callbacks_and_async_exec() {
                 assert!(request["args"]["argv"].is_array());
                 let id = &request["args"]["id"];
                 reply(&call, &id.clone());
-                script.evaluate(format!("__muxyResolveExec({id},{{ok:true,value:{{stdout:'',stderr:'',exitCode:0,timedOut:false,truncated:false}}}})"));
+                script.evaluate(format!("__aturResolveExec({id},{{ok:true,value:{{stdout:'',stderr:'',exitCode:0,timedOut:false,truncated:false}}}})"));
             }
             "exec.cancel" => reply(&call, &json!(true)),
             "console" => {

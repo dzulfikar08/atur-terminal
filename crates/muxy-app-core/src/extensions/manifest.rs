@@ -542,6 +542,10 @@ fn without_nulls(value: &mut Value) {
     }
 }
 
+/// Keys of `package.json` that hold the extension manifest, in order of
+/// preference. `muxy` is what extensions written for earlier releases use.
+const MANIFEST_KEYS: [&str; 2] = ["atur-terminal", "muxy"];
+
 impl Extension {
     /// Loads a package folder, preferring its `dist/` build output like main does.
     pub fn load(package: &Path) -> Result<Self, String> {
@@ -569,10 +573,10 @@ impl Extension {
                 .as_str()
                 .filter(|version| !version.is_empty())
                 .ok_or("missing version")?;
-            let mut manifest = value
-                .get("muxy")
-                .filter(|v| v.is_object())
-                .ok_or("missing muxy manifest")?
+            let mut manifest = MANIFEST_KEYS
+                .iter()
+                .find_map(|key| value.get(*key).filter(|v| v.is_object()))
+                .ok_or("missing atur-terminal manifest")?
                 .clone();
             without_nulls(&mut manifest);
             let extension = Self {

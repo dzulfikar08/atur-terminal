@@ -299,7 +299,7 @@ impl Webview {
     }
 
     fn push_state(&self) {
-        self.native.evaluate(&format!("window.__muxyApplyData?.({});window.__muxyApplyTheme?.({});window.__muxyApplyFocus?.({});", self.data, self.theme, self.presentation.focused));
+        self.native.evaluate(&format!("window.__aturApplyData?.({});window.__aturApplyTheme?.({});window.__aturApplyFocus?.({});", self.data, self.theme, self.presentation.focused));
         if self.presentation.focused && !self.presentation.blocked {
             self.native.focus();
         }
@@ -337,11 +337,11 @@ impl Webview {
             self.metrics = metrics;
             if data_changed {
                 self.native
-                    .evaluate(&format!("window.__muxyApplyData?.({});", self.data));
+                    .evaluate(&format!("window.__aturApplyData?.({});", self.data));
             }
             if theme_changed {
                 self.native
-                    .evaluate(&format!("window.__muxyApplyTheme?.({});", self.theme));
+                    .evaluate(&format!("window.__aturApplyTheme?.({});", self.theme));
             }
             self.native.install_script(&bridge_script(
                 &self.source.owner,
@@ -386,7 +386,7 @@ impl Webview {
                 self.native.blur();
             }
             self.native
-                .evaluate(&format!("window.__muxyApplyFocus?.({focused});"));
+                .evaluate(&format!("window.__aturApplyFocus?.({focused});"));
         }
         if self.presentation.visible != visible || self.presentation.blocked != blocked {
             let failed = self.error.is_some();
@@ -423,7 +423,7 @@ impl Webview {
         self.close_results.insert(id, sender);
         let kind = self.kind.name();
         self.native.evaluate(&format!(
-            "window.__muxyBeforeClose?.({id},{},{});",
+            "window.__aturBeforeClose?.({id},{},{});",
             json!(kind),
             json!(self.instance)
         ));

@@ -154,9 +154,9 @@ fn the_bridge_answers_only_the_holder_of_its_secret() -> Result {
     let (mut ready, mut offer) = (String::new(), String::new());
     lines.read_line(&mut ready)?;
     lines.read_line(&mut offer)?;
-    assert_eq!(ready.trim(), "MUXY-STDIO/1");
+    assert_eq!(ready.trim(), "ATUR-STDIO/1");
     let json: serde_json::Value =
-        serde_json::from_str(offer.trim().trim_start_matches("MUXY-UDP/1 "))?;
+        serde_json::from_str(offer.trim().trim_start_matches("ATUR-UDP/1 "))?;
     let port = u16::try_from(json["port"].as_u64().ok_or("port")?)?;
     assert!((62_400..=62_499).contains(&port));
     let secret = Secret::decode(json["key"].as_str().ok_or("key")?).ok_or("secret")?;

@@ -43,7 +43,7 @@ struct Client {
 impl Fixture {
     fn new() -> TestResult<Self> {
         let directory = std::env::temp_dir().join(format!(
-            "muxy-connection-{}-{}",
+            "atur-connection-{}-{}",
             std::process::id(),
             NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
         ));

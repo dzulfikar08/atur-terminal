@@ -20,7 +20,7 @@ struct Repo {
 }
 impl Repo {
     fn new(commit: bool) -> Self {
-        let path = std::env::temp_dir().join(format!("muxy-git-test-{}", OperationId::new()));
+        let path = std::env::temp_dir().join(format!("atur-git-test-{}", OperationId::new()));
         std::fs::create_dir(&path).unwrap();
         run(&path, &["init", "-b", "main"]).unwrap();
         run(&path, &["config", "user.name", "Test"]).unwrap();

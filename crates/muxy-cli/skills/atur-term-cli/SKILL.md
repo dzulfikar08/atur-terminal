@@ -1,5 +1,5 @@
 ---
-name: muxy-cli
+name: atur-term-cli
 description: How to drive Atur Terminal from a shell with the `atur-term` command — start terminals that keep running, type into them, read and wait on their output, and manage projects and Git worktrees. Use this when you are an agent running inside an Atur Terminal terminal (or any script on the same computer) and want work to run in its own terminal instead of blocking yours, or to drive the desktop app's built-in browser.
 ---
 
@@ -109,7 +109,7 @@ atur-term worktree list MyProject
 atur-term worktree remove login --yes
 ```
 
-`--hooks` runs the setup or teardown commands from `.muxy/worktree.json`; ask
+`--hooks` runs the setup or teardown commands from `.atur-terminal/worktree.json`; ask
 the user before using it. `worktree remove` refuses uncommitted changes unless
 `--force` is given; never pass `--force` without the user's consent.
 

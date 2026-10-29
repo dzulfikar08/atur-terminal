@@ -9,7 +9,7 @@ impl Fixture {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
-            "muxy-voice-{}-{}",
+            "atur-voice-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -222,4 +222,20 @@ fn versions_without_stdout_text_support_are_rejected_before_capture() {
         );
         assert!(gone(&fixture.pid("transcribe")));
     }
+}
+
+#[test]
+fn voice_models_of_earlier_releases_are_used_until_the_new_folder_exists() {
+    let fixture = Fixture::new();
+    assert_eq!(
+        voice_directory(&fixture.0),
+        fixture.0.join("atur-terminal/voice")
+    );
+    std::fs::create_dir_all(fixture.0.join("muxy/voice")).expect("earlier folder");
+    assert_eq!(voice_directory(&fixture.0), fixture.0.join("muxy/voice"));
+    std::fs::create_dir_all(fixture.0.join("atur-terminal/voice")).expect("new folder");
+    assert_eq!(
+        voice_directory(&fixture.0),
+        fixture.0.join("atur-terminal/voice")
+    );
 }

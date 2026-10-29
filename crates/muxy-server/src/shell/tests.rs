@@ -36,7 +36,7 @@ impl Shell {
         env: &[(&str, &str)],
     ) -> TestResult<Self> {
         let directory = std::env::temp_dir().join(format!(
-            "muxy-shell-{}-{}",
+            "atur-shell-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -80,7 +80,7 @@ impl Shell {
             )?;
             fs::write(
                 dotfiles.join(".zshrc"),
-                format!("PS1='muxy-test> '; unset RPS1; ATUR_TERM_TEST_RC=loaded\n{startup}\n"),
+                format!("PS1='atur-test> '; unset RPS1; ATUR_TERM_TEST_RC=loaded\n{startup}\n"),
             )?;
             fs::write(
                 dotfiles.join(".zlogin"),
@@ -96,13 +96,13 @@ impl Shell {
             fs::write(
                 config.join("config.fish"),
                 format!(
-                    "set -g fish_greeting; function fish_prompt; printf 'muxy-test> '; end\n{startup}\n"
+                    "set -g fish_greeting; function fish_prompt; printf 'atur-test> '; end\n{startup}\n"
                 ),
             )?;
         } else {
             fs::write(
                 home.join(".bash_profile"),
-                format!("PS1='muxy-test> '\n{startup}\n"),
+                format!("PS1='atur-test> '\n{startup}\n"),
             )?;
         }
         request.env.extend(
@@ -191,7 +191,7 @@ fn zsh_marks_prompts_commands_and_failures_without_replacing_startup_files() -> 
         terminal.feed(&output);
         assert_eq!(terminal.screen_prompts()?.len(), 3);
         assert_eq!(
-            fs::metadata(shell.directory.join("hooks/muxy.zsh"))?
+            fs::metadata(shell.directory.join("hooks/atur.zsh"))?
                 .permissions()
                 .mode()
                 & 0o777,
@@ -213,7 +213,7 @@ fn bash_is_manual_and_keeps_the_login_profile_and_prompt_command() -> TestResult
     let mut shell = Shell::start("/bin/bash", false, true, "")?;
     assert!(
         !shell
-            .until(b"muxy-test> ")?
+            .until(b"atur-test> ")?
             .windows(5)
             .any(|bytes| bytes == b"]133;")
     );
@@ -222,7 +222,7 @@ fn bash_is_manual_and_keeps_the_login_profile_and_prompt_command() -> TestResult
         "/bin/bash",
         false,
         true,
-        "PROMPT_COMMAND='ATUR_TERM_TEST_PROMPT=loaded'; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\"",
+        "PROMPT_COMMAND='ATUR_TERM_TEST_PROMPT=loaded'; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/atur.bash\"",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell
@@ -244,7 +244,7 @@ fn bash_is_manual_and_keeps_the_login_profile_and_prompt_command() -> TestResult
 fn install_rejects_symlinked_directories_and_replaces_files_without_following_links() -> TestResult
 {
     let directory = std::env::temp_dir().join(format!(
-        "muxy-shell-install-{}-{}",
+        "atur-shell-install-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
@@ -253,8 +253,8 @@ fn install_rejects_symlinked_directories_and_replaces_files_without_following_li
     fs::write(&target, "untouched")?;
     let hooks = directory.join("hooks");
     ShellIntegration::install(&hooks)?;
-    fs::remove_file(hooks.join("muxy.zsh"))?;
-    std::os::unix::fs::symlink(&target, hooks.join("muxy.zsh"))?;
+    fs::remove_file(hooks.join("atur.zsh"))?;
+    std::os::unix::fs::symlink(&target, hooks.join("atur.zsh"))?;
     ShellIntegration::install(&hooks)?;
     assert_eq!(fs::read_to_string(&target)?, "untouched");
     let linked = directory.join("linked");
@@ -285,7 +285,7 @@ fn fish_marks_prompts_and_preserves_user_configuration() -> TestResult {
         shell.until(b"\x1b]133;B")?;
         shell
             .pty
-            .write(b"printf 'config:%s:%s\\n' $ATUR_TERM_TEST_CONFIG $__muxy_installed\n")?;
+            .write(b"printf 'config:%s:%s\\n' $ATUR_TERM_TEST_CONFIG $__atur_installed\n")?;
         let output = shell.until(b"\x1b]133;B")?;
         assert!(String::from_utf8_lossy(&output).contains("config:loaded:1"));
         assert!(output.windows(7).any(|bytes| bytes == b"\x1b]133;C"));
@@ -297,13 +297,13 @@ fn fish_marks_prompts_and_preserves_user_configuration() -> TestResult {
             "{output:?}"
         );
         let mut shell = Shell::configured(&program, false, false, "", &env)?;
-        let output = shell.until(b"muxy-test> ")?;
+        let output = shell.until(b"atur-test> ")?;
         if !native {
             assert!(!output.windows(5).any(|bytes| bytes == b"]133;"));
         }
         shell
             .pty
-            .write(b"functions -q __muxy_directory; printf 'hooks:%s\\n' $status\n")?;
+            .write(b"functions -q __atur_directory; printf 'hooks:%s\\n' $status\n")?;
         let output = shell.until(b"hooks:1")?;
         assert!(!output.windows(8).any(|bytes| bytes == b"\x1b]133;A\x07"));
     }
@@ -316,7 +316,7 @@ fn bash_preserves_an_existing_debug_trap() -> TestResult {
         "/bin/bash",
         false,
         true,
-        "trap 'ATUR_TERM_TEST_DEBUG=loaded' DEBUG; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\"",
+        "trap 'ATUR_TERM_TEST_DEBUG=loaded' DEBUG; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/atur.bash\"",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell
@@ -355,7 +355,7 @@ fn bash_preserves_the_exit_status_seen_by_the_user_prompt_command() -> TestResul
         "/bin/bash",
         false,
         true,
-        "PROMPT_COMMAND='ATUR_TERM_TEST_STATUS=$?'; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\"",
+        "PROMPT_COMMAND='ATUR_TERM_TEST_STATUS=$?'; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/atur.bash\"",
     )?;
     shell.until(b"\x1b]133;B\x07")?;
     shell.pty.write(b"false\n")?;
@@ -409,7 +409,7 @@ fn bash_integration_consumes_alt_arrows_without_replacing_user_bindings() -> Tes
             ":"
         };
         let startup = format!(
-            "set -o {mode}; {binding}; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/muxy.bash\""
+            "set -o {mode}; {binding}; source \"$ATUR_TERM_SHELL_INTEGRATION_DIR/atur.bash\""
         );
         let mut shell = Shell::start("/bin/bash", false, true, &startup)?;
         let prompt = shell.until(b"\x1b]133;B\x07")?;

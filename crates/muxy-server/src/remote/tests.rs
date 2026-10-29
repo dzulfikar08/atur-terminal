@@ -125,7 +125,7 @@ fn unauthenticated_admissions_are_capped_and_released() {
 fn turning_access_off_keeps_an_unreadable_store_for_recovery()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory =
-        std::env::temp_dir().join(format!("muxy-remote-{}", muxy_protocol::OperationId::new()));
+        std::env::temp_dir().join(format!("atur-remote-{}", muxy_protocol::OperationId::new()));
     std::fs::create_dir(&directory)?;
     let path = directory.join("remote.json");
     std::fs::write(&path, "damaged")?;

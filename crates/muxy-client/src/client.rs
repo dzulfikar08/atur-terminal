@@ -112,7 +112,7 @@ impl Client {
         let pending = Arc::new(Pending::default());
         let routed = Arc::clone(&pending);
         thread::Builder::new()
-            .name("muxy-client-reader".into())
+            .name("atur-client-reader".into())
             .spawn(move || {
                 events::route(
                     &mut decoder,
@@ -151,7 +151,7 @@ impl Client {
         let writer_pending = Arc::clone(&shared.pending);
         let writer_cancellation = Arc::clone(&shared.cancellation);
         thread::Builder::new()
-            .name("muxy-client-writer".into())
+            .name("atur-client-writer".into())
             .spawn(move || {
                 for (id, body) in requests {
                     if !writer_pending.contains_async(id) {
@@ -167,7 +167,7 @@ impl Client {
             })?;
         let deadlines = Arc::clone(&shared.pending);
         thread::Builder::new()
-            .name("muxy-client-deadlines".into())
+            .name("atur-client-deadlines".into())
             .spawn(move || deadlines.watch_deadlines())?;
         Ok(Self {
             shared,
@@ -460,7 +460,7 @@ impl Client {
         let shared = Arc::downgrade(&self.shared);
         let timeout = self.timeout;
         thread::Builder::new()
-            .name("muxy-client-rtt".into())
+            .name("atur-client-rtt".into())
             .spawn(move || {
                 while let Some(shared) = shared.upgrade() {
                     if shared.pending.is_closed() {

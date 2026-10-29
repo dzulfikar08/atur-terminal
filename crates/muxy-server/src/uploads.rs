@@ -24,7 +24,7 @@ impl Uploads {
     /// This user's folder in the system's temporary folder.
     pub(crate) fn system() -> Self {
         let user = rustix::process::geteuid().as_raw();
-        Self::in_directory(std::env::temp_dir().join(format!("muxy-uploads-{user}")))
+        Self::in_directory(std::env::temp_dir().join(format!("atur-uploads-{user}")))
     }
 
     pub(crate) fn in_directory(directory: PathBuf) -> Self {
@@ -215,7 +215,7 @@ mod tests {
     }
 
     fn uploads() -> (PathBuf, Uploads) {
-        let root = std::env::temp_dir().join(format!("muxy-uploads-{}", OperationId::new()));
+        let root = std::env::temp_dir().join(format!("atur-uploads-{}", OperationId::new()));
         (root.clone(), Uploads::in_directory(root.join("uploads")))
     }
 

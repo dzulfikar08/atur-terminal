@@ -142,7 +142,7 @@ impl ExtensionsView {
         Some(self.section(&tr!("Settings"), rows))
     }
 
-    /// Recent `[log]`, `[warn]`, `[err]`, and `[muxy]` lines, newest last.
+    /// Recent `[log]`, `[warn]`, `[err]`, and `[atur]` lines, newest last.
     pub(super) fn logs_section(
         &self,
         extension: &Extension,

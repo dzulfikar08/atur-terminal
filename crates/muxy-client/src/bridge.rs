@@ -20,7 +20,10 @@ use crate::udp::{self, Offer, UdpRelay, UdpSettings};
 use crate::{Client, ClientError, RemoteReason, Transport, local};
 
 /// Starts the ready line; the bridge version and a newline follow.
-const READY: &[u8] = b"MUXY-STDIO/";
+const READY: &[u8] = b"ATUR-STDIO/";
+/// What bridges of older builds started the ready line with. The version that
+/// follows means the same.
+const LEGACY_READY: &[u8] = b"MUXY-STDIO/";
 const VERSION: &[u8] = b"1";
 /// The most a remote shell may print before the ready line.
 const MAX_NOISE: usize = 64 * 1024;
@@ -30,11 +33,11 @@ const MAX_VERSION: usize = 16;
 const MAX_DETAIL: usize = 300;
 /// What `atur-term stdio --no-start` reports when no server is running.
 const NOT_RUNNING: &str = "the server isn't running";
-/// How shells report that `muxy` isn't on PATH.
+/// How shells report that `atur-term` isn't on PATH.
 const NOT_FOUND: [&str; 3] = [
-    "muxy: not found",
-    "muxy: command not found",
-    "command not found: muxy",
+    "atur-term: not found",
+    "atur-term: command not found",
+    "command not found: atur-term",
 ];
 /// ssh's own words when the network or the host's sshd fails it.
 const UNREACHABLE: [&str; 8] = [
@@ -59,7 +62,7 @@ pub enum Start {
 
 /// The command a remote login shell runs to start the bridge. It runs under
 /// `sh` whatever the login shell is, and also looks in `~/.local/bin`, where
-/// the installer puts `muxy`.
+/// the installer puts `atur-term`.
 pub fn command(start: Start) -> &'static str {
     match start {
         Start::IfNeeded => r#"sh -c 'export PATH="$PATH:$HOME/.local/bin"; exec atur-term stdio'"#,
@@ -123,7 +126,7 @@ pub fn serve(
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BridgeExit {
     /// The exit status, such as 255 from ssh itself or 127 from a shell that
-    /// can't find `muxy`.
+    /// can't find `atur-term`.
     pub status: Option<i32>,
     /// The end of the transport's error output.
     pub stderr: String,
@@ -166,7 +169,7 @@ impl Client {
         let (sender, receiver) = mpsc::channel();
         let expect_offer = plan.is_some();
         thread::Builder::new()
-            .name("muxy-bridge-ready".into())
+            .name("atur-bridge-ready".into())
             .spawn(move || {
                 let _ = sender.send(ready(reader).map(|(reader, rest)| {
                     let mut reader: Box<dyn Read + Send> =
@@ -354,7 +357,7 @@ impl ReadyLine {
     fn find(&mut self) -> Option<usize> {
         self.start = self.seen[self.searched..]
             .windows(READY.len())
-            .position(|window| window == READY)
+            .position(|window| window == READY || window == LEGACY_READY)
             .map(|offset| self.searched + offset);
         self.searched = self.seen.len().saturating_sub(READY.len() - 1);
         self.start
@@ -380,7 +383,7 @@ fn explain(exit: &BridgeExit, printed: &[u8]) -> (RemoteReason, String) {
         RemoteReason::AuthenticationFailed
     } else if exit.status == Some(127) || said(&NOT_FOUND) {
         RemoteReason::NotInstalled
-    } else if said(&["muxy: unknown command"]) {
+    } else if said(&["atur-term: unknown command", "muxy: unknown command"]) {
         RemoteReason::Incompatible
     } else if said(&[NOT_RUNNING]) {
         RemoteReason::NotRunning
@@ -402,7 +405,11 @@ fn explain(exit: &BridgeExit, printed: &[u8]) -> (RemoteReason, String) {
             }
             None => "the connection closed before Atur Terminal started".into(),
         },
-        RemoteReason::BridgeFailed => last.strip_prefix("muxy: ").unwrap_or(&last).into(),
+        RemoteReason::BridgeFailed => last
+            .strip_prefix("atur-term: ")
+            .or_else(|| last.strip_prefix("muxy: "))
+            .unwrap_or(&last)
+            .into(),
         _ => last,
     };
     (reason, detail)
@@ -444,15 +451,44 @@ mod tests {
 
     #[test]
     fn the_ready_line_is_found_after_any_noise_and_keeps_later_bytes() {
-        assert_eq!(scan(&[b"MUXY-STDIO/1\n"]), Ok(vec![]));
+        assert_eq!(scan(&[b"ATUR-STDIO/1\n"]), Ok(vec![]));
         assert_eq!(
-            scan(&[b"Welcome!\nlast login\n", b"MUXY-STDIO/1\nhello"]),
+            scan(&[b"Welcome!\nlast login\n", b"ATUR-STDIO/1\nhello"]),
             Ok(b"hello".to_vec())
         );
-        assert_eq!(scan(&[b"no newline", b"MUXY-STDIO/1\n"]), Ok(vec![]));
+        assert_eq!(scan(&[b"no newline", b"ATUR-STDIO/1\n"]), Ok(vec![]));
+        assert_eq!(
+            scan(&[b"noise ATUR-", b"ST", b"DIO/", b"1", b"\nrest"]),
+            Ok(b"rest".to_vec())
+        );
+    }
+
+    #[test]
+    fn the_ready_line_of_an_older_bridge_is_accepted() {
+        assert_eq!(scan(&[b"MUXY-STDIO/1\n"]), Ok(vec![]));
+        assert_eq!(
+            scan(&[b"Welcome!\n", b"MUXY-STDIO/1\nhello"]),
+            Ok(b"hello".to_vec())
+        );
         assert_eq!(
             scan(&[b"noise MUXY-", b"ST", b"DIO/", b"1", b"\nrest"]),
             Ok(b"rest".to_vec())
+        );
+        assert_eq!(
+            scan(&[b"MUXY-STDIO/2\n"]),
+            Err(NotReady::Version(b"2".to_vec()))
+        );
+    }
+
+    #[test]
+    fn the_missing_command_is_named_by_either_binary() {
+        assert_eq!(
+            explain(&exit(Some(127), "sh: 1: exec: atur-term: not found\n"), b"").0,
+            RemoteReason::NotInstalled
+        );
+        assert_eq!(
+            explain(&exit(Some(1), "command not found: atur-term\n"), b"").0,
+            RemoteReason::NotInstalled
         );
     }
 

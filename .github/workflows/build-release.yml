@@ -4,8 +4,8 @@ name: Build release
 # arm64. Called by the "Atur Terminal release" workflow, which adds the
 # optional Intel Mac build after publishing.
 #
-# Adapted from upstream Muxy's release build. Removed: the Sparkle update for
-# Muxy 1.x, arm64 Linux, the Intel Mac build (now a non-blocking job of the
+# Adapted from the upstream release build. Removed: the Sparkle update for
+# the legacy app, arm64 Linux, the Intel Mac build (now a non-blocking job of the
 # release workflow) and the mobile SDK. macOS bundles are Developer ID signed
 # and notarized when the signing secrets exist, ad-hoc signed otherwise.
 on:

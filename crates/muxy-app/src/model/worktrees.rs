@@ -36,7 +36,7 @@ pub(crate) fn removes_worktree(action: &GitAction) -> bool {
     )
 }
 
-/// Brings Git worktrees made outside Muxy into each project, one project at a
+/// Brings Git worktrees made outside Atur Terminal into each project, one project at a
 /// time so a long sidebar never floods the server.
 #[derive(Default)]
 pub(crate) struct WorktreeSync {

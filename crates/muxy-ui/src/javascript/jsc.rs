@@ -171,7 +171,7 @@ impl Context {
         // SAFETY: Context and all its values remain on this thread. A null class uses the default global object.
         unsafe {
             let context = Self(JSGlobalContextCreate(ptr::null_mut()));
-            let name = JsString::new("__muxyNative");
+            let name = JsString::new("__aturNative");
             let callback = JSObjectMakeFunctionWithCallback(context.0, name.0, Some(dispatch));
             JSObjectSetProperty(
                 context.0,
@@ -210,10 +210,10 @@ impl Context {
         }
     }
 
-    /// Runs due timers. `__muxyTick` answers how many milliseconds remain
+    /// Runs due timers. `__aturTick` answers how many milliseconds remain
     /// until the next one; anything else means wait for input.
     fn tick(&self) -> Option<Duration> {
-        let Ok(value) = self.value("globalThis.__muxyTick?.()") else {
+        let Ok(value) = self.value("globalThis.__aturTick?.()") else {
             return Some(RETRY);
         };
         // SAFETY: The value was just produced by this context on its own thread.
@@ -305,14 +305,14 @@ mod tests {
     #[test]
     fn synchronous_host_calls_and_later_callbacks_share_the_script_context() {
         let (script, events) =
-            Script::start("globalThis.answer = JSON.parse(__muxyNative('first')).value;".into())
+            Script::start("globalThis.answer = JSON.parse(__aturNative('first')).value;".into())
                 .unwrap();
         let Event::Call(call) = events.recv_blocking().unwrap() else {
             panic!("expected host call")
         };
         assert_eq!(call.request, "first");
         call.reply.send(r#"{"ok":true,"value":42}"#.into()).unwrap();
-        script.evaluate("__muxyNative(String(answer + 1))".into());
+        script.evaluate("__aturNative(String(answer + 1))".into());
         let Event::Call(call) = events.recv_blocking().unwrap() else {
             panic!("expected callback")
         };

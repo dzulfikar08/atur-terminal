@@ -14,7 +14,7 @@ ANDROID_ABIS = ("arm64-v8a", "armeabi-v7a", "x86_64")
 
 def contents(sdk):
     """Each zip's entries as (name in the zip, built file); fails if the build is incomplete."""
-    framework = sdk / "MuxyMobile.xcframework"
+    framework = sdk / "AturMobile.xcframework"
     ios = [(path.relative_to(sdk).as_posix(), path)
            for path in sorted(framework.rglob("*")) if path.is_file()]
     ios.append(("muxy_mobile.swift", sdk / "swift/muxy_mobile.swift"))
@@ -35,13 +35,13 @@ def package(version, sdk, output):
     output.mkdir(parents=True, exist_ok=True)
     checksums = {}
     for platform, entries in zips.items():
-        name = f"muxy-mobile-{version}-{platform}.zip"
+        name = f"atur-mobile-{version}-{platform}.zip"
         with zipfile.ZipFile(output / name, "w", zipfile.ZIP_DEFLATED) as archive:
             for entry, source in entries:
                 archive.write(source, entry)
         checksums[name] = hashlib.sha256((output / name).read_bytes()).hexdigest()
     metadata = {"version": version, **build, "sha256": checksums}
-    (output / f"muxy-mobile-{version}.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    (output / f"atur-mobile-{version}.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
 
 def main():

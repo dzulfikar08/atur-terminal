@@ -78,9 +78,9 @@ def package_deb(version, arch, payload, output):
             f"Installed-Size: {(size + 1023) // 1024}\nDepends: {', '.join(dependencies)}\n"
             "Recommends: mesa-vulkan-drivers, xdg-desktop-portal-gnome | xdg-desktop-portal-kde | xdg-desktop-portal-gtk\n"
             "Homepage: https://github.com/dzulfikar08/atur-terminal\n"
-            f"Description: {name}, a terminal multiplexer based on Muxy\n"
+            f"Description: {name}, a terminal multiplexer\n"
             " Persistent terminals, projects, split panes and remote sessions.\n"
-            " Part of Atur by Joyo Digitama. Based on Muxy (MIT); can run sessions on herdr.\n"
+            " Part of Atur by Joyo Digitama. Can run sessions on herdr.\n"
             " Built for Ubuntu 24.04. Updates are managed by the package manager.\n"))
         guard = (ROOT / "packaging/linux/deb-guard.sh").read_text().replace("@PACKAGE@", package)
         for action in ("preinst", "prerm"):

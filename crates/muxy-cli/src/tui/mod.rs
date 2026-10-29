@@ -82,7 +82,7 @@ fn local_echo() -> std::result::Result<PredictMode, String> {
 
 /// With `ATUR_TERM_ECHO_STATS=FILE`, writes what happened to the local echo guesses on exit.
 fn write_echo_stats(worker: &Worker) {
-    let Some(path) = std::env::var_os("ATUR_TERM_ECHO_STATS").filter(|path| !path.is_empty())
+    let Some(path) = muxy_core::env::var_os("ATUR_TERM_ECHO_STATS").filter(|path| !path.is_empty())
     else {
         return;
     };

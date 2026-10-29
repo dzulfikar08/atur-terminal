@@ -49,7 +49,10 @@ pub(super) fn rows(
     if category == Category::Appearance && pane.matches(category, tr_key!("App language")) {
         rows.push(app_language(pane, cx));
     }
-    if category == Category::Appearance && pane.matches(category, tr_key!("More languages")) {
+    if category == Category::Appearance
+        && crate::extensions::marketplace::available()
+        && pane.matches(category, tr_key!("More languages"))
+    {
         rows.push(
             pane.row(
                 "more-languages",

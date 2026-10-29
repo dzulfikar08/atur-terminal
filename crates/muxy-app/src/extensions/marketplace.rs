@@ -10,17 +10,40 @@ use serde_json::Value;
 mod version;
 pub(crate) use version::is_update;
 
-const BASE: &str = "https://muxy.app";
+const ENVIRONMENT: &str = "ATUR_TERM_MARKETPLACE_URL";
 const MAX_ARCHIVE: u64 = 256 * 1024 * 1024;
 const MAX_EXPANDED: u64 = 512 * 1024 * 1024;
 
 type Result<T> = std::result::Result<T, String>;
 
+/// The `https` address of the marketplace this app browses, from
+/// `ATUR_TERM_MARKETPLACE_URL`. No marketplace is built in, so without it
+/// browsing and update checks are hidden.
+fn endpoint() -> Option<reqwest::Url> {
+    parse_endpoint(&std::env::var(ENVIRONMENT).ok()?)
+}
+
+fn parse_endpoint(value: &str) -> Option<reqwest::Url> {
+    let url = reqwest::Url::parse(value.trim().trim_end_matches('/')).ok()?;
+    (url.scheme() == "https" && url.host_str().is_some() && url.query().is_none()).then_some(url)
+}
+
+/// Whether a marketplace is configured.
+pub(crate) fn available() -> bool {
+    endpoint().is_some()
+}
+
+fn base() -> Result<String> {
+    endpoint()
+        .map(|url| url.as_str().trim_end_matches('/').to_owned())
+        .ok_or_else(|| tr!("The extension marketplace is not configured").to_string())
+}
+
 fn client() -> Result<reqwest::blocking::Client> {
     reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(120))
         .redirect(reqwest::redirect::Policy::none())
-        .user_agent("Muxy/2 Extensions")
+        .user_agent("AturTerminal/2 Extensions")
         .build()
         .map_err(|error| error.to_string())
 }
@@ -55,7 +78,7 @@ pub(crate) fn list(search: &str, page: u32, category: Option<&str>) -> Result<Va
     ];
     query.extend(category.map(|category| ("category", category)));
     let response = client()?
-        .get(format!("{BASE}/api/extensions"))
+        .get(format!("{}/api/extensions", base()?))
         .query(&query)
         .send()
         .map_err(|error| error.to_string())?;
@@ -63,7 +86,7 @@ pub(crate) fn list(search: &str, page: u32, category: Option<&str>) -> Result<Va
 }
 
 pub(crate) fn detail(name: &str) -> Result<Value> {
-    let mut url = reqwest::Url::parse(&format!("{BASE}/api/extensions/"))
+    let mut url = reqwest::Url::parse(&format!("{}/api/extensions/", base()?))
         .map_err(|error| error.to_string())?;
     url.path_segments_mut()
         .map_err(|()| tr!("invalid marketplace URL").to_string())?
@@ -84,9 +107,10 @@ pub(crate) fn detail(name: &str) -> Result<Value> {
 
 pub(crate) fn versions(names: &[String]) -> Result<BTreeMap<String, String>> {
     let client = client()?;
+    let base = base()?;
     versions_with(names, |batch| {
         let response = client
-            .post(format!("{BASE}/api/extensions/versions"))
+            .post(format!("{base}/api/extensions/versions"))
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header(reqwest::header::ACCEPT, "application/json")
             .body(serde_json::json!({"names":batch}).to_string())
@@ -120,9 +144,11 @@ pub(crate) fn download(details: &Value, directory: &Path) -> Result<tempfile::Te
             .ok_or_else(|| tr!("missing archive URL").to_string())?,
     )
     .map_err(|error| error.to_string())?;
+    let marketplace =
+        endpoint().ok_or_else(|| tr!("The extension marketplace is not configured").to_string())?;
     if url.scheme() != "https"
-        || url.host_str() != Some("muxy.app")
-        || url.port_or_known_default() != Some(443)
+        || url.host_str() != marketplace.host_str()
+        || url.port_or_known_default() != marketplace.port_or_known_default()
         || !url.username().is_empty()
         || url.password().is_some()
     {
@@ -359,6 +385,23 @@ mod tests {
     }
 
     #[test]
+    fn only_a_configured_https_marketplace_is_used() {
+        assert!(parse_endpoint("https://extensions.example/").is_some());
+        assert_eq!(
+            parse_endpoint(" https://extensions.example/market/ ").map(|url| url.to_string()),
+            Some("https://extensions.example/market".into())
+        );
+        for value in [
+            "",
+            "extensions.example",
+            "http://extensions.example",
+            "https://x/?a=b",
+        ] {
+            assert!(parse_endpoint(value).is_none(), "{value}");
+        }
+    }
+
+    #[test]
     fn archives_cannot_escape_staging_or_install_symlinks() {
         let root = tempfile::tempdir().unwrap();
         assert!(extract(&archive("../outside", None), root.path()).is_err());
@@ -376,7 +419,7 @@ mod tests {
         std::fs::write(
             root.join("package.json"),
             serde_json::json!({
-                "name": name, "version": version, "muxy": {}
+                "name": name, "version": version, "atur-terminal": {}
             })
             .to_string(),
         )

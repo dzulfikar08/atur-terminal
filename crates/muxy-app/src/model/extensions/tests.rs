@@ -572,7 +572,7 @@ fn background_scripts_follow_the_extension_not_the_connection(cx: &mut TestAppCo
         AppState::bootstrap().expect("state"),
     );
     wait_for(&view, cx, "background start", |model| {
-        logged(model, "ports", "[muxy] started ports v1.0.0")
+        logged(model, "ports", "[atur] started ports v1.0.0")
     });
     view.update(cx, |model, cx| model.disconnect(ServerId::local(), cx));
     view.read_with(cx, |model, _| {
@@ -592,10 +592,10 @@ fn background_scripts_follow_the_extension_not_the_connection(cx: &mut TestAppCo
     )
     .expect("refresh");
     wait_for(&view, cx, "background restart", |model| {
-        logged(model, "ports", "[muxy] started ports v1.1.0")
+        logged(model, "ports", "[atur] started ports v1.1.0")
     });
     view.read_with(cx, |model, _| {
-        assert!(logged(model, "ports", "[muxy] exited cleanly"));
+        assert!(logged(model, "ports", "[atur] exited cleanly"));
     });
     finish_extension(
         view.update(cx, |model, cx| {
@@ -763,7 +763,7 @@ fn workspace_events_reach_permitted_extension_scripts(cx: &mut TestAppContext) {
         AppState::bootstrap().expect("state"),
     );
     let (script, events) = muxy_ui::javascript::Script::start(
-        "globalThis.__muxyEvent = (name, payload) => __muxyNative(JSON.stringify({ name, payload }));"
+        "globalThis.__aturEvent = (name, payload) => __aturNative(JSON.stringify({ name, payload }));"
             .into(),
     )
     .expect("script");

@@ -28,7 +28,7 @@ function page(reply = () => null, { rootPresent = true, surface = "tab", console
   const context = vm.createContext({ document, MutationObserver, setTimeout });
   context.window = context;
   if (console) context.console = { log() {}, warn() {}, error() {} };
-  context.webkit = { messageHandlers: { muxy: { postMessage: async message => {
+  context.webkit = { messageHandlers: { atur: { postMessage: async message => {
     messages.push(JSON.parse(JSON.stringify(message)));
     return { ok: true, value: await reply(message) };
   } } } };
@@ -42,19 +42,21 @@ test('identity, initial theme/data, listener disposal and focus deduplication', 
   assert.equal(muxy.extensionID, 'test');
   assert.equal(muxy.tabInstanceID, 'instance');
   assert.equal(muxy.data.saved, true);
+  assert.equal(css.get('--atur-foreground-muted'), '#888888');
+  assert.equal(css.get('--atur-topbar-height'), '34px');
   assert.equal(css.get('--muxy-foreground-muted'), '#888888');
-  assert.equal(css.get('--muxy-topbar-height'), '34px');
+  assert.equal(context.atur, context.muxy);
   assert.equal(context.document.documentElement.style.colorScheme, 'dark');
   const changes = [], focus = [];
   const unsubscribe = muxy.onDataChange(value => changes.push(value));
   muxy.onDataChange(() => { throw Error('listener failure'); });
-  context.__muxyApplyData(2); unsubscribe(); context.__muxyApplyData(3);
+  context.__aturApplyData(2); unsubscribe(); context.__aturApplyData(3);
   assert.deepEqual(changes, [2]); assert.equal(muxy.data, 3);
   muxy.onFocus(value => focus.push(value));
-  context.__muxyApplyFocus(true); context.__muxyApplyFocus(true); context.__muxyApplyFocus(false);
+  context.__aturApplyFocus(true); context.__aturApplyFocus(true); context.__aturApplyFocus(false);
   assert.deepEqual(focus, [true, false]);
-  context.__muxyApplyTheme({ colorScheme: 'light', topbarHeight: '40px' });
-  assert.equal(css.get('--muxy-topbar-height'), '40px');
+  context.__aturApplyTheme({ colorScheme: 'light', topbarHeight: '40px' });
+  assert.equal(css.get('--atur-topbar-height'), '40px');
   assert.ok(Object.isFrozen(muxy.theme));
   assert.equal(typeof muxy.git.status, 'function'); assert.equal(typeof muxy.files.read, 'function');
 });
@@ -64,7 +66,7 @@ test('theme initialization and updates leave authored backgrounds untouched', ()
   assert.deepEqual(root.children, [authoredStyle]);
   assert.equal(root.style.backgroundColor, undefined);
   assert.equal(observers.length, 0);
-  context.__muxyApplyTheme({ background: '#fafafa', colorScheme: 'light' });
+  context.__aturApplyTheme({ background: '#fafafa', colorScheme: 'light' });
   assert.equal(root.children.length, 1);
   assert.equal(root.style.colorScheme, 'light');
 });
@@ -72,9 +74,9 @@ test('theme initialization and updates leave authored backgrounds untouched', ()
 test('a late document root receives the latest theme without waiting for DOMContentLoaded', () => {
   const { context, css, events, root, observers, attachRoot } = page(undefined, { rootPresent: false });
   assert.equal(css.size, 0);
-  context.__muxyApplyTheme({ background: '#eeeedd', colorScheme: 'light' });
+  context.__aturApplyTheme({ background: '#eeeedd', colorScheme: 'light' });
   attachRoot();
-  assert.equal(css.get('--muxy-background'), '#eeeedd');
+  assert.equal(css.get('--atur-background'), '#eeeedd');
   assert.equal(root.style.colorScheme, 'light');
   assert.equal(root.children.length, 1);
   assert.equal(events.has('DOMContentLoaded'), false);
@@ -87,33 +89,33 @@ test('a late document root receives the latest theme without waiting for DOMCont
 test('theme updates racing the root observer still disconnect it', () => {
   const { context, css, root, observers, attachRoot } = page(undefined, { rootPresent: false });
   context.document.documentElement = root;
-  context.__muxyApplyTheme({ background: '#182838', colorScheme: 'dark' });
+  context.__aturApplyTheme({ background: '#182838', colorScheme: 'dark' });
   attachRoot();
-  assert.equal(css.get('--muxy-background'), '#182838');
+  assert.equal(css.get('--atur-background'), '#182838');
   assert.equal(root.children.length, 1);
   assert.equal(observers[0].active, false);
 });
 
 for (const surface of ['tab', 'panel']) test(`${surface} close defaults, acknowledgements, async veto, errors, and unsubscribe`, async () => {
   const { context, muxy, messages } = page(undefined, { surface });
-  context.__muxyBeforeClose(1, surface, 'instance'); await settled();
+  context.__aturBeforeClose(1, surface, 'instance'); await settled();
   assert.deepEqual(messages.at(-1).args, { callID: '1', prevent: false });
   let release;
   const unsubscribe = muxy.lifecycle.onBeforeClose(info => {
     assert.equal(info.surface, surface); assert.equal(info.instanceID, 'instance');
     return new Promise(resolve => { release = resolve; });
   });
-  context.__muxyBeforeClose(2, surface, 'instance'); await settled();
+  context.__aturBeforeClose(2, surface, 'instance'); await settled();
   assert.equal(messages.at(-1).verb, 'lifecycle.ackBeforeClose');
   release({ prevent: true }); await settled();
   assert.deepEqual(messages.at(-1).args, { callID: '2', prevent: true });
-  unsubscribe(); context.__muxyBeforeClose(3, surface, 'instance'); await settled();
+  unsubscribe(); context.__aturBeforeClose(3, surface, 'instance'); await settled();
   assert.equal(messages.at(-1).args.prevent, false);
   muxy.lifecycle.onBeforeClose(() => { throw Error('broken handler'); });
-  context.__muxyBeforeClose(4, surface, 'instance'); await settled();
+  context.__aturBeforeClose(4, surface, 'instance'); await settled();
   assert.equal(messages.at(-1).args.prevent, false);
   muxy.lifecycle.onBeforeClose(() => Promise.reject(Error('rejected handler')));
-  context.__muxyBeforeClose(5, surface, 'instance'); await settled();
+  context.__aturBeforeClose(5, surface, 'instance'); await settled();
   assert.equal(messages.at(-1).args.prevent, false);
 });
 
@@ -166,7 +168,7 @@ test('panel close handlers receive their surface identity and can veto', async (
     assert.equal(instanceID, 'instance');
     return true;
   });
-  context.__muxyBeforeClose(10, 'panel', 'instance');
+  context.__aturBeforeClose(10, 'panel', 'instance');
   await settled();
   assert.deepEqual(messages.at(-1).args, {callID:'10', prevent:true});
 });
@@ -242,7 +244,7 @@ test('page modals run async onQuery handlers for each query', async () => {
     onQuery: async query => { queries.push(query); return [{ id: query, title: query.toUpperCase() }]; },
   });
   await settled();
-  await context.__muxyDeliverModalQuery('native:3', '2', 'needle', {});
+  await context.__aturDeliverModalQuery('native:3', '2', 'needle', {});
   assert.deepEqual(queries, ['needle']);
   const verbs = messages.map(message => [message.verb, message.args]);
   assert.deepEqual(verbs.slice(-2), [

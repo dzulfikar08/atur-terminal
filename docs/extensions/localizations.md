@@ -1,15 +1,14 @@
 # Localizations
 
 Atur Terminal is in English. A language pack is an extension that adds app languages.
-Users find packs with **Settings → Appearance → Browse language extensions…**
-and pick one under **App language**. Text a pack doesn't translate stays in
+Install a pack, then pick it under **App language** in **Settings → Appearance**. Text a pack doesn't translate stays in
 English.
 
 ```json
 {
-  "name": "muxy-german",
+  "name": "atur-german",
   "version": "1.0.0",
-  "muxy": {
+  "atur-terminal": {
     "localizations": [
       { "id": "de", "language": "de", "title": "Deutsch", "bundle": "localization/German.bundle" }
     ]

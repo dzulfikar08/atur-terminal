@@ -8,7 +8,7 @@ their sections.
 ## Dialogs
 
 ```js
-const choice = await muxy.dialog.confirm({
+const choice = await atur.dialog.confirm({
   title: "Delete branch?",
   message: "This can't be undone.",
   buttons: ["Delete", "Cancel"],
@@ -16,9 +16,9 @@ const choice = await muxy.dialog.confirm({
   cancel: "Cancel",
 });   // the clicked button's label, or null for the cancel button
 
-await muxy.dialog.alert({ title: "Done", message: "All tests passed" });
-const name = await muxy.dialog.prompt({ title: "Branch name", placeholder: "feature-x" });
-const folder = await muxy.dialog.pickFolder({ title: "Choose a folder" });
+await atur.dialog.alert({ title: "Done", message: "All tests passed" });
+const name = await atur.dialog.prompt({ title: "Branch name", placeholder: "feature-x" });
+const folder = await atur.dialog.pickFolder({ title: "Choose a folder" });
 ```
 
 - `confirm` takes up to three buttons. `prompt` and `pickFolder` resolve to
@@ -30,7 +30,7 @@ const folder = await muxy.dialog.pickFolder({ title: "Choose a folder" });
 A command-palette style list to choose from.
 
 ```js
-const item = await muxy.modal.open({
+const item = await atur.modal.open({
   placeholder: "Pick a branch",
   items: [{ id: "main", title: "main", subtitle: "default" }, { id: "dev", title: "dev" }],
 });   // the chosen item, or null
@@ -50,7 +50,7 @@ const item = await muxy.modal.open({
 A centered page for a custom form or flow. Needs `panels:write`.
 
 ```js
-const result = await muxy.modal.openWebview({
+const result = await atur.modal.openWebview({
   entry: "dialogs/new-item.html",
   width: 480,
   height: 320,
@@ -61,8 +61,8 @@ const result = await muxy.modal.openWebview({
 Inside the modal page:
 
 ```js
-await muxy.modal.submitWebview({ title: "My note" });   // resolves openWebview with this
-await muxy.modal.closeWebview();                         // resolves it with null
+await atur.modal.submitWebview({ title: "My note" });   // resolves openWebview with this
+await atur.modal.closeWebview();                         // resolves it with null
 ```
 
 The size is kept within 120–900 × 120–760, and results up to 256 KiB. Clicking

@@ -103,7 +103,7 @@ def package_app(directory, binaries, version, identity):
     if version == "2.0.0-beta-0":
         # Keep unstamped local builds identifiable without stamping the source checkout.
         info = bundle_info("2.0.0-beta.1", "1")
-        info.update(CFBundleVersion="0", MuxyVersion=version,
+        info.update(CFBundleVersion="0", AturVersion=version,
                     CFBundleGetInfoString=f"{APPS['beta'][0]} {version}")
     else:
         info = bundle_info(version, build_number(version))

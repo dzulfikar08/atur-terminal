@@ -153,8 +153,8 @@ fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
             part.as_os_str() == "AppTranslocation"
                 || part
                     .as_os_str()
-                    .to_string_lossy()
-                    .starts_with(".muxy-beta-update-")
+                    .to_str()
+                    .is_some_and(crate::updater::is_staging_name)
         })
         || bundle
             .file_name()
@@ -181,7 +181,7 @@ fn install_link(target: &Path, destination: &Path) -> io::Result<()> {
         .parent()
         .ok_or_else(|| io::Error::other(tr!("Missing installation directory").to_string()))?;
     fs::create_dir_all(parent)?;
-    let _lock = muxy_client::local::try_lock(&parent.join(".muxy-cli-install.lock"))?;
+    let _lock = muxy_client::local::try_lock(&parent.join(".atur-cli-install.lock"))?;
     let receipt = parent.join(".atur-term-link.json");
     let managed: Vec<Vec<u8>> = match fs::read(&receipt) {
         Ok(bytes) => serde_json::from_slice(&bytes)?,

@@ -21,7 +21,7 @@ pub enum MobileError {
     Unauthorized,
     /// The app and the server share no protocol version; update one of them.
     IncompatibleVersion,
-    /// The phone and the computer run Muxy versions that disagree on this
+    /// The phone and the computer run Atur Terminal versions that disagree on this
     /// request: the server can't do it, or answered in a form the app can't read.
     Unsupported,
     Timeout,

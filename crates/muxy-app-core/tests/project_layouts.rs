@@ -1,7 +1,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use muxy_app_core::{AppState, Axis, Layout, PaneContent, ServerId, project_layouts::Config};
-use muxy_protocol::SessionId;
+use muxy_app_core::{
+    AppState, Axis, Layout, PaneContent, ServerId,
+    project_layouts::{Config, DIRECTORY, Descriptor, LEGACY_DIRECTORY, merge},
+};
+use muxy_protocol::{ServerPath, SessionId};
 
 fn state() -> AppState {
     AppState::bootstrap().expect("state")
@@ -106,4 +109,31 @@ fn replacement_closes_only_target_references_and_cancels_pending_creations() {
         .apply_project_layout(state.home().id, &config)
         .expect("close last reference");
     assert_eq!(state.pending_discards(ServerId::local()), [session]);
+}
+
+#[test]
+fn layouts_of_earlier_releases_are_listed_after_the_current_ones() {
+    let layout = |directory: &str, name: &str| Descriptor {
+        name: name.into(),
+        path: ServerPath(format!("{directory}/{name}.yaml").into_bytes()),
+    };
+    let merged = merge(
+        vec![layout(DIRECTORY, "dev"), layout(DIRECTORY, "web")],
+        vec![
+            layout(LEGACY_DIRECTORY, "Dev"),
+            layout(LEGACY_DIRECTORY, "api"),
+        ],
+    );
+    assert_eq!(
+        merged
+            .iter()
+            .map(|layout| String::from_utf8_lossy(&layout.path.0).into_owned())
+            .collect::<Vec<_>>(),
+        [
+            ".muxy/layouts/api.yaml",
+            ".atur-terminal/layouts/dev.yaml",
+            ".atur-terminal/layouts/web.yaml"
+        ]
+    );
+    assert_eq!(DIRECTORY, ".atur-terminal/layouts");
 }

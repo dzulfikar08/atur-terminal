@@ -120,7 +120,7 @@ fn identity(bundle: &Path) -> io::Result<String> {
 fn lease_directory() -> io::Result<PathBuf> {
     let home =
         std::env::home_dir().ok_or_else(|| io::Error::other("Home directory unavailable"))?;
-    Ok(home.join("Library/Application Support/Muxy Runtime/leases"))
+    Ok(home.join("Library/Application Support/Atur Terminal Runtime/leases"))
 }
 
 fn lease_file(directory: &Path, identity: &str) -> io::Result<File> {

@@ -5,7 +5,7 @@ use muxy_protocol::ServerPath;
 fn descriptor() -> Descriptor {
     Descriptor {
         name: "dev".into(),
-        path: ServerPath(b".muxy/layouts/dev.yaml".to_vec()),
+        path: ServerPath(b".atur-terminal/layouts/dev.yaml".to_vec()),
     }
 }
 

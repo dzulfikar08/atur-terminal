@@ -145,7 +145,7 @@ impl Archive {
         let (wake, receiver) = mpsc::sync_channel(1);
         let root = directory.to_owned();
         let worker = thread::Builder::new()
-            .name("muxy-terminal-save".into())
+            .name("atur-terminal-save".into())
             .spawn(move || {
                 write_jobs(&root, &jobs, &receiver);
             })?;
@@ -617,7 +617,7 @@ mod tests {
     impl Directory {
         fn new() -> io::Result<Self> {
             let path = std::env::temp_dir().join(format!(
-                "muxy-archive-{}-{}",
+                "atur-archive-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));

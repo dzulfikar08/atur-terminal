@@ -176,7 +176,7 @@ impl AppModel {
             source: match request.gate {
                 Gate::Exec => "exec",
                 Gate::HttpFetch => "http",
-                _ => "muxy-api",
+                _ => "atur-api",
             }
             .into(),
         };

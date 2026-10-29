@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn closed_socket_cleanup_does_not_remove_its_replacement() -> io::Result<()> {
         let directory =
-            Path::new("/tmp").join(format!("muxy-socket-{}", muxy_protocol::OperationId::new()));
+            Path::new("/tmp").join(format!("atur-socket-{}", muxy_protocol::OperationId::new()));
         fs::create_dir(&directory)?;
         let path = directory.join("server.sock");
         for _ in 0..32 {

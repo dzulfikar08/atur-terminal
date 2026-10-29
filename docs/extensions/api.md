@@ -1,13 +1,13 @@
 # API Reference
 
-Atur Terminal injects a `muxy` object into extension code. On pages, most calls return
+Atur Terminal injects a `atur-terminal` object into extension code. On pages, most calls return
 a Promise. In scripts and background scripts, most calls are synchronous.
 Exceptions are noted where they apply, such as `execAsync`, which returns a
 handle whose `result` you await.
 
 ```js
-const tabs = await muxy.tabs.list();   // page
-const tabs = muxy.tabs.list();         // script or background
+const tabs = await atur.tabs.list();   // page
+const tabs = atur.tabs.list();         // script or background
 ```
 
 Most calls need a [permission](permissions.md). Errors throw (or reject) with
@@ -53,8 +53,8 @@ their `clear` functions.
 ## Running programs
 
 ```js
-const result = await muxy.exec(["git", "status", "--short"], { cwd: "src" });
-const result = await muxy.exec({ shell: "ls | wc -l" });
+const result = await atur.exec(["git", "status", "--short"], { cwd: "src" });
+const result = await atur.exec({ shell: "ls | wc -l" });
 // { stdout, stderr, exitCode, timedOut, truncated }
 ```
 
@@ -70,10 +70,10 @@ const result = await muxy.exec({ shell: "ls | wc -l" });
 A small key-value store per extension, kept after uninstall.
 
 ```js
-await muxy.storage.set("count", 3);
-await muxy.storage.get("count");   // 3, or null
-await muxy.storage.delete("count");
-await muxy.storage.keys();         // sorted keys
+await atur.storage.set("count", 3);
+await atur.storage.get("count");   // 3, or null
+await atur.storage.delete("count");
+await atur.storage.keys();         // sorted keys
 ```
 
 Values are JSON, up to 1 MiB each and 5 MiB in total.

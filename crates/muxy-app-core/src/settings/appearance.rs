@@ -56,7 +56,9 @@ pub enum AgentsPanelDock {
 )]
 pub struct Appearance {
     pub layout: AppLayout,
+    #[serde(deserialize_with = "theme_name")]
     pub dark_theme: String,
+    #[serde(deserialize_with = "theme_name")]
     pub light_theme: String,
     pub sidebar_expanded: bool,
     pub sidebar_vibrancy: bool,
@@ -88,12 +90,25 @@ pub struct Appearance {
     pub agents_panel_grouping: AgentsPanelGrouping,
 }
 
+/// The bundled themes' names before the rename keep resolving: a stored
+/// `Atur Terminal` or `Atur Terminal Light` reads as `Atur` or `Atur Light`.
+fn theme_name<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<String, D::Error> {
+    let name = String::deserialize(deserializer)?;
+    Ok(match name.as_str() {
+        "Muxy" => "Atur".into(),
+        "Muxy Light" => "Atur Light".into(),
+        _ => name,
+    })
+}
+
 impl Default for Appearance {
     fn default() -> Self {
         Self {
             layout: AppLayout::default(),
-            dark_theme: "Muxy".into(),
-            light_theme: "Muxy Light".into(),
+            dark_theme: "Atur".into(),
+            light_theme: "Atur Light".into(),
             sidebar_expanded: false,
             sidebar_vibrancy: true,
             sidebar_vibrancy_level: 50,
@@ -296,10 +311,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn stored_names_of_the_renamed_bundled_themes_read_as_the_new_names() -> Result<()> {
+        let appearance: Appearance =
+            toml::from_str("dark_theme = \"Muxy\"\nlight_theme = \"Muxy Light\"")?;
+        assert_eq!(appearance.dark_theme, "Atur");
+        assert_eq!(appearance.light_theme, "Atur Light");
+        let other: Appearance = toml::from_str("dark_theme = \"Dracula\"")?;
+        assert_eq!(other.dark_theme, "Dracula");
+        Ok(())
+    }
+
+    #[test]
     fn worktree_visibility_defaults_and_independent_saved_choices() -> Result<()> {
         let first = crate::ProjectId::new();
         let second = crate::ProjectId::new();
-        let directory = std::env::temp_dir().join(format!("muxy-worktree-visibility-{first}"));
+        let directory = std::env::temp_dir().join(format!("atur-worktree-visibility-{first}"));
         let path = directory.join("settings.toml");
         let initial = Appearance::load(&path)?;
         assert!(initial.hidden_worktrees.is_empty());

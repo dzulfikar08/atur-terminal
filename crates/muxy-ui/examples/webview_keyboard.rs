@@ -57,7 +57,7 @@ mod probe {
             );
             unsafe {
                 let mut class =
-                    ClassBuilder::new(c"MuxyKeyboardProbeApp", app_class).expect("app class");
+                    ClassBuilder::new(c"AturKeyboardProbeApp", app_class).expect("app class");
                 class.add_method(
                     objc2::sel!(keyWindow),
                     key_window as extern "C-unwind" fn(_, _) -> _,
@@ -70,7 +70,7 @@ mod probe {
                     Retained::as_ptr(&app).cast_mut().cast(),
                     class.register(),
                 );
-                let mut class = ClassBuilder::new(c"MuxyKeyboardProbeWindow", window_class)
+                let mut class = ClassBuilder::new(c"AturKeyboardProbeWindow", window_class)
                     .expect("window class");
                 class.add_method(
                     objc2::sel!(isKeyWindow),

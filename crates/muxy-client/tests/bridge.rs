@@ -20,6 +20,11 @@ const TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Returns the client's end of a bridge that prints `printed` first.
 fn bridge(printed: &'static [u8]) -> TestResult<UnixStream> {
+    bridge_with_ready(printed, b"ATUR-STDIO/1\n")
+}
+
+/// Like [`bridge`], with the ready line the bridge prints.
+fn bridge_with_ready(printed: &'static [u8], ready: &'static [u8]) -> TestResult<UnixStream> {
     let (client, mut remote) = UnixStream::pair()?;
     let (bridge, server) = UnixStream::pair()?;
     let (events, receiver) = mpsc::channel();
@@ -37,7 +42,7 @@ fn bridge(printed: &'static [u8]) -> TestResult<UnixStream> {
     });
     thread::spawn(move || -> std::io::Result<()> {
         remote.write_all(printed)?;
-        remote.write_all(b"MUXY-STDIO/1\n")?;
+        remote.write_all(ready)?;
         relay(Box::new(bridge), remote.try_clone()?, remote)
     });
     Ok(client)
@@ -73,10 +78,21 @@ fn a_bridge_behind_shell_noise_carries_the_protocol() -> TestResult {
 }
 
 #[test]
+fn a_bridge_of_an_older_build_with_the_previous_ready_line_carries_the_protocol() -> TestResult {
+    let client = connect(
+        bridge_with_ready(b"Welcome to box!\n", b"MUXY-STDIO/1\n")?,
+        BridgeExit::default(),
+    )?;
+    client.ping()?;
+    assert_eq!(client.list_sessions()?, vec![]);
+    Ok(())
+}
+
+#[test]
 fn a_bridge_of_another_version_is_incompatible_rather_than_a_hang() -> TestResult {
     let (client, mut remote) = UnixStream::pair()?;
     remote.set_read_timeout(Some(TIMEOUT))?;
-    remote.write_all(b"MUXY-STDIO/2\n")?;
+    remote.write_all(b"ATUR-STDIO/2\n")?;
     let reason = remote_error(connect(client, BridgeExit::default()))?;
     assert_eq!(reason, RemoteReason::Incompatible);
     assert_eq!(remote.read(&mut [0; 64])?, 0);

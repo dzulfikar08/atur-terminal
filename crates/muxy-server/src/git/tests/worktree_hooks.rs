@@ -2,9 +2,13 @@ use super::*;
 use muxy_protocol::{WorktreeHook, WorktreeOptions};
 
 fn configure(repo: &Repo, setup: &[&str], teardown: &[&str]) {
-    std::fs::create_dir_all(repo.path.join(".muxy")).unwrap();
+    configure_in(repo, ".atur-terminal", setup, teardown);
+}
+
+fn configure_in(repo: &Repo, directory: &str, setup: &[&str], teardown: &[&str]) {
+    std::fs::create_dir_all(repo.path.join(directory)).unwrap();
     std::fs::write(
-        repo.path.join(".muxy/worktree.json"),
+        repo.path.join(directory).join("worktree.json"),
         serde_json::to_vec(&serde_json::json!({"setup": setup, "teardown": teardown})).unwrap(),
     )
     .unwrap();
@@ -100,7 +104,7 @@ fn worktree_hooks_use_the_source_config_environment_order_and_run_once() {
         "globalproject"
     );
     // The source project config is used, even when it wasn't committed into the worktree.
-    assert!(!target.join(".muxy/worktree.json").exists());
+    assert!(!target.join(".atur-terminal/worktree.json").exists());
     let removal = remove_request(&repo, project.id, Some(preview(&repo, true)));
     repo.registry.git(&removal).unwrap();
     repo.registry.git(&removal).unwrap();
@@ -127,7 +131,7 @@ fn worktree_hooks_are_opt_in_and_changed_approval_is_rejected_before_creation() 
     );
     assert!(!repo.path.join("nested").exists());
     // Even invalid repository-owned configuration cannot force execution or block an opt-out.
-    std::fs::write(repo.path.join(".muxy/worktree.json"), "invalid").unwrap();
+    std::fs::write(repo.path.join(".atur-terminal/worktree.json"), "invalid").unwrap();
     let GitReply::Project(project) = repo.registry.git(&create_request(&repo, None)).unwrap()
     else {
         panic!("project")
@@ -218,4 +222,19 @@ fn worktree_recovery_does_not_repeat_an_interrupted_hook() {
         std::fs::read_to_string(path(&project.directory).join("attempts")).unwrap(),
         "x"
     );
+}
+
+#[test]
+fn project_hooks_are_read_from_the_folder_earlier_builds_used() {
+    let repo = Repo::new(true);
+    configure_in(&repo, ".muxy", &["touch legacy"], &[]);
+    let hooks = preview(&repo, false);
+    assert_eq!(hooks.len(), 1);
+    assert_eq!(hooks[0].command, "touch legacy");
+    assert!(hooks[0].project);
+
+    configure(&repo, &["touch current"], &[]);
+    let hooks = preview(&repo, false);
+    assert_eq!(hooks.len(), 1);
+    assert_eq!(hooks[0].command, "touch current");
 }

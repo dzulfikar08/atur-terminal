@@ -176,7 +176,7 @@ fn a_certificate_other_than_the_pinned_one_is_an_identity_mismatch() -> Result {
 }
 
 #[test]
-fn peers_that_do_not_negotiate_the_muxy_protocol_are_rejected() -> Result {
+fn peers_that_do_not_negotiate_the_protocol_are_rejected() -> Result {
     let identity = identity()?;
     let listener = listen(&identity)?;
     for protocols in [Vec::new(), vec![b"http/1.1".to_vec()]] {
@@ -192,7 +192,7 @@ fn peers_that_do_not_negotiate_the_muxy_protocol_are_rejected() -> Result {
         let mut tcp = TcpStream::connect(listener.local_addr())?;
         tcp.set_read_timeout(Some(TIMEOUT))?;
         let mut connection =
-            rustls::ClientConnection::new(Arc::new(config), "muxy.invalid".try_into()?)?;
+            rustls::ClientConnection::new(Arc::new(config), "atur.invalid".try_into()?)?;
         while connection.is_handshaking() {
             if connection.complete_io(&mut tcp).is_err() {
                 break;
@@ -200,6 +200,31 @@ fn peers_that_do_not_negotiate_the_muxy_protocol_are_rejected() -> Result {
         }
         assert!(server.recv_timeout(TIMEOUT)?.is_err());
     }
+    Ok(())
+}
+
+#[test]
+fn a_peer_of_an_earlier_build_that_negotiates_only_the_previous_name_is_accepted() -> Result {
+    let identity = identity()?;
+    let listener = listen(&identity)?;
+    let server = accept_one(&listener);
+    let mut config = rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_protocol_versions(&[&rustls::version::TLS13])?
+    .dangerous()
+    .with_custom_certificate_verifier(Arc::new(AnyCertificate))
+    .with_no_client_auth();
+    config.alpn_protocols = vec![b"muxy/1".to_vec()];
+    let mut tcp = TcpStream::connect(listener.local_addr())?;
+    tcp.set_read_timeout(Some(TIMEOUT))?;
+    let mut connection =
+        rustls::ClientConnection::new(Arc::new(config), "atur.invalid".try_into()?)?;
+    while connection.is_handshaking() {
+        connection.complete_io(&mut tcp)?;
+    }
+    assert_eq!(connection.alpn_protocol(), Some(&b"muxy/1"[..]));
+    assert!(server.recv_timeout(TIMEOUT)?.is_ok());
     Ok(())
 }
 

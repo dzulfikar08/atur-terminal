@@ -53,7 +53,7 @@ impl GitRepository {
         )
     }
 
-    /// Adds a worktree made outside Muxy, at its absolute `directory`.
+    /// Adds a worktree made outside Atur Terminal, at its absolute `directory`.
     pub fn register_worktree(&self, directory: String) -> Result<Project, MobileError> {
         let root = self.root()?;
         self.add_worktree(

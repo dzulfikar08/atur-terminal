@@ -56,7 +56,7 @@ for ARCH in arm64 x86_64; do
     DEB_PACKAGE=atur-terminal
     [[ "$CHANNEL" != beta ]] || DEB_PACKAGE=atur-terminal-beta
     ASSETS+=("${DEB_PACKAGE}_${VERSION}_${DEB_ARCH}.deb")
-    # A beta may skip Intel; a stable release is also how Intel Macs leave the legacy Muxy 1.x updater.
+    # A beta may skip Intel; a stable release is also how Intel Macs leave the legacy updater.
     if [[ "$CHANNEL" == beta && "$ARCH" == x86_64 && ! -e "AturTerminal-${VERSION}-${ARCH}.dmg" && ! -e "atur-terminal-${VERSION}-macos-${ARCH}.zip" ]]; then
         continue
     fi
@@ -66,13 +66,13 @@ for ARCH in arm64 x86_64; do
     fi
 done
 if [[ "$CHANNEL" == stable ]]; then
-    # Legacy Muxy 1.x builds from before per-architecture feeds read appcast.xml.
+    # Legacy builds from before per-architecture feeds read appcast.xml.
     if [[ -f appcast-arm64.xml ]]; then
         cp appcast-arm64.xml appcast.xml
     fi
     ASSETS+=(appcast.xml)
 fi
-ASSETS+=("muxy-mobile-${VERSION}-ios.zip" "muxy-mobile-${VERSION}-android.zip" "muxy-mobile-${VERSION}.json")
+ASSETS+=("atur-mobile-${VERSION}-ios.zip" "atur-mobile-${VERSION}-android.zip" "atur-mobile-${VERSION}.json")
 for ASSET in "${ASSETS[@]}"; do
     if [[ ! -f "$ASSET" || ! -s "$ASSET" || -L "$ASSET" ]]; then
         echo "Error: missing regular release asset: $ASSET" >&2
@@ -100,7 +100,7 @@ if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
         exit 0
     fi
 else
-    # RELEASE_NOTES, when given, replaces the generated notes. Otherwise, like upstream Muxy: GitHub's
+    # RELEASE_NOTES, when given, replaces the generated notes. Otherwise, like the upstream project: GitHub's
     # generated changes, cleaned. A beta lists the changes since the previous beta; a stable
     # release lets GitHub choose the previous release.
     NOTES_ARGS=(-f "tag_name=$TAG" -f "target_commitish=$SOURCE")

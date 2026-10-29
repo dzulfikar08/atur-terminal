@@ -1,6 +1,6 @@
 [package]
 name = "muxy-ui"
-description = "Reusable GPUI components for Muxy"
+description = "Reusable GPUI components for Atur Terminal"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

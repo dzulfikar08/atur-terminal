@@ -46,7 +46,7 @@ impl Drop for PromptConfirmation {
 define_class!(
     #[unsafe(super(NSPanel))]
     #[thread_kind = MainThreadOnly]
-    #[name = "MuxyPromptPanel"]
+    #[name = "AturPromptPanel"]
     #[ivars = Cell<bool>]
     #[derive(Debug)]
     struct PromptPanel;
@@ -125,7 +125,7 @@ define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
     #[ivars = PromptState]
-    #[name = "MuxyPromptTarget"]
+    #[name = "AturPromptTarget"]
     struct PromptTarget;
 
     unsafe impl NSObjectProtocol for PromptTarget {}

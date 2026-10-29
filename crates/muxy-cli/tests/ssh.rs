@@ -210,7 +210,7 @@ fn the_bridge_alone_starts_the_server_announces_itself_and_ends_with_stdin() -> 
     let remote = FakeRemote::new()?;
     let output = remote.muxy(&["stdio"]).stdin(Stdio::null()).output()?;
     assert!(output.status.success(), "{output:?}");
-    assert_eq!(output.stdout, b"MUXY-STDIO/1\n");
+    assert_eq!(output.stdout, b"ATUR-STDIO/1\n");
     assert!(output.stderr.is_empty(), "{output:?}");
     assert!(remote.socket().exists());
     Ok(())

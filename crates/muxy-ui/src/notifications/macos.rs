@@ -20,7 +20,7 @@ use super::Event;
 
 define_class!(
     #[unsafe(super(NSObject))]
-    #[name = "MuxyNotificationDelegate"]
+    #[name = "AturNotificationDelegate"]
     #[ivars = Sender<Event>]
     #[derive(Debug)]
     struct Delegate;

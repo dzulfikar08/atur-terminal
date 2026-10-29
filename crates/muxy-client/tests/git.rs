@@ -20,7 +20,7 @@ impl Drop for Directory {
 #[test]
 fn git_round_trips_while_slow_hooks_leave_control_requests_responsive() -> TestResult {
     let directory =
-        Directory(std::env::temp_dir().join(format!("muxy-git-client-{}", OperationId::new())));
+        Directory(std::env::temp_dir().join(format!("atur-git-client-{}", OperationId::new())));
     std::fs::create_dir(&directory.0)?;
     for args in [
         vec!["init", "-b", "main"],

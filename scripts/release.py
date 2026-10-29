@@ -158,7 +158,7 @@ def bundle_info(version, build):
         "CFBundleShortVersionString": version.split("-")[0],
         "CFBundleVersion": build,
         "CFBundleGetInfoString": f"{name} {version}",
-        "MuxyVersion": version,
+        "AturVersion": version,
         "LSMinimumSystemVersion": "14.0",
         "LSApplicationCategoryType": "public.app-category.developer-tools",
         "NSHighResolutionCapable": True,

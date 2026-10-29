@@ -40,7 +40,7 @@ pub enum RemoteReason {
     AuthenticationFailed,
     /// The host can't be resolved or reached.
     Unreachable,
-    /// The remote shell can't find `muxy`.
+    /// The remote shell can't find `atur-term`.
     NotInstalled,
     /// No server runs there, and this connection must not start one.
     NotRunning,
@@ -52,14 +52,14 @@ pub enum RemoteReason {
     BridgeFailed,
     /// The bridge didn't answer in time.
     Timeout,
-    /// The other computer runs a Muxy whose bridge this build can't use.
+    /// The other computer runs an Atur Terminal whose bridge this build can't use.
     Incompatible,
 }
 
 impl RemoteReason {
     /// Whether connecting again may work without the user's help. The network
     /// or the other computer can recover, but a refused login, an untrusted
-    /// host key, or a missing or incompatible Muxy can't, and repeated failed
+    /// host key, or a missing or incompatible Atur Terminal can't, and repeated failed
     /// logins can get this computer blocked.
     pub fn recoverable(self) -> bool {
         matches!(self, Self::Unreachable | Self::Timeout | Self::BridgeFailed)

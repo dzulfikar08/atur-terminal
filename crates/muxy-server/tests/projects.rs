@@ -15,7 +15,7 @@ const SIZE: Size = Size { cols: 80, rows: 24 };
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Result<Self> {
-        let path = std::env::temp_dir().join(format!("muxy-catalog-{}", ProjectId::new()));
+        let path = std::env::temp_dir().join(format!("atur-catalog-{}", ProjectId::new()));
         fs::create_dir(&path)?;
         Ok(Self(path))
     }

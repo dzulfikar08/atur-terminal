@@ -7,7 +7,7 @@ use super::{AppModel, ConnectionState, ProjectStatus, Quitting};
 use crate::views::command_palette::Handler;
 
 #[derive(Clone, PartialEq, gpui::Action)]
-#[action(namespace = muxy, no_json)]
+#[action(namespace = atur, no_json)]
 pub(crate) struct RunCustomCommand {
     pub id: String,
 }

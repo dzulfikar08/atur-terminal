@@ -202,17 +202,8 @@ impl Github {
             .clone()
             .filter(|branch| {
                 *branch == pr.head_branch
-                    || run(
-                        repository,
-                        &[
-                            "config",
-                            "--get",
-                            &format!("branch.{branch}.muxy-pr-number"),
-                        ],
-                    )
-                    .ok()
-                    .and_then(|bytes| text(&bytes).ok())
-                    .is_some_and(|value| value == number.to_string())
+                    || super::pull_request_number(repository, branch)
+                        .is_some_and(|value| value == number.to_string())
             })
             .ok_or_else(|| {
                 error(format!(
@@ -612,7 +603,7 @@ impl Github {
             repository,
             &[
                 "config",
-                &format!("branch.{branch}.muxy-pr-number"),
+                &super::pull_request_key(&branch),
                 &number.to_string(),
             ],
         )?;
@@ -648,18 +639,9 @@ fn current_branch(repository: &Path) -> Result<Option<CurrentBranch>> {
     let (Some(branch), Some(head)) = (summary.branch, summary.head) else {
         return Ok(None);
     };
-    let number = run(
-        repository,
-        &[
-            "config",
-            "--get",
-            &format!("branch.{branch}.muxy-pr-number"),
-        ],
-    )
-    .ok()
-    .and_then(|bytes| text(&bytes).ok())
-    .and_then(|value| value.parse::<u64>().ok())
-    .filter(|number| *number > 0);
+    let number = super::pull_request_number(repository, &branch)
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|number| *number > 0);
     Ok(Some(CurrentBranch {
         branch,
         head,

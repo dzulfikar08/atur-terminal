@@ -23,7 +23,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Result<Self, Box<dyn Error>> {
         let root = std::env::temp_dir().join(format!(
-            "muxy-session-archive-{}-{}",
+            "atur-session-archive-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

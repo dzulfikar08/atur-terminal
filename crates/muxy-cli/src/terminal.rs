@@ -64,7 +64,7 @@ impl Events {
         let stop = Arc::clone(&events.stop);
         events.reader = Some(
             thread::Builder::new()
-                .name("muxy-tui-host-input".into())
+                .name("atur-tui-host-input".into())
                 .spawn(move || {
                     while !stop.load(Ordering::Acquire) {
                         let event = match event::poll(Duration::from_millis(16)) {

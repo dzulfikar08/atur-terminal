@@ -93,7 +93,12 @@ impl AppModel {
                 cx,
             );
             view.extensions = Some(extensions.clone());
-            view.set_backup_pending(self.path.with_file_name("pending-import.muxy").exists());
+            view.set_backup_pending(
+                self.path
+                    .parent()
+                    .and_then(crate::backup::pending_path)
+                    .is_some(),
+            );
             view
         });
         let weak = cx.weak_entity();

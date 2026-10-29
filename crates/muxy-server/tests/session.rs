@@ -92,7 +92,7 @@ fn programs_read_the_pane_size_in_pixels_from_the_pty() -> TestResult {
 }
 
 fn fixture(name: &str) -> Result<Fixture, Box<dyn Error>> {
-    let directory = env::temp_dir().join(format!("muxy-server-core-{}-{name}", process::id()));
+    let directory = env::temp_dir().join(format!("atur-server-core-{}-{name}", process::id()));
     fs::create_dir_all(&directory)?;
     let (sender, events) = channel();
     let settings = ServerSettings {

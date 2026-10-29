@@ -27,7 +27,7 @@ pub(crate) struct Runtime {
     pub(super) stopping: bool,
     /// What kind of failure `error` is, when ssh or the bridge said.
     pub(super) failure: Option<muxy_client::RemoteReason>,
-    /// Installing Muxy there, at the user's request.
+    /// Installing Atur Terminal there, at the user's request.
     pub(super) install: Option<super::remote_servers::Install>,
     /// How the worker reaches another computer.
     pub(super) target: Option<SshTarget>,
@@ -284,7 +284,7 @@ impl AppModel {
             .is_none_or(ServerId::is_local)
     }
 
-    /// The Muxy version the server runs, once it connected.
+    /// The Atur Terminal version the server runs, once it connected.
     pub(crate) fn server_version(&self, server: ServerId) -> Option<&str> {
         self.servers
             .get(server)

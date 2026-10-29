@@ -115,7 +115,7 @@ Deleting always asks first and explains what will end.
 
 ## Project layouts
 
-Named layouts live in `.muxy/layouts/` inside a project or worktree. Use YAML,
+Named layouts live in `.atur-terminal/layouts/` inside a project or worktree. Use YAML,
 YML, or JSON files; the filename is the layout's name. Choose **Apply Layout…**
 from the project menu or the layout button in the top bar. Layouts are never
 applied automatically. Confirmation replaces that project's tabs in this app;

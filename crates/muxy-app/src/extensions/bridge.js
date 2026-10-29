@@ -28,7 +28,7 @@
   muxy.exec = (argvOrOptions, maybeOptions) => dispatch('exec', execPayload(argvOrOptions, maybeOptions));
   let sequence = 0;
   const jobs = new Map();
-  globalThis.__muxyResolveExec = (id, reply) => {
+  globalThis.__aturResolveExec = (id, reply) => {
     const job = jobs.get(id);
     if (!job) return;
     jobs.delete(id);
@@ -44,7 +44,7 @@
     muxy.execAsync = (argvOrOptions, maybeOptions) => {
       const id = String(++sequence);
       const result = new Promise((resolve, reject) => jobs.set(id, { resolve, reject }));
-      const fail = error => globalThis.__muxyResolveExec(id, { ok: false, error: error.message || String(error), cancelled: error.message === 'cancelled' });
+      const fail = error => globalThis.__aturResolveExec(id, { ok: false, error: error.message || String(error), cancelled: error.message === 'cancelled' });
       try {
         Promise.resolve(dispatch('exec.start', { ...execPayload(argvOrOptions, maybeOptions), id })).catch(fail);
       } catch (error) { fail(error); }
@@ -239,7 +239,7 @@
       try { handler(item == null ? null : item); } catch (error) { console.error(error); }
     }
   };
-  globalThis.__muxyDeliverModalQuery = (requestID, queryID, query, options) => {
+  globalThis.__aturDeliverModalQuery = (requestID, queryID, query, options) => {
     const emit = batch => dispatch('modal.feed', { items: normalizeModalItems(batch), queryID });
     const finish = () => dispatch('modal.finish', { queryID });
     try {
@@ -307,7 +307,7 @@
   };
   if (background) {
     const handlers = new Map();
-    globalThis.__muxyEvent = (name, payload) => {
+    globalThis.__aturEvent = (name, payload) => {
       for (const handler of [...(handlers.get(name) || [])]) {
         try { handler(payload); } catch (error) { console.error(error); }
       }
@@ -340,7 +340,7 @@
       unhandle(action) { delete remote[String(action)]; },
     };
   }
-  globalThis.__muxyHasCallbacks = () => jobs.size > 0 || Object.keys(modalResultHandlers).length > 0 || Object.keys(modalQueryHandlers).length > 0 || Object.keys(modalWebviewResultHandlers).length > 0;
+  globalThis.__aturHasCallbacks = () => jobs.size > 0 || Object.keys(modalResultHandlers).length > 0 || Object.keys(modalQueryHandlers).length > 0 || Object.keys(modalWebviewResultHandlers).length > 0;
   for (const value of Object.values(muxy)) if (value && typeof value === 'object') Object.freeze(value);
   for (const value of [muxy.git.branch, muxy.git.tag, muxy.git.pr, muxy.git.worktree]) Object.freeze(value);
   return muxy;

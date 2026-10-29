@@ -65,12 +65,12 @@ flowchart LR
 ## Worktrees
 
 New Worktree has a name, a new or existing branch, and Default, Template, or
-Folder location choices. Worktrees default to `~/.muxy/worktrees/<project>/<name>`.
+Folder location choices. Worktrees default to `~/.atur-terminal/worktrees/<project>/<name>`.
 Settings → General sets the global location; each project remembers its choice. Templates support `{branch}`, `{base-dir}`, and `{project-name}`.
 
 Optional setup and teardown commands come from the source project's
-`.muxy/worktree.json` and `$XDG_CONFIG_HOME/muxy/worktree.json` (by default,
-`~/.config/muxy/worktree.json`):
+`.atur-terminal/worktree.json` and `$XDG_CONFIG_HOME/atur-terminal/worktree.json` (by default,
+`~/.config/atur-terminal/worktree.json`):
 
 ```json
 { "setup": ["npm ci"], "teardown": ["docker compose down"] }
@@ -109,7 +109,7 @@ stop.
   the terminal.
 - **Settings → Appearance → App language** picks the interface language. English
   is built in; other languages come from language-pack extensions, the same ones
-  made for Muxy 1.x. Untranslated text stays English, and while the chosen pack is
+  made for 1.x. Untranslated text stays English, and while the chosen pack is
   unavailable Atur Terminal shows English.
 - Server settings, such as the shell and history size, apply to this
   computer's server. `atur-term --host` changes another computer's. Stopping or
@@ -121,7 +121,7 @@ stop.
   copy in `Backups`. Existing projects are kept; matching projects receive the
   saved layouts. Server settings take effect after restarting the server.
 - Import supported 1.x settings and local projects from the installed app, a
-  `.muxy` backup, or `settings.json`. Unsupported options are listed before import.
+  `.aturbackup` backup, or `settings.json`. Unsupported options are listed before import.
   A 1.x import adds to what is already there: existing projects, tabs, and
   workspaces are kept. A profile with no projects or workspaces yet imports the
   installed 1.x automatically, once, including its extensions. Profiles chosen
@@ -157,7 +157,7 @@ ends.
 - **Extensions.** Add tabs, panels, a sidebar, toolbar and status bar items,
   shortcuts, and background scripts. They are managed in Settings → Extensions,
   declare their permissions, and ask before sensitive actions. Most extensions
-  made for Muxy 1.x work unchanged; see the
+  made for 1.x work unchanged; see the
   [compatibility limits](../extensions/get-started.md#coming-from-1x).
 - **Git and AI.** For Git projects, the footer shows the branch and changes,
   commits and pushes with an AI-written message, and creates or manages pull

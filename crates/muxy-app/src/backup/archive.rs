@@ -10,6 +10,9 @@ use serde_json::Value;
 use super::{Files, MAX_BYTES, MAX_FILE_BYTES, ROOTS, Restore};
 
 const MAX_FILES: usize = 8192;
+const CONFIGURATION_FORMAT: &str = "atur.configuration";
+/// The `format` earlier releases wrote into backups; still imported.
+const LEGACY_CONFIGURATION_FORMAT: &str = "muxy.configuration";
 
 fn safe_name(name: &str) -> bool {
     !name.is_empty()
@@ -121,7 +124,7 @@ pub(super) fn write(destination: &Path, files: &Files, restore: Restore) -> Resu
     archive.write_all(&serde_json::to_vec_pretty(&serde_json::json!({
         "schemaVersion": 2,
         "appVersion": env!("CARGO_PKG_VERSION"),
-        "format": "muxy.configuration",
+        "format": CONFIGURATION_FORMAT,
         "complete": restore == Restore::Complete,
         "merge": restore == Restore::Merge,
         "files": files.keys().collect::<Vec<_>>(),
@@ -161,7 +164,13 @@ pub(super) fn read(source: &Path) -> Result<(Files, bool, Restore)> {
     };
     let legacy = match manifest["schemaVersion"].as_u64() {
         Some(1) => true,
-        Some(2) if manifest["format"].as_str() == Some("muxy.configuration") => false,
+        Some(2)
+            if manifest["format"].as_str().is_some_and(|format| {
+                [CONFIGURATION_FORMAT, LEGACY_CONFIGURATION_FORMAT].contains(&format)
+            }) =>
+        {
+            false
+        }
         _ => {
             return Err(failure(&tr!(
                 "This backup format is not supported by this version of Atur Terminal"

@@ -6,43 +6,30 @@
 
 <p align="center">A terminal multiplexer for developers and AI coding agents: persistent sessions, split panes, projects, remote servers. Part of <strong>Atur</strong> by Joyo Digitama.</p>
 
-Atur Terminal is a fork of [Muxy](https://github.com/muxy-app/muxy) (MIT), built with Rust, GPUI and
-libghostty. Terminal sessions can also run on [herdr](https://github.com/herdrdev/herdr) (Apache-2.0),
-which it uses as an external process; see [the herdr backend](docs/tech/herdr-backend.md).
-It is not affiliated with or endorsed by the Muxy or herdr projects.
+Atur Terminal is built with Rust, GPUI and libghostty. Terminal sessions can also run on
+[herdr](https://github.com/herdrdev/herdr) (Apache-2.0), which it uses as an external process; see
+[the herdr backend](docs/tech/herdr-backend.md). It is not affiliated with or endorsed by the herdr
+project.
 
-## What changed from Muxy, and what did not
+## Names and paths
 
-**Renamed:** the app, window and product name ("Atur Terminal"), the macOS bundle
-(`Atur Terminal.app`, id `com.joyodigitama.atur-terminal`, executables `atur-terminal`, `atur-term` and
-`atur-term-server` in `Contents/MacOS`), Linux desktop entries and window class (same id), the
-binaries (`atur-terminal` desktop app, `atur-term` CLI, `atur-term-server`), every environment
-variable (`MUXY_*` is now `ATUR_TERM_*`, for example `ATUR_TERM_DIR`), the data directory
-(`~/.local/state/atur-terminal` on Linux, `~/Library/Application Support/Atur Terminal` on macOS; beta
-and dev builds use `-beta`/`-dev` or ` Beta`/` Dev` variants), package and asset names
-(`AturTerminal-*`, `atur-terminal_*.deb`, `atur-terminal-*` archives), the install script
-(`install-atur-terminal.sh`), menus, dialogs, CLI messages, the About screen (with the "Based on
-Muxy" and herdr credits), and the update feed (`dzulfikar08/atur-terminal` releases).
+The macOS bundle is `Atur Terminal.app` (id `com.joyodigitama.atur-terminal`, executables
+`atur-terminal`, `atur-term` and `atur-term-server` in `Contents/MacOS`); Linux desktop entries use the
+same id. Environment variables are `ATUR_TERM_*` (for example `ATUR_TERM_DIR`). The data directory is
+`~/.local/state/atur-terminal` on Linux and `~/Library/Application Support/Atur Terminal` on macOS
+(beta and dev builds use `-beta`/`-dev` or ` Beta`/` Dev` variants). Project-level files live in
+`.atur-terminal/` (`layouts`, `worktree.json`, `worktrees`), user-level files in
+`~/.config/atur-terminal`, and backups use the `.aturbackup` extension. Older project folders,
+backups, extensions and pair links keep working: the previous names are read as a fallback, and new
+files are always written under the Atur names.
 
-**Migration:** on first start, if the new data directory does not exist and the matching Muxy one
-does (`muxy`, `muxy-beta`, `muxy-dev` on Linux; `Muxy 2`, `Muxy Beta`, `Muxy Dev` on macOS), Atur
-Terminal copies `server.toml`, `catalog.json`, `remote.json`, `backend.toml` and `herdr.json` from
-it. The old directory is never modified or moved, and sessions, sockets, logs and locks are not
-copied. Nothing is copied when `ATUR_TERM_DIR` is set. Because the socket now lives in the new
-directory, **stock Muxy clients no longer find an Atur Terminal server**; the wire protocol itself
-is unchanged. Scripts and tools that used the `muxy*` binaries or `MUXY_*` variables must be
-updated.
+On first start, if the new data directory does not exist and an older install's directory does,
+Atur Terminal copies `server.toml`, `catalog.json`, `remote.json`, `backend.toml` and `herdr.json`
+from it. The old directory is never modified or moved, and sessions, sockets, logs and locks are not
+copied. Nothing is copied when `ATUR_TERM_DIR` is set.
 
-**Left unchanged ("kept for compatibility"):** Cargo crate and package names (`muxy-*`) and Rust
-identifiers, the project-level `.muxy/` directory (`.muxy/layouts`, `.muxy/worktree.json`),
-`~/.muxy/worktrees`, `~/.config/muxy/*` extension and hook paths, the `.muxy` backup file
-extension, the `"muxy"` key in extension `package.json` manifests, the `com.muxy.app` and
-`app.muxy.*` defaults-domain keys used to import old Muxy settings, the "Muxy" and "Muxy Light"
-theme names, the `Muxy 1.x` legacy import strings, and the license and notice attributions
-("Based on Muxy").
-
-**Icon:** Muxy's logos and icons were removed. `packaging/macos/AppIcon.png` is a neutral
-placeholder (a terminal prompt on a dark tile), not final artwork.
+**Icon:** `packaging/macos/AppIcon.png` is a neutral placeholder (a terminal prompt on a dark
+tile), not final artwork.
 
 ## Install
 
@@ -58,7 +45,7 @@ against `SHA256SUMS`.
 | CLI and server only, macOS | `atur-terminal-<version>-macos-<arch>.zip` |
 
 See [Getting started](docs/user-guide/getting-started.md) for the Linux installers, the install script
-and upgrading from Muxy.
+and upgrading from an earlier install.
 
 ### macOS: Gatekeeper
 
@@ -88,9 +75,8 @@ DMG instead. The Intel build is made on a native Intel runner after the release 
 git tag atur-v2.2.0-1 && git push origin atur-v2.2.0-1
 ```
 
-The workflows were adapted from Muxy's. Developer ID signing and notarization of the macOS builds
-run when the signing secrets are configured. The Sparkle update for Muxy 1.x, Homebrew and Discord
-publishing, arm64 Linux and the mobile SDK were removed.
+Developer ID signing and notarization of the macOS builds run when the signing secrets are
+configured.
 
 ## Build from source
 
@@ -110,4 +96,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [docs](docs/README.md).
   agent-detection manifests are adapted under Apache-2.0; see
   `crates/muxy-server/src/detection/THIRD_PARTY.md` and `LICENSE-herdr`.
 
-Based on Muxy by the Muxy contributors. herdr by its contributors.
+Based on [Muxy](https://github.com/muxy-app/muxy) (MIT) by the Muxy contributors. herdr by its
+contributors.

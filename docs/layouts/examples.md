@@ -1,6 +1,6 @@
 # Layout Examples
 
-Save any of these in a project's `.muxy/layouts/` folder.
+Save any of these in a project's `.atur-terminal/layouts/` folder.
 
 ## `side-by-side.yaml`
 

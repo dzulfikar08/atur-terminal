@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn mappings_survive_a_reopen() {
         let dir = std::env::temp_dir().join(format!(
-            "muxy-herdr-store-{}",
+            "atur-herdr-store-{}",
             getrandom::u64().unwrap_or(1)
         ));
         fs::create_dir_all(&dir).expect("directory");

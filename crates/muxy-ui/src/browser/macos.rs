@@ -1,6 +1,6 @@
 //! A web page in a pane: a polybrowser view inside the same native host as
 //! extension pages, so it follows its pane, hides under app content, and
-//! shares the keyboard with Muxy's shortcuts.
+//! shares the keyboard with Atur Terminal's shortcuts.
 
 use std::cell::Cell;
 use std::ffi::c_void;

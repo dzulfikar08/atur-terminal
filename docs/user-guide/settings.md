@@ -98,7 +98,7 @@ colors the app and its terminals.
 
 ## Backup and restore
 
-- **Export…** saves a `.muxy` file with your settings, `terminal.toml`, themes,
+- **Export…** saves a `.aturbackup` file with your settings, `terminal.toml`, themes,
   server settings, extension preferences, remote server list, and local
   projects with their layouts.
 - **Choose file…** under **Restore backup** restores on the next launch. Atur Terminal
@@ -107,10 +107,10 @@ colors the app and its terminals.
 - Backups never include running terminals, paired phones, extension packages,
   remote projects, or project files.
 
-## Import from Muxy 1.x
+## Import from 1.x
 
-**Import installed 1.x** reads Muxy 1.x's settings from this Mac. **Choose
-file…** takes a 1.x `.muxy` backup or `settings.json`. Atur Terminal imports supported
+**Import installed 1.x** reads the 1.x app's settings from this Mac. **Choose
+file…** takes a 1.x `.aturbackup` or `.muxy` backup or `settings.json`. Atur Terminal imports supported
 settings, shortcuts, custom commands, local projects, workspaces, worktrees, and
 terminal tabs, and lists what it skipped. Projects, tabs, and workspaces you
 already have are kept. **Import installed 1.x** also brings the default shell

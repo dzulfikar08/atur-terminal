@@ -199,7 +199,7 @@ impl Passwords {
         std::fs::set_permissions(&self.socket, std::fs::Permissions::from_mode(0o600))?;
         let answers = Arc::clone(&self.answers);
         std::thread::Builder::new()
-            .name("muxy-askpass".into())
+            .name("atur-askpass".into())
             .spawn(move || {
                 for stream in listener.incoming().flatten() {
                     let _ = respond(stream, &answers);

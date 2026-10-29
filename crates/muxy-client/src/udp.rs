@@ -2,7 +2,7 @@
 //! over encrypted UDP, bootstrapped through ssh the way mosh does.
 //!
 //! The client asks the bridge for UDP (`atur-term stdio --udp`). After its
-//! ready line the bridge prints one more line, `MUXY-UDP/1 {json}`, naming a
+//! ready line the bridge prints one more line, `ATUR-UDP/1 {json}`, naming a
 //! port and a one-time secret it generated, and waits on ssh and on the UDP
 //! port at once. The client sends a first packet to that port at the host ssh
 //! connected to. If an authentic answer comes within a few seconds, the
@@ -23,7 +23,9 @@ use muxy_protocol::transport::{self, ByteStream};
 
 use crate::ClientError;
 
-const OFFER: &str = "MUXY-UDP/";
+const OFFER: &str = "ATUR-UDP/";
+/// What bridges of older builds start the offer line with.
+const LEGACY_OFFER: &str = "MUXY-UDP/";
 const OFFER_VERSION: &str = "1";
 /// Longest offer line the client accepts.
 const MAX_OFFER: usize = 1024;
@@ -68,9 +70,8 @@ impl UdpSettings {
     /// `ATUR_TERM_UDP_HOST`.
     #[must_use]
     pub fn from_environment(mut self) -> Self {
-        if let Some(ports) = std::env::var("ATUR_TERM_UDP_PORTS")
-            .ok()
-            .and_then(|text| parse_ports(&text))
+        if let Some(ports) =
+            muxy_core::env::var("ATUR_TERM_UDP_PORTS").and_then(|text| parse_ports(&text))
         {
             self.ports = ports;
         }
@@ -80,8 +81,7 @@ impl UdpSettings {
         if let Some(seconds) = seconds_from("ATUR_TERM_UDP_TIMEOUT") {
             self.client_idle = seconds;
         }
-        if let Some(host) = std::env::var("ATUR_TERM_UDP_HOST")
-            .ok()
+        if let Some(host) = muxy_core::env::var("ATUR_TERM_UDP_HOST")
             .map(|host| host.trim().to_owned())
             .filter(|host| !host.is_empty())
         {
@@ -92,7 +92,7 @@ impl UdpSettings {
 
     /// Whether `ATUR_TERM_UDP` asks for UDP.
     pub fn requested_by_environment() -> bool {
-        std::env::var("ATUR_TERM_UDP").is_ok_and(|value| {
+        muxy_core::env::var("ATUR_TERM_UDP").is_some_and(|value| {
             matches!(
                 value.trim().to_ascii_lowercase().as_str(),
                 "1" | "on" | "true" | "yes" | "udp" | "auto"
@@ -102,7 +102,7 @@ impl UdpSettings {
 }
 
 fn seconds_from(variable: &str) -> Option<Duration> {
-    let seconds: u64 = std::env::var(variable).ok()?.trim().parse().ok()?;
+    let seconds: u64 = muxy_core::env::var(variable)?.trim().parse().ok()?;
     (seconds > 0).then(|| Duration::from_secs(seconds))
 }
 
@@ -193,7 +193,11 @@ pub(crate) fn read_offer(reader: &mut impl Read) -> io::Result<Offer> {
 fn parse_offer(line: &str) -> Offer {
     let malformed =
         || Offer::Unavailable("the server sent a UDP offer this build cannot read".into());
-    let Some(rest) = line.trim().strip_prefix(OFFER) else {
+    let line = line.trim();
+    let Some(rest) = line
+        .strip_prefix(OFFER)
+        .or_else(|| line.strip_prefix(LEGACY_OFFER))
+    else {
         return malformed();
     };
     let (version, body) = rest.split_once(' ').unwrap_or((rest, ""));
@@ -438,8 +442,9 @@ mod tests {
         let refused = read_offer(&mut Cursor::new(unavailable_line("no ports\u{7}"))).unwrap();
         assert!(matches!(refused, Offer::Unavailable(reason) if reason == "no ports"));
         for line in [
-            "MUXY-UDP/1 {\"port\":0,\"key\":\"x\"}\n",
-            "MUXY-UDP/1 {\"port\":70000,\"key\":\"x\"}\n",
+            "ATUR-UDP/1 {\"port\":0,\"key\":\"x\"}\n",
+            "ATUR-UDP/1 {\"port\":70000,\"key\":\"x\"}\n",
+            "ATUR-UDP/1 not json\n",
             "MUXY-UDP/1 not json\n",
             "hello\n",
         ] {
@@ -447,12 +452,39 @@ mod tests {
             assert!(matches!(parsed, Offer::Unavailable(_)), "{line}");
         }
         assert!(matches!(
-            parse_offer("MUXY-UDP/9 {}"),
+            parse_offer("ATUR-UDP/9 {}"),
             Offer::Unavailable(reason) if reason.contains("version 9")
         ));
         let long = vec![b'a'; MAX_OFFER + 10];
         assert!(read_offer(&mut Cursor::new(long)).is_err());
-        assert!(read_offer(&mut Cursor::new(b"MUXY-UDP/1".to_vec())).is_err());
+        assert!(read_offer(&mut Cursor::new(b"ATUR-UDP/1".to_vec())).is_err());
+    }
+
+    #[test]
+    fn an_offer_from_an_older_bridge_is_read() {
+        let secret = Secret::generate().unwrap();
+        let line = String::from_utf8(offer_line(60123, &secret))
+            .unwrap()
+            .replacen(OFFER, LEGACY_OFFER, 1);
+        assert!(line.starts_with("MUXY-UDP/1 "));
+        match read_offer(&mut Cursor::new(line.into_bytes())).unwrap() {
+            Offer::Available {
+                port,
+                secret: parsed,
+            } => {
+                assert_eq!(port, 60123);
+                assert_eq!(parsed, secret);
+            }
+            Offer::Unavailable(reason) => panic!("{reason}"),
+        }
+        assert!(matches!(
+            parse_offer("MUXY-UDP/0 no ports"),
+            Offer::Unavailable(reason) if reason == "no ports"
+        ));
+        assert!(matches!(
+            parse_offer("ATUR-UDP/0 no ports"),
+            Offer::Unavailable(reason) if reason == "no ports"
+        ));
     }
 
     #[test]

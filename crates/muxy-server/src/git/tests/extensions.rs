@@ -470,7 +470,7 @@ fn github_detects_only_open_prs_from_every_lookup() {
                     .unwrap();
                 run(
                     &repo.path,
-                    &["config", "branch.pr/42/main.muxy-pr-number", "42"],
+                    &["config", "branch.pr/42/main.atur-pr-number", "42"],
                 )
                 .unwrap();
             }

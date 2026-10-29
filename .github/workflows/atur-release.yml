@@ -135,7 +135,7 @@ jobs:
             echo
             echo "**macOS:** the app is signed with a Developer ID Application certificate and notarized by Apple, so it opens normally after you copy it to Applications."
             echo
-            echo "Binaries are \`atur-terminal\` (desktop), \`atur-term\` (CLI) and \`atur-term-server\`; environment variables are \`ATUR_TERM_*\`. On first start the server copies settings and projects from an existing Muxy data directory and leaves that directory untouched. The wire protocol is unchanged, but stock Muxy clients look for a different socket path."
+            echo "Binaries are \`atur-terminal\` (desktop), \`atur-term\` (CLI) and \`atur-term-server\`; environment variables are \`ATUR_TERM_*\`. On first start the server copies settings and projects from an earlier install's data directory and leaves that directory untouched."
           } > notes.md
       - name: Create the draft release, upload every asset and publish
         run: |

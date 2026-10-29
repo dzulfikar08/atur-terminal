@@ -49,7 +49,7 @@ impl Boot {
         let migration = crate::backup::migrate_installed(profile).unwrap_or_else(|error| {
             Some(
                 tr!(
-                    "Muxy 1.x was not imported. Try again from Settings → Backup & Restore. %@",
+                    "Atur Terminal 1.x was not imported. Try again from Settings → Backup & Restore. %@",
                     error.to_string()
                 )
                 .to_string(),
@@ -549,7 +549,7 @@ pub(crate) fn worker(
     let event_sender = sender.clone();
     let mut requests = requests::Requests::new()?;
     thread::Builder::new()
-        .name("muxy-app-client".into())
+        .name("atur-app-client".into())
         .spawn(move || {
             let mut client: Option<Client> = None;
             let mut generation = 0;
@@ -742,7 +742,7 @@ fn start_connect(
 ) -> Vec<Update> {
     let (target, worker) = (target.clone(), worker.clone());
     let spawned = thread::Builder::new()
-        .name("muxy-app-connect".into())
+        .name("atur-app-connect".into())
         .spawn(move || {
             let connection = connect(&target, generation, &worker, after_update);
             if let Err(mpsc::SendError((_, Work::Connected(connection)))) =
@@ -787,7 +787,7 @@ fn connect(
         .ok_or_else(|| std::io::Error::other("client events already taken"))?;
     let sender = sender.clone();
     thread::Builder::new()
-        .name("muxy-app-events".into())
+        .name("atur-app-events".into())
         .spawn(move || {
             for event in events {
                 if sender.send((generation, Work::Event(event))).is_err() {
@@ -816,7 +816,7 @@ fn open_connection(
 ) {
     let (target, failed) = (target.clone(), reply.clone());
     let spawned = thread::Builder::new()
-        .name("muxy-app-connect".into())
+        .name("atur-app-connect".into())
         .spawn(move || {
             let connection = target
                 .connect()

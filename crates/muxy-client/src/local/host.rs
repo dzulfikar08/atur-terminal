@@ -70,7 +70,7 @@ pub(super) fn spawn(app: &Path, arguments: &[OsString]) -> io::Result<()> {
     }))?;
     let process = spawn_disclaimed(&argv, &environment)?;
     thread::Builder::new()
-        .name("muxy-server-host-wait".into())
+        .name("atur-server-host-wait".into())
         .spawn(move || wait(process))?;
     Ok(())
 }

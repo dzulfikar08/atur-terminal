@@ -13,7 +13,7 @@ own, with its own layout.
 ## Install
 
 - **With the desktop app:** choose **Install Command Line Tool…** from the app
-  menu. It links `~/.local/bin/muxy` to the copy inside the app.
+  menu. It links `~/.local/bin/atur-term` to the copy inside the app.
 - **On its own:** see [Getting started](../user-guide/getting-started.md#cli-and-server-only).
 
 Make sure `~/.local/bin` is on your `PATH`.

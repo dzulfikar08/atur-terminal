@@ -129,7 +129,7 @@ fn output_parent(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
 }
 
 pub(crate) fn init() -> Option<Session> {
-    let parent = output_parent(std::env::var_os("ATUR_TERM_PROFILE"))?;
+    let parent = output_parent(muxy_core::env::var_os("ATUR_TERM_PROFILE"))?;
     match start(&parent) {
         Ok(session) => Some(session),
         Err(error) => {
@@ -143,8 +143,10 @@ pub(crate) fn init() -> Option<Session> {
 }
 
 fn start(parent: &Path) -> io::Result<Session> {
-    let bypass = std::env::var_os("ATUR_TERM_PROFILE_ROW_CACHE").is_some_and(|value| value == "0");
-    let mode = capture::StackMode::parse(std::env::var_os("ATUR_TERM_PROFILE_STACKS").as_deref())?;
+    let bypass =
+        muxy_core::env::var_os("ATUR_TERM_PROFILE_ROW_CACHE").is_some_and(|value| value == "0");
+    let mode =
+        capture::StackMode::parse(muxy_core::env::var_os("ATUR_TERM_PROFILE_STACKS").as_deref())?;
     let capture = capture::Capture::new(parent, bypass, mode)?;
     PROFILE
         .set(Profile::new(bypass))
@@ -153,7 +155,7 @@ fn start(parent: &Path) -> io::Result<Session> {
     let (finished, done) = std::sync::mpsc::channel();
     let directory = capture.directory.clone();
     if let Err(error) = std::thread::Builder::new()
-        .name("muxy-profiler".into())
+        .name("atur-profiler".into())
         .spawn(move || {
             if let Some(profile) = PROFILE.get() {
                 collect(capture, profile, &receiver, &finished);

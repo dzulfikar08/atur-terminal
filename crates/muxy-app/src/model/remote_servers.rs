@@ -19,9 +19,9 @@ pub(crate) struct RemoteServer {
     pub(crate) status: ServerStatus,
     /// Why it isn't connected, when it failed.
     pub(crate) error: Option<String>,
-    /// Muxy isn't installed there.
+    /// Atur Terminal isn't installed there.
     pub(crate) missing: bool,
-    /// Muxy there can't talk to this app.
+    /// Atur Terminal there can't talk to this app.
     pub(crate) incompatible: bool,
     pub(crate) install: Option<Install>,
 }
@@ -53,7 +53,7 @@ impl PendingRemote {
     }
 }
 
-/// Installing Muxy on a remote server.
+/// Installing Atur Terminal on a remote server.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Install {
     Running,
@@ -73,7 +73,7 @@ pub(super) fn install_command(version: &str) -> String {
     crate::remote_install::Source::Release(version.into()).command()
 }
 
-/// The command that replaces Muxy on another computer with this release.
+/// The command that replaces Atur Terminal on another computer with this release.
 pub(crate) fn update_command(version: &str) -> String {
     format!(
         "curl -fsSL {}/install-atur-terminal.sh | sh -s -- --version {version} --tag {} --replace",
@@ -82,11 +82,11 @@ pub(crate) fn update_command(version: &str) -> String {
     )
 }
 
-/// Prints the version of Muxy installed there, found as the bridge finds it.
+/// Prints the version of Atur Terminal installed there, found as the bridge finds it.
 const VERSION_COMMAND: &str =
     "sh -c 'export PATH=\"$PATH:$HOME/.local/bin\"; exec atur-term --version'";
 
-/// Why Muxy on another computer can't talk to this app, and how to fix it.
+/// Why Atur Terminal on another computer can't talk to this app, and how to fix it.
 /// `there` is the version installed there, when it could be read. When it is
 /// this app's own, the server still running there is an older one.
 pub(crate) fn incompatible_guidance(name: &str, there: Option<&str>) -> String {
@@ -138,7 +138,7 @@ pub(crate) struct DeviceForm {
     pub(crate) password_login: bool,
     /// Reaches the server over encrypted UDP, with ssh as the fallback.
     pub(crate) udp: bool,
-    /// Kept in memory until Muxy quits, so connecting doesn't ask; empty
+    /// Kept in memory until Atur Terminal quits, so connecting doesn't ask; empty
     /// asks when connecting.
     pub(crate) password: String,
 }
@@ -249,7 +249,7 @@ pub(crate) enum ConnectionTest {
     Installing,
     NotInstalled(String),
     InstallFailed(String),
-    /// It connected; this is the server's Muxy version.
+    /// It connected; this is the server's Atur Terminal version.
     Succeeded(String),
     Failed(String),
 }
@@ -699,7 +699,7 @@ impl AppModel {
         .detach();
     }
 
-    /// Copies the command that updates Muxy on an incompatible server.
+    /// Copies the command that updates Atur Terminal on an incompatible server.
     pub(crate) fn copy_update_command(&mut self, cx: &mut Context<Self>) {
         if let Some(version) = released_version() {
             cx.write_to_clipboard(gpui::ClipboardItem::new_string(update_command(version)));
@@ -755,7 +755,7 @@ impl AppModel {
         }
     }
 
-    /// Keeps a typed password until Muxy quits, then connects with it.
+    /// Keeps a typed password until Atur Terminal quits, then connects with it.
     pub(crate) fn remember_password(
         &mut self,
         server: ServerId,

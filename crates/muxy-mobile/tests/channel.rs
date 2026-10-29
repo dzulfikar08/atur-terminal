@@ -104,7 +104,7 @@ impl Remote {
         });
         thread::spawn(move || -> std::io::Result<()> {
             remote_stdout.write_all(&noise)?;
-            remote_stdout.write_all(b"MUXY-STDIO/1\n")?;
+            remote_stdout.write_all(b"ATUR-STDIO/1\n")?;
             relay(Box::new(bridge), stdin, remote_stdout)
         });
         let feeding = Arc::clone(&channel);
@@ -222,11 +222,11 @@ fn a_phone_uses_a_server_over_ssh_as_it_would_when_paired() -> TestResult {
 }
 
 #[test]
-fn a_computer_without_muxy_is_named_and_the_channel_closed() -> TestResult {
+fn a_computer_without_atur_term_is_named_and_the_channel_closed() -> TestResult {
     let fed = fed()?;
     fed.channel.receive(b"Welcome to box!\n".to_vec());
     fed.channel
-        .receive_error(b"sh: 1: exec: muxy: not found\n".to_vec());
+        .receive_error(b"sh: 1: exec: atur-term: not found\n".to_vec());
     fed.channel.finish(Some(127));
     let error =
         Connection::connect_channel(Arc::clone(&fed.channel), "dev@box".into(), listener().0)

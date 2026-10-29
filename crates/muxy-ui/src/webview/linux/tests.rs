@@ -30,7 +30,7 @@ pub(super) fn alone() -> MutexGuard<'static, ()> {
 
 /// The page's own script: `post` sends a request and resolves with its
 /// answer, and `tell` sends one without waiting.
-const SCRIPT: &str = "window.post=body=>window.webkit.messageHandlers.muxy.postMessage(body);\
+const SCRIPT: &str = "window.post=body=>window.webkit.messageHandlers.atur.postMessage(body);\
                       window.tell=(verb,value)=>{post({verb,value}).catch(()=>{})};";
 
 struct Fixture {
@@ -290,7 +290,7 @@ fn a_page_cannot_open_a_window_or_write_the_clipboard_on_its_own() {
 #[ignore = "needs a desktop session"]
 fn a_frame_cannot_use_the_page_s_bridge() {
     let _alone = alone();
-    let frame = "<script>window.webkit.messageHandlers.muxy.postMessage({verb:'forged'})\
+    let frame = "<script>window.webkit.messageHandlers.atur.postMessage({verb:'forged'})\
                  .then(()=>parent.postMessage('answered','*'),\
                  error=>parent.postMessage(String(error.message||error),'*'))</script>";
     let mut fixture = Fixture::new(&[(

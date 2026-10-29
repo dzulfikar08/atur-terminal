@@ -69,7 +69,7 @@ mod tests {
     fn native_trash_preserves_file_content() -> Result<()> {
         let workspace = crate::files::tests::Workspace::new();
         let path = workspace.path.join(format!(
-            "muxy-trash-test-{}",
+            "atur-trash-test-{}",
             muxy_protocol::OperationId::new()
         ));
         std::fs::write(&path, "recoverable").map_err(error)?;

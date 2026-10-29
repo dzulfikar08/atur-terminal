@@ -635,7 +635,7 @@ impl AppModel {
         }
     }
 
-    /// Keystrokes a focused page hands back to the app: Muxy's own, the
+    /// Keystrokes a focused page hands back to the app: Atur Terminal's own, the
     /// browser's, and find.
     fn browser_shortcuts(&mut self) -> Rc<Vec<gpui::Keystroke>> {
         use muxy_core::shortcuts::{ALL, ShortcutSettings};

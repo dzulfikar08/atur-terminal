@@ -62,7 +62,7 @@ pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<A
             tr_key!("Offline voice model"),
             view.field("composer-voice-model"),
         ));
-        rows.push(view.note(&tr!("Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under muxy/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish."), false).into_any_element());
+        rows.push(view.note(&tr!("Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under atur-terminal/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish."), false).into_any_element());
     }
     rows
 }

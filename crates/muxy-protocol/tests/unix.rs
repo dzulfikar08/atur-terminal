@@ -197,7 +197,7 @@ impl SocketPath {
     fn new() -> io::Result<Self> {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let directory = env::temp_dir().join(format!(
-            "muxy-t-{}-{}",
+            "atur-t-{}-{}",
             process::id(),
             NEXT_ID.fetch_add(1, Ordering::Relaxed)
         ));

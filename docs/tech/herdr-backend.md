@@ -52,7 +52,7 @@ process or bytes go to herdr; everything else is the existing server code.
 | `Authenticate`, `IdentifyClient`, `Ping`, remote access, pairing (`Paired`, `RemoteAccess`, `Pairing`) | atur-term-server, unchanged |
 | `ReadCatalog`, `MutateProject`, `ListProjectSessions`, `CancelCreation` | atur-term-server catalog, unchanged |
 | `ListSessions` | atur-term-server session table; sessions are adopted from herdr at start |
-| `CreateSession` | herdr: `workspace.create` (first session of a project) or `tab.create`, with the project directory, `ATUR_TERM_*` environment and a tab label `muxy-<id>`; then a control stream |
+| `CreateSession` | herdr: `workspace.create` (first session of a project) or `tab.create`, with the project directory, `ATUR_TERM_*` environment and a tab label `atur-<id>`; then a control stream |
 | `Attach`, `Detach`, `Resize` (+ `ScreenFrame`, `FrameAck`, `Snapshot`, `Resized`) | atur-term-server owner. The first attach opens herdr's control stream and is answered when its first frame has painted the owner's terminal; the last detach closes the stream after 5 s. Resize goes to the control stream (`terminal.resize`) while it is open and is applied when it opens otherwise |
 | `WriteInput`, `Input`, `TerminalInput`, `Paste` | atur-term-server encodes keys. Bytes go to `terminal.input` while the stream is open and to `pane.send_text` otherwise (no stream is opened for input alone). Pastes are always bracketed because herdr re-wraps for the application's own mode |
 | `Mouse` | `terminal.mouse` / `terminal.scroll` on the control stream |
@@ -116,7 +116,7 @@ herdr itself renders only the panes a client views. `atur-term-server` does the 
 | Atur Terminal | herdr |
 |---|---|
 | `ProjectId` | one herdr workspace, created with the first session of the project (label = project name). Stored in `herdr.json` and recovered from the panes of adopted sessions |
-| `SessionId` (u64) | one tab labelled `muxy-<top 32 bits of the id, hex>` holding one pane; the pane's `terminal_id` is stored in `herdr.json` |
+| `SessionId` (u64) | one tab labelled `atur-<top 32 bits of the id, hex>` holding one pane; the pane's `terminal_id` is stored in `herdr.json` |
 | Session size | owned by Atur Terminal: the control stream attaches with `--takeover` at the client's size and `terminal.resize` follows every `Resize` |
 
 herdr numbers terminals afresh after a server restart and **re-mints terminal ids on a live handoff**
@@ -169,7 +169,7 @@ the Atur Terminal catalog remembers, and a running control stream follows its pa
 
 ## Measurements
 
-Lab: `muxy-fork-dist/lab-herdr` (isolated user-level sshd, delay proxy, stock `atur-term` TUI over ssh, omp-like
+Lab: `atur-fork-dist/lab-herdr` (isolated user-level sshd, delay proxy, stock `atur-term` TUI over ssh, omp-like
 workload). `patched` is the 2.2.0-latency-ckpt build; `herdr` is this branch with herdr 0.9.5.
 
 CPU, % of one core, mean of 2 reps, 30 s windows, N concurrent omp-like sessions. "watching" is how many

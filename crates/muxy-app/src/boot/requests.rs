@@ -15,7 +15,7 @@ pub(super) struct Requests {
 impl Requests {
     pub(super) fn new() -> std::io::Result<Self> {
         Ok(Self {
-            pool: WorkerPool::new("muxy-app-requests", 1, 1)?,
+            pool: WorkerPool::new("atur-app-requests", 1, 1)?,
             queued: VecDeque::new(),
             running: false,
         })

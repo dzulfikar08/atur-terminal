@@ -35,8 +35,8 @@ sequenceDiagram
     C->>S: ssh host "atur-term stdio --udp ..."
     S->>R: start
     R->>D: connect (local socket)
-    R-->>C: MUXY-STDIO/1
-    R-->>C: MUXY-UDP/1 {"port":60417,"key":"…"}
+    R-->>C: ATUR-STDIO/1
+    R-->>C: ATUR-UDP/1 {"port":60417,"key":"…"}
     C->>R: UDP: sealed hello, repeated until answered
     R-->>C: UDP: sealed answer
     Note over C,S: UDP works: ssh is dropped
@@ -45,7 +45,7 @@ sequenceDiagram
 ```
 
 - **Bootstrap.** The client runs the bridge with `--udp`. After its ready line the
-  bridge prints `MUXY-UDP/1 {"port":N,"key":K}`: a random port from its range and
+  bridge prints `ATUR-UDP/1 {"port":N,"key":K}`: a random port from its range and
   a fresh 256-bit secret. ssh authenticated the host and the user, and carries
   the secret to the client; nothing else does.
 - **Address.** The client sends to the host `ssh -G` resolves for the destination,
@@ -62,7 +62,7 @@ sequenceDiagram
   protocol bytes arrive on ssh, closes its UDP port, and serves ssh as before.
   Whichever path carries the first byte wins, so neither side can be left on a
   different transport than the other. A bridge that cannot bind a port says so
-  in its offer (`MUXY-UDP/0 reason`) and serves ssh at once. A server too old
+  in its offer (`ATUR-UDP/0 reason`) and serves ssh at once. A server too old
   to know `--udp` rejects the flag, and the client retries without it.
 
 ## Security
@@ -112,7 +112,7 @@ checks each of the properties below.
 | Congestion window | NewReno-like, never below 16 packets | On a link that loses packets at random, collapsing the window starves the terminal for nothing |
 | Pacing | Twice the window per round trip, with a burst of four | Spares a router's queue |
 | Heartbeat | A client sends one every 2 s when idle, every quarter second once the server has been silent for longer | Keeps a NAT mapping open, tells the server where the client is and when it is gone |
-| Flow control | The receiver advertises free buffer; the writer blocks when the send buffer is full | The muxy server's own window sees back-pressure instead of memory growing |
+| Flow control | The receiver advertises free buffer; the writer blocks when the send buffer is full | The server's own window sees back-pressure instead of memory growing |
 
 The simulator's one-way delivery times for 16-byte messages (150 and 400 ms mean
 one-way delay):
@@ -157,7 +157,7 @@ server's window and merging already give "latest wins" without that, as long as
 the stream under it recovers quickly.
 
 A custom stream costs about two thousand lines and a simulator. In return it
-works with the muxy server unchanged, needs no TLS certificates, no X.509 or ALPN
+works with the Atur Terminal server unchanged, needs no TLS certificates, no X.509 or ALPN
 negotiation, and no extra handshake round trip.
 
 ## Measurements
@@ -192,7 +192,7 @@ showing output produced after that.
   round trip (741 ms for a mean of 800, since jitter helps the quicker echoes).
 - Recovery on ssh was 8 to 12 s in these runs, and 26 s in another at 800 ms: TCP's
   retransmit timer had backed off by the time the link returned. On UDP it is
-  the round trip plus a probe, plus the muxy server's own round trip to hand out
+  the round trip plus a probe, plus the Atur Terminal server's own round trip to hand out
   the next frame once the stale ones are acknowledged. Five runs at 800 ms
   gave 1.5, 1.7, 1.9, 2.2 and 2.3 s, median 1.9 s; at 300 ms 0.7 s.
 - At 50 ms with no loss UDP costs nothing: the same echo, and a connection that

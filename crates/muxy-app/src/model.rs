@@ -864,7 +864,7 @@ impl AppModel {
         true
     }
 
-    /// Adds the projects, tabs, and workspaces Muxy 1.x had to the running
+    /// Adds the projects, tabs, and workspaces Atur Terminal 1.x had to the running
     /// app, and returns how many projects and workspaces that added. What is
     /// already here stays as it is.
     pub(crate) fn import_legacy_projects(
@@ -2846,7 +2846,7 @@ mod tests {
     ) -> (Boot, std::sync::mpsc::Receiver<(u64, Work)>, Remotes) {
         let (work, requests) = std::sync::mpsc::channel();
         let (_, updates) = async_channel::unbounded();
-        let directory = std::env::temp_dir().join(format!("muxy-app-restore-{}", ProjectId::new()));
+        let directory = std::env::temp_dir().join(format!("atur-app-restore-{}", ProjectId::new()));
         let remotes = Remotes::default();
         let started = Rc::clone(&remotes);
         let workers = crate::boot::Workers::with(move |server, _| {

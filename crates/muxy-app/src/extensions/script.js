@@ -1,6 +1,6 @@
 ((owner, makeAPI, options = {}) => {
   const dispatch = (verb, args = {}) => {
-    const reply = JSON.parse(__muxyNative(JSON.stringify({ verb, args })));
+    const reply = JSON.parse(__aturNative(JSON.stringify({ verb, args })));
     if (reply?.ok) return reply.value;
     throw new Error(reply?.error || 'extension API error');
   };
@@ -14,7 +14,8 @@
   globalThis.console = Object.fromEntries([['log', 'log'], ['warn', 'warn'], ['error', 'err']].map(([method, level]) => [method, (...args) => {
     dispatch('console', { level, message: args.map(format).join(' ') });
   }]));
-  globalThis.muxy = Object.freeze(makeAPI(dispatch, { owner, surface: options.surface || 'script' }));
+  // `muxy` stays for extensions written before the rename.
+  globalThis.atur = globalThis.muxy = Object.freeze(makeAPI(dispatch, { owner, surface: options.surface || 'script' }));
   let next = 0;
   const timers = new Map();
   const schedule = (callback, delay, args, repeat) => {
@@ -33,8 +34,8 @@
   globalThis.queueMicrotask = callback => Promise.resolve().then(callback);
   // Runs due timers and answers the milliseconds until the next one, or -1
   // when only host input can wake the script.
-  globalThis.__muxyTick = () => {
-    if (!options.persistent && timers.size === 0 && !globalThis.__muxyHasCallbacks?.()) { dispatch('script.finished'); return -1; }
+  globalThis.__aturTick = () => {
+    if (!options.persistent && timers.size === 0 && !globalThis.__aturHasCallbacks?.()) { dispatch('script.finished'); return -1; }
     const now = Date.now();
     for (const [id, timer] of [...timers]) {
       if (timer.time > now || !timers.has(id)) continue;

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds the muxy-mobile SDK for the phone apps: an iOS XCFramework with Swift
+# Builds the mobile SDK for the phone apps: an iOS XCFramework with Swift
 # bindings and, when cargo-ndk is installed, Android libraries with Kotlin bindings.
 set -euo pipefail
 
@@ -16,7 +16,7 @@ fi
 
 cd "$ROOT"
 # Replace only what this script writes; OUT may be a directory the user owns.
-rm -rf "$OUT/swift" "$OUT/ios" "$OUT/MuxyMobile.xcframework" "$OUT/android"
+rm -rf "$OUT/swift" "$OUT/ios" "$OUT/AturMobile.xcframework" "$OUT/android"
 mkdir -p "$OUT"
 
 bindings() {
@@ -46,7 +46,7 @@ lipo -create \
 xcodebuild -create-xcframework \
     -library "target/aarch64-apple-ios/release/libmuxy_mobile.a" -headers "$HEADERS" \
     -library "$OUT/ios/simulator/libmuxy_mobile.a" -headers "$HEADERS" \
-    -output "$OUT/MuxyMobile.xcframework"
+    -output "$OUT/AturMobile.xcframework"
 
 if command -v cargo-ndk >/dev/null; then
     targets=()

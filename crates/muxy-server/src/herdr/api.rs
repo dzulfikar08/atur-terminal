@@ -82,7 +82,7 @@ impl Api {
 
     /// Sends one request and returns its `result`.
     pub(crate) fn call(&self, method: &str, params: &Value) -> Result<Value, ApiError> {
-        let id = format!("muxy-{}", self.next.fetch_add(1, Ordering::Relaxed));
+        let id = format!("atur-{}", self.next.fetch_add(1, Ordering::Relaxed));
         let mut line = serde_json::to_vec(&json!({"id": id, "method": method, "params": params}))
             .map_err(|error| ApiError::Malformed(error.to_string()))?;
         line.push(b'\n');
@@ -149,7 +149,7 @@ mod tests {
 
     fn directory() -> PathBuf {
         let path =
-            std::env::temp_dir().join(format!("muxy-herdr-api-{}", getrandom::u64().unwrap_or(1)));
+            std::env::temp_dir().join(format!("atur-herdr-api-{}", getrandom::u64().unwrap_or(1)));
         std::fs::create_dir_all(&path).expect("directory");
         path
     }

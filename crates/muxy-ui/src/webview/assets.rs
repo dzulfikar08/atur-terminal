@@ -37,7 +37,11 @@ impl Source {
                 }
             })
             .collect();
-        Ok(format!("muxy-ext://{}/{escaped}", self.owner))
+        Ok(format!(
+            "{}://{}/{escaped}",
+            super::rules::SCHEME,
+            self.owner
+        ))
     }
 }
 
@@ -112,7 +116,7 @@ mod tests {
     use super::*;
     #[test]
     fn containment_and_symlinks() -> io::Result<()> {
-        let root = std::env::temp_dir().join(format!("muxy-web-assets-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("atur-web-assets-{}", std::process::id()));
         std::fs::create_dir_all(root.join("inside"))?;
         std::fs::write(root.join("inside/index.html"), "hello")?;
         std::os::unix::fs::symlink("/etc/passwd", root.join("outside"))?;

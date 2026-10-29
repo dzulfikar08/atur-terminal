@@ -25,16 +25,16 @@ from code.
 
 ```js
 // a page from this or another extension
-await muxy.tabs.open({
+await atur.tabs.open({
   kind: "extensionWebView",
   extension: { id: "hello", tabType: "viewer", data: { mode: "grid" }, singleton: true },
 });
 
 // a terminal in the current project, optionally in a subfolder or running a command
-await muxy.tabs.open({ kind: "terminal", directory: "src", command: "npm test" });
+await atur.tabs.open({ kind: "terminal", directory: "src", command: "npm test" });
 
-// a browser tab; drive it with muxy.browser
-await muxy.tabs.open({ kind: "browser", url: "localhost:3000" });
+// a browser tab; drive it with atur.browser
+await atur.tabs.open({ kind: "browser", url: "localhost:3000" });
 ```
 
 - `singleton: true` focuses an existing tab of that type instead of opening
@@ -48,10 +48,10 @@ await muxy.tabs.open({ kind: "browser", url: "localhost:3000" });
 Each tab has its own `data`, saved with the tab.
 
 ```js
-render(muxy.data);
-muxy.onDataChange(render);
-muxy.tabs.setTitle("Report");
-muxy.tabs.setIcon({ symbol: "doc.text" });   // or { svg: "..." }, or null
+render(atur.data);
+atur.onDataChange(render);
+atur.tabs.setTitle("Report");
+atur.tabs.setIcon({ symbol: "doc.text" });   // or { svg: "..." }, or null
 ```
 
 ## Theme
@@ -60,18 +60,18 @@ Pages get the app's colors as CSS variables, updated live:
 
 ```css
 body {
-  background: var(--muxy-background);
-  color: var(--muxy-foreground);
-  border-color: var(--muxy-border);
+  background: var(--atur-background);
+  color: var(--atur-foreground);
+  border-color: var(--atur-border);
 }
 ```
 
-Variables: `--muxy-background`, `--muxy-foreground`, `--muxy-foreground-muted`,
-`--muxy-surface`, `--muxy-surface-solid`, `--muxy-border`, `--muxy-hover`,
-`--muxy-accent`, `--muxy-accent-foreground`, `--muxy-accent-soft`,
-`--muxy-diff-add`, `--muxy-diff-remove`, `--muxy-diff-hunk`, and
-`--muxy-topbar-height`. The same values are in `muxy.theme`, with
-`colorScheme` set to `light` or `dark`. `muxy.onThemeChange(fn)` reports
+Variables: `--atur-background`, `--atur-foreground`, `--atur-foreground-muted`,
+`--atur-surface`, `--atur-surface-solid`, `--atur-border`, `--atur-hover`,
+`--atur-accent`, `--atur-accent-foreground`, `--atur-accent-soft`,
+`--atur-diff-add`, `--atur-diff-remove`, `--atur-diff-hunk`, and
+`--atur-topbar-height`. The same values are in `atur.theme`, with
+`colorScheme` set to `light` or `dark`. `atur.onThemeChange(fn)` reports
 changes.
 
 ## File openers
@@ -101,5 +101,5 @@ with `filePath` relative to the project.
 - Pages load only from the extension's own folder. Navigating elsewhere is
   blocked.
 - Pages stay alive while hidden.
-- `muxy.lifecycle.onBeforeClose(fn)` can keep a tab open, for example to save
+- `atur.lifecycle.onBeforeClose(fn)` can keep a tab open, for example to save
   first. See [API reference](api.md#page-only).

@@ -40,7 +40,7 @@ impl FakeRemote {
 
     fn build(script: &str, detached: bool) -> Result<Self> {
         let directory = tempfile::Builder::new()
-            .prefix("muxy-ssh-")
+            .prefix("atur-ssh-")
             .tempdir_in("/tmp")?;
         let remote = Self { directory };
         fs::create_dir(remote.home())?;

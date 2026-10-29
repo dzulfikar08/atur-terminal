@@ -209,7 +209,7 @@ pub(super) fn switch_to_base(repository: &Path, base: &str) -> Result<GitBaseSwi
 }
 
 pub(super) fn is_pull_request_checkout(repository: &Path, branch: &str) -> bool {
-    config(repository, &format!("branch.{branch}.muxy-pr-number")).is_some()
+    super::pull_request_number(repository, branch).is_some_and(|number| !number.is_empty())
 }
 
 fn upstream(repository: &Path, branch: &str) -> Option<GitPushDestination> {
@@ -292,7 +292,7 @@ impl TemporaryIndex {
         let path = git_path(
             repository,
             &format!(
-                "muxy-preview-{}-{}.index",
+                "atur-preview-{}-{}.index",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ),

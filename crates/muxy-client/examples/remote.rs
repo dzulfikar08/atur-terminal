@@ -1,4 +1,4 @@
-//! A minimal paired device: pair from a `muxy://pair` link, then reconnect,
+//! A minimal paired device: pair from a `atur://pair` link, then reconnect,
 //! list projects, and type into a new shell in the server's Home project.
 
 use std::env;

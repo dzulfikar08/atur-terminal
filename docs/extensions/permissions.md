@@ -1,6 +1,6 @@
 # Permissions
 
-An extension lists what it needs in `muxy.permissions`. Calls without the
+An extension lists what it needs in `atur.permissions`. Calls without the
 matching permission fail, and unknown permission names stop the extension from
 loading. Ask for the minimum.
 
@@ -33,7 +33,7 @@ loading. Ask for the minimum.
 | `commands:run-script` | `runScript` commands |
 | `commands:exec` | `exec`, `execAsync` |
 | `shortcuts:register` | `shortcuts.register`, `shortcuts.unregister` |
-| `browser:read` / `browser:write` | Read / drive [browser tabs](../features/browser.md) with `muxy.browser` |
+| `browser:read` / `browser:write` | Read / drive [browser tabs](../features/browser.md) with `atur.browser` |
 | `remote:serve` | Accepted; remote methods are not available in 2.x |
 
 `http.fetch`, dialogs, the picker, `events`, and `lifecycle` need no

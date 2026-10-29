@@ -215,7 +215,7 @@ impl AppModel {
                         extension.allows_event(event) || self.runtime_command_event(name, event)
                     })
         };
-        let source = format!("globalThis.__muxyEvent?.({}, {payload});", json!(event));
+        let source = format!("globalThis.__aturEvent?.({}, {payload});", json!(event));
         for view in self.extension_views() {
             if permitted(&view.read(cx).source.owner) {
                 view.read(cx).native.evaluate(&source);
@@ -244,7 +244,7 @@ impl AppModel {
         if !serde_json::to_vec(payload).is_ok_and(|bytes| bytes.len() <= 65_536) {
             return Err("event payload must be JSON-serializable and at most 65536 bytes".into());
         }
-        let source = format!("globalThis.__muxyEvent?.({}, {payload});", json!(event));
+        let source = format!("globalThis.__aturEvent?.({}, {payload});", json!(event));
         if from_background {
             for view in self.extension_views() {
                 if view.read(cx).source.owner == owner {
@@ -576,7 +576,7 @@ impl AppModel {
                 }
                 model.extensions.events.watch_pending = false;
                 for error in errors {
-                    model.extension_log("", format!("[muxy] file watcher: {error}"));
+                    model.extension_log("", format!("[atur] file watcher: {error}"));
                 }
                 model.sync_extension_file_watches(cx);
             });

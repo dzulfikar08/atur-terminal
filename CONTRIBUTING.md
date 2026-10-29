@@ -1,6 +1,6 @@
 # Contributing to Atur Terminal
 
-Atur Terminal is a fork of [Muxy](https://github.com/muxy-app/muxy). Thank you for your interest in contributing! This guide will help you get started.
+Thank you for your interest in contributing! This guide will help you get started.
 
 ## Humans Only Policy
 

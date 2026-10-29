@@ -24,7 +24,7 @@ use gpui::InteractiveElement;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Status {
     None,
-    /// Muxy is creating or removing a worktree; the key describes it.
+    /// Atur Terminal is creating or removing a worktree; the key describes it.
     Busy(&'static str),
     Progress(TerminalProgress),
     Blocked,

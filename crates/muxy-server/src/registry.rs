@@ -604,9 +604,7 @@ impl Registry {
             ("ATUR_TERM_SESSION_ID".to_owned(), info.id.get().to_string()),
         ];
         environment.extend(
-            std::env::var("ATUR_TERM_DIR")
-                .ok()
-                .map(|dir| ("ATUR_TERM_DIR".to_owned(), dir)),
+            muxy_core::env::var("ATUR_TERM_DIR").map(|dir| ("ATUR_TERM_DIR".to_owned(), dir)),
         );
         let project_name = self
             .catalog

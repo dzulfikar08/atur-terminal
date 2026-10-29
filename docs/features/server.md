@@ -96,9 +96,8 @@ Everything lives in one profile folder:
 | `settings.toml`, `terminal.toml`, `themes/` | Desktop app settings, see [Settings](../user-guide/settings.md) |
 | `tui-state.json` | Terminal UI layouts |
 
-On first start, if the profile folder does not exist and the matching Muxy folder does (`muxy`,
-`muxy-beta`, `muxy-dev` on Linux; `Muxy 2`, `Muxy Beta`, `Muxy Dev` on macOS), `server.toml`,
-`catalog.json`, `remote.json`, `backend.toml` and `herdr.json` are copied into it. The Muxy folder is
+On first start, if the profile folder does not exist and the matching folder of an earlier install does, `server.toml`,
+`catalog.json`, `remote.json`, `backend.toml` and `herdr.json` are copied into it. The old folder is
 never changed, and nothing is copied when `ATUR_TERM_DIR` is set.
 
 Set `ATUR_TERM_DIR` to use a different profile folder. Development builds use

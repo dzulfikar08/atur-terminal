@@ -31,7 +31,19 @@ pub(super) const ROOTS: &[&str] = &[
 ];
 pub(super) const MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub(super) const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
-pub(super) const PENDING: &str = "pending-import.muxy";
+pub(super) const PENDING: &str = "pending-import.aturbackup";
+/// What earlier releases named a staged import. Still applied when found.
+const LEGACY_PENDING: &str = "pending-import.muxy";
+/// Extension of the backups this release writes.
+pub(crate) const EXTENSION: &str = "aturbackup";
+
+/// The staged import of `profile`, if one waits for the next launch.
+pub(crate) fn pending_path(profile: &Path) -> Option<PathBuf> {
+    [PENDING, LEGACY_PENDING]
+        .into_iter()
+        .map(|name| profile.join(name))
+        .find(|path| path.exists())
+}
 /// Marks a profile whose one automatic import of the installed 1.x was decided.
 const MIGRATION_CHECKED: &str = "legacy-import-checked";
 const LEGACY_SETTINGS: &[&str] = &[
@@ -93,7 +105,7 @@ impl LegacyProjects {
     /// What to tell the user once the app added this many of each.
     pub(crate) fn summary(&self, projects: usize, workspaces: usize) -> Result<String> {
         let mut summary = tr!(
-            "Added %lld projects and %lld workspaces from Muxy 1.x. Projects, tabs, and workspaces you already had are unchanged.",
+            "Added %lld projects and %lld workspaces from Atur Terminal 1.x. Projects, tabs, and workspaces you already had are unchanged.",
             projects,
             workspaces
         )
@@ -118,7 +130,8 @@ pub(crate) fn projects_from(source: &Path) -> Result<LegacyProjects> {
         &mut settings,
     )?;
     if report.imported == 0 {
-        let mut reason = tr!("Muxy 1.x has no projects or workspaces to import.").to_string();
+        let mut reason =
+            tr!("Atur Terminal 1.x has no projects or workspaces to import.").to_string();
         describe_left_out(&mut reason, &report)?;
         return Err(reason.into());
     }
@@ -130,7 +143,7 @@ pub(crate) fn projects_from(source: &Path) -> Result<LegacyProjects> {
 }
 
 fn legacy_directory() -> Result<PathBuf> {
-    installed_legacy()?.ok_or_else(|| tr!("No Muxy 1.x configuration was found on this computer. Choose a 1.x backup file instead.").to_string().into())
+    installed_legacy()?.ok_or_else(|| tr!("No Atur Terminal 1.x configuration was found on this computer. Choose a 1.x backup file instead.").to_string().into())
 }
 
 fn installed_legacy() -> Result<Option<PathBuf>> {
@@ -145,7 +158,7 @@ fn installed_legacy() -> Result<Option<PathBuf>> {
 /// layouts. A profile chosen with `ATUR_TERM_DIR` is left alone. Returns what the
 /// user should check, if anything could not come along.
 pub(crate) fn migrate_installed(profile: &Path) -> Result<Option<String>> {
-    if std::env::var_os("ATUR_TERM_DIR").is_some() {
+    if muxy_core::env::var_os("ATUR_TERM_DIR").is_some() {
         return Ok(None);
     }
     let Some(source) = installed_legacy()? else {
@@ -169,7 +182,7 @@ fn migrate_once(
     extensions: LegacyExtensions<'_>,
 ) -> Result<Option<String>> {
     let checked = profile.join(MIGRATION_CHECKED);
-    if checked.try_exists()? || profile.join(PENDING).try_exists()? {
+    if checked.try_exists()? || pending_path(profile).is_some() {
         return Ok(None);
     }
     let state = muxy_app_core::store::load(profile.join("desktop-state.json"))?;
@@ -195,7 +208,7 @@ fn migrate_into(
     Ok((!import.attention.is_empty()).then(|| {
         format!(
             "{}\n{}",
-            tr!("Muxy 1.x was imported. Check these items:"),
+            tr!("Atur Terminal 1.x was imported. Check these items:"),
             checklist(&import.attention)
         )
     }))
@@ -300,7 +313,10 @@ fn prepare_from(
         write!(
             summary,
             " {}",
-            tr!("Adds %lld extensions from Muxy 1.x.", copies.names.len())
+            tr!(
+                "Adds %lld extensions from Atur Terminal 1.x.",
+                copies.names.len()
+            )
         )?;
     }
     if restore == Restore::Merge && files.contains_key("server.toml") {

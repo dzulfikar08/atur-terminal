@@ -1,6 +1,6 @@
 # Git
 
-`muxy.git` reads and changes the project's repository. It runs on the project's
+`atur.git` reads and changes the project's repository. It runs on the project's
 server, so it works for remote projects too, and is available everywhere.
 
 Calls take an optional options object. Pass `project` in it to target a
@@ -8,10 +8,10 @@ project or worktree by ID; otherwise a tab uses its own project and other views
 use the current one.
 
 ```js
-const status = await muxy.git.status();
-await muxy.git.stage({ paths: ["src/main.rs"] });
-await muxy.git.commit({ message: "Fix the parser" });
-await muxy.git.push();
+const status = await atur.git.status();
+await atur.git.stage({ paths: ["src/main.rs"] });
+await atur.git.commit({ message: "Fix the parser" });
+await atur.git.push();
 ```
 
 Reads need `git:read`. Writes need `git:write` and ask the user first, except
@@ -83,5 +83,5 @@ baseBranch, state, isDraft, updatedAt, mergeable, mergeStateStatus,
 isCrossRepository, checks }`, where `checks` is
 `{ passing, failing, pending, total, status }`.
 
-`muxy.gh.user()` (needs `gh:read`) returns the signed-in GitHub user from the
+`atur.gh.user()` (needs `gh:read`) returns the signed-in GitHub user from the
 desktop computer's `gh` CLI, even when the project is remote.

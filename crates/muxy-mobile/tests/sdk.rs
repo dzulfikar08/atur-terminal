@@ -175,7 +175,7 @@ impl Drop for Folder {
 
 /// A new folder that the computer registers as a project; returns it with the project's id.
 fn project_folder(local: &Client) -> TestResult<(Folder, String)> {
-    let folder = Folder(std::env::temp_dir().join(format!("muxy-sdk-{}", OperationId::new())));
+    let folder = Folder(std::env::temp_dir().join(format!("atur-sdk-{}", OperationId::new())));
     std::fs::create_dir(&folder.0)?;
     let project = ProjectId::new();
     local.mutate_project(ProjectIntent {

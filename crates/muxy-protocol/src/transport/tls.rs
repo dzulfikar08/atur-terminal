@@ -23,7 +23,13 @@ use rustls::{CertificateError, DigitallySignedStruct, SignatureScheme};
 use crate::transport::unix::socket_pair;
 use crate::transport::{ByteStream, Listener, StreamCancellation};
 
-const ALPN: &[u8] = b"muxy/1";
+const ALPN: &[u8] = b"atur/1";
+/// What peers of earlier builds negotiate instead; both carry the same protocol.
+const LEGACY_ALPN: &[u8] = b"muxy/1";
+
+fn alpn_protocols() -> Vec<Vec<u8>> {
+    vec![ALPN.to_vec(), LEGACY_ALPN.to_vec()]
+}
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
 const BUFFER: usize = 64 * 1024;
@@ -156,7 +162,7 @@ pub fn connect(
         }
     }
     let mut tcp = connected.ok_or(failure)?;
-    let name = ServerName::try_from("muxy.invalid").map_err(io::Error::other)?;
+    let name = ServerName::try_from("atur.invalid").map_err(io::Error::other)?;
     let connection = rustls::ClientConnection::new(client_config(fingerprint)?, name)
         .map_err(io::Error::other)?;
     let connection = handshake(rustls::Connection::Client(connection), &mut tcp, timeout)
@@ -247,7 +253,7 @@ fn server_config(identity: &TlsIdentity) -> io::Result<Arc<rustls::ServerConfig>
         .with_no_client_auth()
         .with_single_cert(vec![certificate], key)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    config.alpn_protocols = vec![ALPN.to_vec()];
+    config.alpn_protocols = alpn_protocols();
     config.send_tls13_tickets = 0;
     config.session_storage = Arc::new(rustls::server::NoServerSessionStorage {});
     Ok(Arc::new(config))
@@ -265,7 +271,7 @@ fn client_config(fingerprint: [u8; 32]) -> io::Result<Arc<rustls::ClientConfig>>
         .dangerous()
         .with_custom_certificate_verifier(verifier)
         .with_no_client_auth();
-    config.alpn_protocols = vec![ALPN.to_vec()];
+    config.alpn_protocols = alpn_protocols();
     config.enable_sni = false;
     config.resumption = rustls::client::Resumption::disabled();
     Ok(Arc::new(config))
@@ -367,10 +373,10 @@ fn handshake(
             .process_new_packets()
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
     }
-    if connection.alpn_protocol() != Some(ALPN) {
+    if !matches!(connection.alpn_protocol(), Some(ALPN | LEGACY_ALPN)) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "peer did not negotiate the muxy protocol",
+            "peer did not negotiate the Atur Terminal protocol",
         ));
     }
     tcp.set_read_timeout(None)?;

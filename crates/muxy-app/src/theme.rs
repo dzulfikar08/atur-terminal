@@ -22,7 +22,7 @@ pub(crate) struct Catalog {
 }
 
 impl Catalog {
-    /// Themes in Muxy's directory replace the bundled ones.
+    /// Themes in the profile's directory replace the bundled ones.
     pub(crate) fn load(directory: &Path) -> Self {
         let mut entries: BTreeMap<_, _> = muxy_ui::assets::Assets::themes()
             .map(|(name, source)| (name.to_owned(), ColorScheme::parse(source)))
@@ -46,7 +46,7 @@ impl Catalog {
             .collect();
         entries.sort_by_key(|entry| {
             (
-                !matches!(entry.name.as_str(), "Muxy" | "Muxy Light"),
+                !matches!(entry.name.as_str(), "Atur" | "Atur Light"),
                 entry.name.to_lowercase(),
                 entry.name.clone(),
             )
@@ -98,7 +98,7 @@ impl Catalog {
         } else {
             &appearance.light_theme
         };
-        let fallback = if dark { "Muxy" } else { "Muxy Light" };
+        let fallback = if dark { "Atur" } else { "Atur Light" };
         self.find(name).or_else(|| self.find(fallback))
     }
 

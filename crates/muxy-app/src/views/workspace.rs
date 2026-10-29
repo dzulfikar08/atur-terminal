@@ -17,7 +17,7 @@ use crate::model::AppModel;
 use crate::model::browsers::BrowserAction;
 
 actions!(
-    muxy,
+    atur,
     [
         ShowAbout,
         OpenSettings,
@@ -86,13 +86,13 @@ actions!(
 );
 
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
-#[action(namespace = muxy, no_json)]
+#[action(namespace = atur, no_json)]
 pub(crate) struct SelectTab {
     pub(crate) index: usize,
 }
 
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
-#[action(namespace = muxy, no_json)]
+#[action(namespace = atur, no_json)]
 pub(crate) struct SelectProject {
     pub(crate) index: usize,
 }

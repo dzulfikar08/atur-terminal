@@ -10,7 +10,7 @@ use std::fs;
 fn package(root: &Path, name: &str) {
     fs::create_dir_all(root).unwrap();
     fs::write(root.join("index.html"), "<!doctype html>").unwrap();
-    fs::write(root.join("package.json"),json!({"name":name,"version":"1.0.0","muxy":{"permissions":["files:read","panels:write"],"tabTypes":[{"id":"editor","title":"Editor","entry":"index.html"}],"commands":[{"id":"open","title":"Open","action":{"kind":"openTab","tabType":"editor"}}]}}).to_string()).unwrap();
+    fs::write(root.join("package.json"),json!({"name":name,"version":"1.0.0","atur-terminal":{"permissions":["files:read","panels:write"],"tabTypes":[{"id":"editor","title":"Editor","entry":"index.html"}],"commands":[{"id":"open","title":"Open","action":{"kind":"openTab","tabType":"editor"}}]}}).to_string()).unwrap();
 }
 
 #[test]
@@ -31,6 +31,22 @@ fn unpacked_packages_require_explicit_enable_and_unload_keeps_sources() {
 }
 
 #[test]
+fn manifest_key_falls_back_to_the_one_earlier_releases_wrote() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("package.json");
+    let write = |value: serde_json::Value| fs::write(&path, value.to_string()).unwrap();
+    write(json!({"name":"old","version":"1.0.0","muxy":{"permissions":["files:read"]}}));
+    assert!(Extension::load(root.path()).unwrap().allows("files:read"));
+    write(json!({"name":"both","version":"1.0.0",
+        "atur-terminal":{"permissions":["files:read"]},
+        "muxy":{"permissions":["files:write"]}}));
+    let both = Extension::load(root.path()).unwrap();
+    assert!(both.allows("files:read") && !both.allows("files:write"));
+    write(json!({"name":"none","version":"1.0.0"}));
+    assert!(Extension::load(root.path()).is_err());
+}
+
+#[test]
 fn manifests_reject_escaping_resources_and_invalid_commands() {
     let root = tempfile::tempdir().unwrap();
     package(root.path(), "files");
@@ -44,7 +60,7 @@ fn manifests_reject_escaping_resources_and_invalid_commands() {
     }
     let path = root.path().join("package.json");
     let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    value["muxy"]["commands"][0]["action"]["tabType"] = json!("absent");
+    value["atur-terminal"]["commands"][0]["action"]["tabType"] = json!("absent");
     fs::write(path, value.to_string()).unwrap();
     assert!(Extension::load(root.path()).is_err());
 }
@@ -176,7 +192,7 @@ fn files_and_git_bridge_payloads_match_main_contract() {
     );
 }
 
-fn write_package(root: &Path, muxy: &serde_json::Value, files: &[(&str, &str)]) {
+fn write_package(root: &Path, manifest: &serde_json::Value, files: &[(&str, &str)]) {
     for (relative, contents) in files {
         let path = root.join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -184,7 +200,7 @@ fn write_package(root: &Path, muxy: &serde_json::Value, files: &[(&str, &str)]) 
     }
     fs::write(
         root.join("package.json"),
-        json!({"name":"sample","version":"1.0.0","muxy":muxy}).to_string(),
+        json!({"name":"sample","version":"1.0.0","atur-terminal":manifest}).to_string(),
     )
     .unwrap();
 }

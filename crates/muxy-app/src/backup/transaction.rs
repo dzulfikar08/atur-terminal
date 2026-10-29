@@ -5,7 +5,10 @@ use std::path::Path;
 use muxy_app_core::backup::Result;
 use muxy_ui::tr;
 
-use super::{PENDING, PreparedImport, ROOTS, Restore, archive, extensions, validate_effective};
+use super::{
+    LEGACY_PENDING, PENDING, PreparedImport, ROOTS, Restore, archive, extensions, pending_path,
+    validate_effective,
+};
 
 const RECOVERY_PREFIX: &str = "pre-import-";
 
@@ -26,7 +29,11 @@ pub(super) fn applied_before(profile: &Path) -> bool {
 pub(crate) fn stage(profile: &Path, import: &PreparedImport) -> Result<()> {
     validate_effective(profile, &import.files, import.restore)?;
     let staged = extensions::stage(profile, import.extensions.as_ref())
-        .and_then(|()| archive::write(&profile.join(PENDING), &import.files, import.restore));
+        .and_then(|()| archive::write(&profile.join(PENDING), &import.files, import.restore))
+        .and_then(|()| match fs::remove_file(profile.join(LEGACY_PENDING)) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.into()),
+            _ => Ok(()),
+        });
     if staged.is_err() {
         cancel_pending(profile)?;
     }
@@ -35,19 +42,21 @@ pub(crate) fn stage(profile: &Path, import: &PreparedImport) -> Result<()> {
 
 pub(crate) fn cancel_pending(profile: &Path) -> Result<()> {
     extensions::cancel(profile)?;
-    match fs::remove_file(profile.join(PENDING)) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
+    for name in [PENDING, LEGACY_PENDING] {
+        match fs::remove_file(profile.join(name)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
     }
+    Ok(())
 }
 
 pub(crate) fn apply_pending(profile: &Path) -> Result<Option<String>> {
     recover(profile)?;
-    let pending = profile.join(PENDING);
-    if !pending.try_exists()? {
+    let Some(pending) = pending_path(profile) else {
         return Ok(None);
-    }
+    };
     if let Err(error) = restore(profile, &pending) {
         recover(profile)?;
         return Ok(Some(
@@ -141,7 +150,11 @@ fn restore(profile: &Path, pending: &Path) -> Result<()> {
     } else {
         Restore::Partial
     };
-    archive::write(&recovery.join("recovery.muxy"), &portable, recovery_restore)?;
+    archive::write(
+        &recovery.join("recovery.aturbackup"),
+        &portable,
+        recovery_restore,
+    )?;
     fs::write(recovery.join("roots.json"), serde_json::to_vec(&roots)?)?;
     fs::write(
         recovery.join("extensions.json"),

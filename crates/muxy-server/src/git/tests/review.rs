@@ -85,7 +85,7 @@ fn preview_describes_every_change_without_touching_the_index() {
             .all(|entry| !entry
                 .file_name()
                 .to_string_lossy()
-                .starts_with("muxy-preview-"))
+                .starts_with("atur-preview-"))
     );
 }
 
@@ -299,7 +299,7 @@ fn pull_request_checkouts_publish_to_their_pull_request_head() {
     .unwrap();
     run(
         &repo.path,
-        &["config", "branch.pr/42/feature.muxy-pr-number", "42"],
+        &["config", "branch.pr/42/feature.atur-pr-number", "42"],
     )
     .unwrap();
     repo.git(GitAction::SwitchBranch("pr/42/feature".into()))
@@ -463,7 +463,7 @@ fn update(repo: &Repo, head: &str) -> Result<GitReply> {
 }
 
 #[test]
-fn update_branch_works_for_muxy_pull_request_checkouts_with_untracked_files() {
+fn update_branch_works_for_pull_request_checkouts_marked_by_earlier_builds_with_untracked_files() {
     let mut repo = Repo::new(true);
     let (remote, head) = pull_request_behind_base(&mut repo, "pr/42/feature", "feature");
     run(

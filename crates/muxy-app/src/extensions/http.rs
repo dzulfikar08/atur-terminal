@@ -155,7 +155,7 @@ pub(crate) fn fetch(request: Request) -> Result<Value, String> {
     let failed = |error: reqwest::Error| format!("http request failed: {error}");
     let client = reqwest::blocking::Client::builder()
         .timeout(request.timeout)
-        .user_agent("Muxy/2 Extensions")
+        .user_agent("AturTerminal/2 Extensions")
         .no_proxy()
         .dns_resolver(Arc::new(PublicOnly))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
