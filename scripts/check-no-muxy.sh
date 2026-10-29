@@ -56,8 +56,17 @@ extract() {
         *.deb) dpkg-deb -x "$source" "$dest" ;;
         *.zip) unzip -q "$source" -d "$dest" ;;
         *.tar.gz|*.tgz|*.tar.xz|*.tar) tar -xf "$source" -C "$dest" ;;
-        *.AppImage) (cd "$dest" && cp "$source" ./image && chmod +x ./image && ./image --appimage-extract >&2) ;;
-        *.dmg) 7z x -y -o"$dest" "$source" >&2 || 7zz x -y -o"$dest" "$source" >&2 ;;
+        *.AppImage) (cd "$dest" && cp "$source" ./image && chmod +x ./image && ./image --appimage-extract >&2 && rm -f ./image) ;;
+        *.dmg)
+            if [[ "$(uname)" == Darwin ]]; then
+                local mount="$WORK/mount-$$-$RANDOM"
+                mkdir -p "$mount"
+                hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$source" >&2 || return 1
+                cp -R "$mount"/. "$dest"/ >&2
+                hdiutil detach "$mount" -force >&2 || true
+            else
+                7z x -y -o"$dest" "$source" >&2
+            fi ;;
         *) return 1 ;;
     esac
 }

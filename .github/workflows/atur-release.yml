@@ -70,9 +70,23 @@ jobs:
       revision: ${{ needs.prepare.outputs.revision }}
       source: ${{ github.sha }}
 
+  branding-dmg:
+    name: No Muxy name in the DMGs
+    needs: [prepare, build]
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: distribution-*
+          merge-multiple: true
+          path: artifacts
+      - run: bash scripts/check-no-muxy.sh --show 12 artifacts/*.dmg
+
   release:
     name: Publish the GitHub Release
-    needs: [prepare, build]
+    needs: [prepare, build, branding-dmg]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -92,10 +106,9 @@ jobs:
           path: artifacts
       - name: No Muxy name in any artifact a user can reach
         run: |
-          sudo apt-get update && sudo apt-get install -y p7zip-full
           shopt -s nullglob
           bash scripts/check-no-muxy.sh artifacts/*.tar.gz artifacts/*.zip artifacts/*.deb \
-            artifacts/*.AppImage artifacts/*.dmg
+            artifacts/*.AppImage
       - name: Add the installers the app and the docs refer to
         run: |
           cp scripts/install-atur-terminal.sh scripts/install-desktop-linux.py artifacts/
@@ -242,6 +255,8 @@ jobs:
           spctl -a -vv -t exec "$APP"
           xcrun stapler validate "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
           spctl -a -vv -t open --context context:primary-signature "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+      - name: No Muxy name in the Intel DMG or the client/server zip
+        run: bash scripts/check-no-muxy.sh --show 12 "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" "$PACKAGE_DIR/atur-terminal-$VERSION-macos-$ARCH.zip"
       - name: Remove the signing keychain
         if: always()
         run: bash scripts/ci-macos-sign.sh cleanup
