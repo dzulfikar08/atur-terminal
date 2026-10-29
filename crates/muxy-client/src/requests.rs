@@ -11,9 +11,33 @@ use crate::ClientError;
 #[derive(Default)]
 struct State {
     next: u32,
-    waiting: HashMap<RequestId, Sender<ReplyBody>>,
-    asynchronous: HashMap<RequestId, (Arc<Response>, Instant)>,
+    waiting: HashMap<RequestId, (Sender<ReplyBody>, Instant)>,
+    asynchronous: HashMap<RequestId, Asynchronous>,
+    rtt: Rtt,
     closed: bool,
+}
+
+struct Asynchronous {
+    response: Arc<Response>,
+    sent: Instant,
+    deadline: Instant,
+}
+
+/// Smoothed round trip time of light request/reply pairs (weight 1/8).
+#[derive(Default)]
+struct Rtt {
+    smoothed: Option<Duration>,
+    sampled: Option<Instant>,
+}
+
+impl Rtt {
+    fn sample(&mut self, sample: Duration, now: Instant) {
+        self.sampled = Some(now);
+        self.smoothed = Some(match self.smoothed {
+            Some(smoothed) => (smoothed * 7 + sample) / 8,
+            None => sample,
+        });
+    }
 }
 
 #[derive(Default)]
@@ -36,21 +60,31 @@ impl Pending {
             }
         };
         let (sender, receiver) = mpsc::channel();
-        state.waiting.insert(id, sender);
+        state.waiting.insert(id, (sender, Instant::now()));
         Ok((id, receiver))
     }
 
     pub(crate) fn resolve(&self, id: RequestId, body: ReplyBody) {
         let mut state = self.lock();
         let asynchronous = state.asynchronous.remove(&id);
-        let sender = state.waiting.remove(&id);
+        let waiting = state.waiting.remove(&id);
+        if matches!(body, ReplyBody::Pong) {
+            let now = Instant::now();
+            let sent = asynchronous
+                .as_ref()
+                .map(|request| request.sent)
+                .or_else(|| waiting.as_ref().map(|(_, sent)| *sent));
+            if let Some(sent) = sent {
+                state.rtt.sample(now.saturating_duration_since(sent), now);
+            }
+        }
         drop(state);
-        if let Some((response, _)) = asynchronous {
-            response.resolve(match body {
+        if let Some(request) = asynchronous {
+            request.response.resolve(match body {
                 ReplyBody::Error(error) => Err(ClientError::Server(error)),
                 body => Ok(body),
             });
-        } else if let Some(sender) = sender {
+        } else if let Some((sender, _)) = waiting {
             let _ = sender.send(body);
         }
     }
@@ -68,8 +102,8 @@ impl Pending {
         state.waiting.clear();
         let responses = std::mem::take(&mut state.asynchronous);
         drop(state);
-        for (response, _) in responses.into_values() {
-            response.resolve(Err(ClientError::Disconnected));
+        for request in responses.into_values() {
+            request.response.resolve(Err(ClientError::Disconnected));
         }
     }
 
@@ -96,9 +130,15 @@ impl Pending {
             }
         };
         let response = Arc::new(Response::default());
-        state
-            .asynchronous
-            .insert(id, (response.clone(), Instant::now() + timeout));
+        let sent = Instant::now();
+        state.asynchronous.insert(
+            id,
+            Asynchronous {
+                response: response.clone(),
+                sent,
+                deadline: sent + timeout,
+            },
+        );
         self.deadlines.notify_one();
         Ok((id, response))
     }
@@ -109,8 +149,8 @@ impl Pending {
 
     pub(crate) fn fail_async(&self, id: RequestId, error: ClientError) {
         let response = self.lock().asynchronous.remove(&id);
-        if let Some((response, _)) = response {
-            response.resolve(Err(error));
+        if let Some(request) = response {
+            request.response.resolve(Err(error));
         }
     }
 
@@ -121,7 +161,7 @@ impl Pending {
                 let next = state
                     .asynchronous
                     .values()
-                    .map(|(_, deadline)| *deadline)
+                    .map(|request| request.deadline)
                     .min();
                 if next.is_some_and(|deadline| deadline <= Instant::now()) {
                     break;
@@ -151,7 +191,7 @@ impl Pending {
         let expired: Vec<_> = state
             .asynchronous
             .iter()
-            .filter(|(_, (_, deadline))| *deadline <= now)
+            .filter(|(_, request)| request.deadline <= now)
             .map(|(id, _)| *id)
             .collect();
         let responses: Vec<_> = expired
@@ -159,9 +199,24 @@ impl Pending {
             .filter_map(|id| state.asynchronous.remove(&id))
             .collect();
         drop(state);
-        for (response, _) in responses {
-            response.resolve(Err(ClientError::Timeout));
+        for request in responses {
+            request.response.resolve(Err(ClientError::Timeout));
         }
+    }
+
+    /// Smoothed round trip time of recent pings, if one was answered within `max_age`.
+    pub(crate) fn rtt(&self, max_age: Duration) -> Option<Duration> {
+        let state = self.lock();
+        state
+            .rtt
+            .sampled
+            .filter(|sampled| sampled.elapsed() <= max_age)
+            .and(state.rtt.smoothed)
+    }
+
+    /// When a ping was last answered.
+    pub(crate) fn last_rtt_sample(&self) -> Option<Instant> {
+        self.lock().rtt.sampled
     }
 
     pub(crate) fn is_closed(&self) -> bool {

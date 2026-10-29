@@ -3,6 +3,19 @@ use muxy_protocol::{CatalogPage, ErrorCode, MAX_PROJECTS, ProjectId, ReplyBody, 
 use std::time::Duration;
 
 impl Client {
+    /// A ping that completes when the server answers; it queues behind the frames and
+    /// replies already on the wire, so its time is what a keystroke's echo would take.
+    pub fn ping_async(&self) -> Request<()> {
+        self.request_async(
+            RequestBody::Ping,
+            Duration::from_secs(30),
+            |body| match body {
+                ReplyBody::Pong => Ok(()),
+                body => Err(ClientError::UnexpectedReply(Box::new(body))),
+            },
+        )
+    }
+
     pub fn project_has_sessions_async(&self, project: ProjectId) -> Request<bool> {
         self.request_async(
             RequestBody::ListProjectSessions {

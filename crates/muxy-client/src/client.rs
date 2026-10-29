@@ -19,6 +19,8 @@ use crate::handshake;
 use crate::requests::Pending;
 use crate::{ClientError, RunGrid};
 
+const RTT_MAX_AGE: Duration = Duration::from_secs(15);
+const RTT_PROBE_INTERVAL: Duration = Duration::from_secs(3);
 pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -419,6 +421,39 @@ impl Client {
             ReplyBody::TerminalColorsSet => Ok(()),
             other => Err(ClientError::UnexpectedReply(Box::new(other))),
         }
+    }
+
+    /// Smoothed round trip time of pings answered in the last 15 seconds.
+    pub fn rtt(&self) -> Option<Duration> {
+        self.shared.pending.rtt(RTT_MAX_AGE)
+    }
+
+    /// Pings every few seconds while no other ping was answered, so `rtt` stays fresh.
+    /// Stops when the connection closes or every clone of this client is dropped.
+    pub fn start_rtt_probe(&self) -> Result<(), ClientError> {
+        let shared = Arc::downgrade(&self.shared);
+        let timeout = self.timeout;
+        thread::Builder::new()
+            .name("muxy-client-rtt".into())
+            .spawn(move || {
+                while let Some(shared) = shared.upgrade() {
+                    if shared.pending.is_closed() {
+                        return;
+                    }
+                    let stale = shared
+                        .pending
+                        .last_rtt_sample()
+                        .is_none_or(|sampled| sampled.elapsed() >= RTT_PROBE_INTERVAL);
+                    if stale {
+                        let client = Self { shared, timeout };
+                        client.ping_async().on_complete(|_| ());
+                    } else {
+                        drop(shared);
+                    }
+                    thread::sleep(RTT_PROBE_INTERVAL);
+                }
+            })?;
+        Ok(())
     }
 
     pub fn ping(&self) -> Result<(), ClientError> {
