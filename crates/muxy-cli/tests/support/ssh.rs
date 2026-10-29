@@ -63,7 +63,7 @@ impl FakeRemote {
                     .ok_or("binary directory")?
             ),
             run = if detached {
-                "/bin/sh -c \"exec $last\" <&0 &\nwait $!"
+                "exec 3<&0\n/bin/sh -c \"exec $last\" <&3 3<&- &\nwait $!"
             } else {
                 "exec /bin/sh -c \"exec $last\""
             },

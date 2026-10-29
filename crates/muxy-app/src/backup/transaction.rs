@@ -113,6 +113,42 @@ fn restore(profile: &Path, pending: &Path) -> Result<()> {
         .tempdir_in(&backups)?
         .keep();
     archive::materialize(&recovery, &original)?;
+    let portable = portable_copy(profile, &original, &roots)?;
+    let recovery_restore = if restore == Restore::Complete {
+        Restore::Complete
+    } else {
+        Restore::Partial
+    };
+    archive::write(
+        &recovery.join("recovery.aturbackup"),
+        &portable,
+        recovery_restore,
+    )?;
+    fs::write(recovery.join("roots.json"), serde_json::to_vec(&roots)?)?;
+    fs::write(
+        recovery.join("extensions.json"),
+        serde_json::to_vec(&extensions::additions(profile)?)?,
+    )?;
+    let marker = profile.join("restore-in-progress.json");
+    let mut journal = tempfile::NamedTempFile::new_in(profile)?;
+    journal.write_all(&serde_json::to_vec(&recovery)?)?;
+    journal.as_file().sync_all()?;
+    journal.persist(&marker)?;
+    for root in &roots {
+        remove(&profile.join(root))?;
+        if staging.path().join(root).exists() {
+            fs::rename(staging.path().join(root), profile.join(root))?;
+        }
+    }
+    extensions::install(profile)?;
+    fs::remove_file(pending)?;
+    fs::remove_file(&marker)?;
+    Ok(())
+}
+
+/// The pre-import files as a portable backup: terminal settings in native form
+/// and the mobile settings as they are now.
+fn portable_copy(profile: &Path, original: &super::Files, roots: &[&str]) -> Result<super::Files> {
     let mut portable = original.clone();
     if roots.contains(&"terminal.toml") && !portable.contains_key("terminal.toml") {
         let legacy = profile.join("ghostty.conf");
@@ -145,36 +181,7 @@ fn restore(profile: &Path, pending: &Path) -> Result<()> {
             serde_json::to_vec_pretty(&super::mobile::current(profile)?)?,
         );
     }
-    let recovery_restore = if restore == Restore::Complete {
-        Restore::Complete
-    } else {
-        Restore::Partial
-    };
-    archive::write(
-        &recovery.join("recovery.aturbackup"),
-        &portable,
-        recovery_restore,
-    )?;
-    fs::write(recovery.join("roots.json"), serde_json::to_vec(&roots)?)?;
-    fs::write(
-        recovery.join("extensions.json"),
-        serde_json::to_vec(&extensions::additions(profile)?)?,
-    )?;
-    let marker = profile.join("restore-in-progress.json");
-    let mut journal = tempfile::NamedTempFile::new_in(profile)?;
-    journal.write_all(&serde_json::to_vec(&recovery)?)?;
-    journal.as_file().sync_all()?;
-    journal.persist(&marker)?;
-    for root in &roots {
-        remove(&profile.join(root))?;
-        if staging.path().join(root).exists() {
-            fs::rename(staging.path().join(root), profile.join(root))?;
-        }
-    }
-    extensions::install(profile)?;
-    fs::remove_file(pending)?;
-    fs::remove_file(&marker)?;
-    Ok(())
+    Ok(portable)
 }
 
 fn recover(profile: &Path) -> Result<()> {

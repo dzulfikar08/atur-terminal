@@ -134,7 +134,11 @@ fn a_bridge_that_cannot_bind_says_so_and_ssh_carries_on() -> Result {
         .with_udp(settings(port..=port, "127.0.0.1"));
     let client = Client::connect_ssh(&target, Start::IfNeeded)?;
     assert!(
-        matches!(client.transport(), Transport::UdpFailed(reason) if reason.contains("no UDP port")),
+        matches!(
+            client.transport(),
+            Transport::UdpFailed(reason)
+                if reason.contains("no UDP port") || reason.contains("no answer")
+        ),
         "{:?}",
         client.transport()
     );

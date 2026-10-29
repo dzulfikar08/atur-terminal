@@ -144,15 +144,8 @@ pub(super) fn write(destination: &Path, files: &Files, restore: Restore) -> Resu
     Ok(())
 }
 
-pub(super) fn read(source: &Path) -> Result<(Files, bool, Restore)> {
-    let file = File::open(source)?;
-    if file.metadata()?.len() > MAX_BYTES {
-        return Err(failure(&tr!("Backup exceeds 64 MiB")));
-    }
-    let mut archive = zip::ZipArchive::new(file)?;
-    if archive.len() > MAX_FILES {
-        return Err(failure(&tr!("Backup contains too many entries")));
-    }
+/// The manifest of a backup and whether it is in the 1.x format.
+fn read_manifest(archive: &mut zip::ZipArchive<File>) -> Result<(Value, bool)> {
     let manifest: Value = {
         let file = archive.by_name("manifest.json")?;
         if file.size() > 1024 * 1024 {
@@ -177,6 +170,19 @@ pub(super) fn read(source: &Path) -> Result<(Files, bool, Restore)> {
             )));
         }
     };
+    Ok((manifest, legacy))
+}
+
+pub(super) fn read(source: &Path) -> Result<(Files, bool, Restore)> {
+    let file = File::open(source)?;
+    if file.metadata()?.len() > MAX_BYTES {
+        return Err(failure(&tr!("Backup exceeds 64 MiB")));
+    }
+    let mut archive = zip::ZipArchive::new(file)?;
+    if archive.len() > MAX_FILES {
+        return Err(failure(&tr!("Backup contains too many entries")));
+    }
+    let (manifest, legacy) = read_manifest(&mut archive)?;
     let names: Vec<String> = serde_json::from_value(manifest["files"].clone())?;
     let roots = if legacy { LEGACY_ROOTS } else { ROOTS };
     let mut files = Files::new();
