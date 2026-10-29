@@ -90,6 +90,12 @@ jobs:
           pattern: distribution-*
           merge-multiple: true
           path: artifacts
+      - name: No Muxy name in any artifact a user can reach
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full
+          shopt -s nullglob
+          bash scripts/check-no-muxy.sh artifacts/*.tar.gz artifacts/*.zip artifacts/*.deb \
+            artifacts/*.AppImage artifacts/*.dmg
       - name: Add the installers the app and the docs refer to
         run: |
           cp scripts/install-atur-terminal.sh scripts/install-desktop-linux.py artifacts/

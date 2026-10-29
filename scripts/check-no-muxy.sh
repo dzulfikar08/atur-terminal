@@ -4,9 +4,16 @@
 # inside them are both checked.
 #
 # Allowed: LICENSE*, NOTICE*, THIRD_PARTY* files and the credit line "Based on Muxy".
-# Rust crate paths and symbols (crates/muxy-*, muxy_core::, ...) are reported separately as
-# "internal"; they only come from debug info and panic locations and do not make the check fail
-# unless --strict is given.
+# Hits are sorted into three groups:
+#   internal    Rust crate paths, panic locations and mangled symbols (crates/muxy-*, muxy_core::,
+#               muxy_dir17h...). They never reach a user or the OS.
+#   legacy-read the names the app only READS so installs and peers from before the rename keep
+#               working (.muxy/ folders, MUXY_* variables, muxy:// links, MUXY-STDIO handshakes,
+#               old theme and data directory names, the "muxy" manifest key, MUXYSAV file magic,
+#               extension JS aliases). Bare "muxy" literals of at most 16 characters with no
+#               space are the same legacy keys with unrelated neighbouring bytes.
+#   VISIBLE     anything else: thread names, messages, UI strings, paths written to disk,
+#               Info.plist, .desktop, deb control. These fail the check.
 #
 # Usage: scripts/check-no-muxy.sh [--strict] [--show N] ARTIFACT...
 # Exit: 0 clean, 1 visible hits (or any hit with --strict), 2 usage or extraction error.
@@ -19,7 +26,7 @@ while (($#)); do
     case "$1" in
         --strict) STRICT=1 ;;
         --show) SHOW="${2:?--show needs a number}"; shift ;;
-        -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) ARGS+=("$1") ;;
     esac
     shift
@@ -34,10 +41,12 @@ trap 'rm -rf "$WORK"' EXIT
 
 ALLOWED_FILE='(^|/)(LICENSE|NOTICE|THIRD_PARTY)[^/]*$'
 ALLOWED_LINE='Based on Muxy'
-INTERNAL='crates/muxy-|muxy[_-](app-core|app|cli|client|core|protocol|server|terminal|ui|mobile)\b|muxy_[a-z_]+(::|\.rs)|muxy-app/muxy'
+LEGACY='\.muxy/|/muxy/|\.config/muxy|muxy/(worktree|voice|layouts)|MUXY_|MUXY-(STDIO|UDP)|MUXYSAV|muxy://|muxy/1|pending-import\.muxy|com\.muxy|app\.muxy|--muxy-|__muxy|muxy-(beta|dev|pr-number|ext|pane|[0-9a-f]{8})|Muxy (Dev|Beta|2|Light|Runtime|1\.x)|muxy\.(configuration|theme|showStatusBar|tips|general|worktrees|sidebarCollapsedStyle|activeSidebar|localization|appLayout|richInput|quickTerminal|recording|ai|projectPicker|tabs|ext)|muxy\.[a-z]+ =|muxy: |(const|globalThis\.atur =|return|of Object\.values\() ?\(?muxy|`muxy`|`--muxy|\(c\) 2026 Muxy|muxy-cli|Application Support/Muxy|(window|globalThis)\.(atur = )?(window|globalThis)?\.?muxy|[(\[ ]muxy\.[a-z]+[.(]|window\.atur = window\.muxy|^[[:space:]]*(//.*)?muxy[.[:space:]]'
+INTERNAL='crates/muxy-|muxy_[a-z0-9_]+|muxy-app/(muxy|gpui)|/muxy-[a-z-]+/src/'
 
 visible=0
 internal=0
+legacy=0
 
 extract() {
     local source="$1" dest="$2"
@@ -61,9 +70,19 @@ report() {
     local bad
     bad="$(grep -v -E "$ALLOWED_LINE" <<<"$hits" || true)"
     [[ -n "$bad" ]] || return 0
-    local inner outer
+    local inner outer old
     inner="$(grep -E -i "$INTERNAL" <<<"$bad" || true)"
     outer="$(grep -v -E -i "$INTERNAL" <<<"$bad" || true)"
+    old="$(grep -E -i "$LEGACY" <<<"$outer" || true)"
+    outer="$(grep -v -E -i "$LEGACY" <<<"$outer" || true)"
+    # A bare word fused with neighbouring bytes (muxypeer, ;Muxyut) is a one-word legacy key; a
+    # "Muxy" followed by another word stays visible.
+    bare="$(grep -E -i '(^|[^[:alnum:]_./:-])[[:alnum:];]*muxy[[:alnum:];]*($|[^[:alnum:]_./:[:space:]-]|[[:space:]]*$)' <<<"$outer" | grep -v -E -i 'muxy[[:space:]]+[[:alnum:]]' || true)"
+    if [[ -n "$bare" ]]; then
+        old="$old"$'\n'"$bare"
+        outer="$(grep -v -x -F "$bare" <<<"$outer" || true)"
+    fi
+    [[ -n "$old" ]] && legacy=$((legacy + 1))
     if [[ -n "$outer" ]]; then
         visible=$((visible + 1))
         printf 'VISIBLE %s: %s (%s unique)\n' "$label" "$rel" "$(wc -l <<<"$outer")"
@@ -102,8 +121,11 @@ for artifact in "${ARGS[@]}"; do
             printf 'VISIBLE artifact name: %s\n' "$name"
         fi
         dest="$WORK/$index"
-        if extract "$artifact" "$dest" 2>/dev/null; then
+        if extract "$artifact" "$dest" 2>/dev/null && [[ -n "$(find "$dest" -type f -print -quit)" ]]; then
             scan_tree "$dest" "$name"
+        elif [[ "$name" =~ \.(deb|zip|tar|tar\.gz|tgz|tar\.xz|AppImage|dmg)$ ]]; then
+            echo "error: could not unpack $name" >&2
+            exit 2
         else
             report "$name" "$artifact" "$name"
         fi
@@ -114,5 +136,5 @@ for artifact in "${ARGS[@]}"; do
     fi
 done
 
-echo "visible: $visible file(s); internal-only: $internal file(s)"
+echo "visible: $visible file(s); internal: $internal file(s); legacy-read: $legacy file(s)"
 ((visible == 0)) && ((!STRICT || internal == 0))
