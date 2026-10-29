@@ -64,3 +64,23 @@ such as a cloud server behind NAT, puts that name first with
 
 The full integration guide, with the API, setup, and error handling, is in
 [`crates/atur-mobile/README.md`](../../crates/atur-mobile/README.md).
+
+## The React Native facade
+
+`crates/atur-mobile/src/direct.rs` is the layer the Atur app's React Native module drives.
+It exists so the Kotlin and Swift glue stays a few lines long and identical on both platforms:
+
+- Everything crossing the boundary is a JSON string. `Direct::call` runs a request that may block,
+  `Direct::fire` queues typing, paste and resize (answered at once, run in order on one thread), and a
+  `DirectListener` receives pushed events. Answers are `{"ok": ...}` or `{"error": {"code", "reason"}}`.
+- Attached screens are rendered to ANSI rows (`ansi.rs`) and only changed rows are sent, as `snapshot` and
+  `diff` events, which is the vocabulary the Atur app already draws.
+- Typing arrives as the byte strings a terminal emulator produces; `input.rs` turns them into text and key
+  presses so the server encodes arrows and function keys with the program's own modes.
+- The predictive echo (`muxy-client`'s `Predictor`) runs in the core: it sees every key sent and every
+  frame received, and its guesses are drawn into the rows. A timer thread sleeps until the predictor's next
+  deadline.
+
+`.github/workflows/mobile.yml` checks the crate and builds the Android libraries and the iOS XCFramework on
+hosted runners; `cargo test -p atur-mobile --test sdk bench_facade -- --ignored --nocapture` prints attach
+and echo timings against an in-process server.
