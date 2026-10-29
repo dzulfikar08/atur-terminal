@@ -968,7 +968,7 @@ fn bench_facade_attach_and_echo() -> TestResult {
                 rows.has(&typed)
             })?;
             samples.push(sent.elapsed().as_secs_f64() * 1000.0);
-            thread::sleep(Duration::from_millis(25));
+            thread::sleep(Duration::from_millis(100));
         }
         // Start the next round on a fresh line.
         fire(
