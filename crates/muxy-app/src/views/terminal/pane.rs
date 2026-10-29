@@ -176,6 +176,7 @@ impl TerminalPane {
                 pane.key_binding(&event.keystroke, false, window, cx);
             });
         });
+        let predict = Predictor::new(echo_mode(&terminal));
         Self {
             #[cfg(test)]
             render_count: 0,
@@ -232,7 +233,7 @@ impl TerminalPane {
             directory: ServerPath(Vec::new()),
             bell_flashing: false,
             bell_expiry: None,
-            predict: Predictor::new(echo_mode(&terminal)),
+            predict,
             echo_timer: None,
         }
     }
@@ -357,7 +358,10 @@ impl TerminalPane {
         self.echo_timer = self.predict.next_deadline(now).map(|at| {
             cx.spawn(async move |pane, cx| {
                 cx.background_executor()
-                    .timer(at.saturating_duration_since(now).max(Duration::from_millis(1)))
+                    .timer(
+                        at.saturating_duration_since(now)
+                            .max(Duration::from_millis(1)),
+                    )
                     .await;
                 let _ = pane.update(cx, |pane, cx| {
                     pane.tick_echo(cx);
@@ -365,6 +369,12 @@ impl TerminalPane {
                 });
             })
         });
+    }
+
+    /// The server answered a ping sent right after input stamped `stamp`.
+    pub(crate) fn settle_echo(&mut self, stamp: Instant, cx: &mut Context<Self>) {
+        self.predict.barrier(stamp, Instant::now());
+        self.tick_echo(cx);
     }
 
     pub(crate) fn apply(&mut self, frame: &ScreenFrame, cx: &mut Context<Self>) {
@@ -1817,6 +1827,7 @@ impl Render for TerminalPane {
 mod tests {
     mod autoscroll;
     mod bindings;
+    mod echo;
     mod scrollbar;
     mod server_input;
 
