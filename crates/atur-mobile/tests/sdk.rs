@@ -992,6 +992,11 @@ fn bench_facade_attach_and_echo() -> TestResult {
             rows.apply(event);
             event["t"] == "snapshot"
         })?;
+        let stats = call(&direct, "echoStats", &json!({ "session": session }))?;
+        eprintln!(
+            "bench stats mode={mode} {stats} first={:?}",
+            &samples[..5.min(samples.len())]
+        );
         samples.sort_by(f64::total_cmp);
         let at = |fraction: f64| {
             samples[((samples.len() as f64 * fraction) as usize).min(samples.len() - 1)]
