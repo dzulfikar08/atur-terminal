@@ -1,7 +1,10 @@
 name: check-branding
 
 # Scans the assets of a published release for Muxy names a user or the OS could see.
+# Run it from the default branch, or push a tag check-branding-<release tag>.
 on:
+  push:
+    tags: ['check-branding-*']
   workflow_dispatch:
     inputs:
       tag:
@@ -20,8 +23,9 @@ jobs:
       - name: Download the release assets
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
+          TAG="${TAG#check-branding-}"
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir artifacts \
             -p '*.tar.gz' -p '*.zip' -p '*.deb' -p '*.dmg' -p '*.AppImage'
           ls -l artifacts
