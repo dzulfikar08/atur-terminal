@@ -736,7 +736,11 @@ fn backups_and_staged_imports_of_earlier_releases_are_still_read() {
     assert!(files.contains_key("themes/earlier"));
 
     let target = profile();
-    fs::copy(&archive, target.path().join("pending-import.muxy")).unwrap();
+    let mut staged = archive::collect(directory.path(), ROOTS).unwrap();
+    staged.insert("themes/earlier".into(), b"background = 111111".to_vec());
+    let pending = directory.path().join("pending.aturbackup");
+    archive::write(&pending, &staged, Restore::Partial).unwrap();
+    fs::copy(&pending, target.path().join("pending-import.muxy")).unwrap();
     assert_eq!(
         pending_path(target.path()),
         Some(target.path().join("pending-import.muxy"))
@@ -746,7 +750,7 @@ fn backups_and_staged_imports_of_earlier_releases_are_still_read() {
     assert!(pending_path(target.path()).is_none());
 
     let import = prepare(target.path(), &archive).unwrap();
-    fs::copy(&archive, target.path().join("pending-import.muxy")).unwrap();
+    fs::copy(&pending, target.path().join("pending-import.muxy")).unwrap();
     stage(target.path(), &import).unwrap();
     assert_eq!(
         pending_path(target.path()),
