@@ -35,13 +35,21 @@ const MAX_SACK: usize = 3;
 const SEND_BUFFER: usize = 1 << 20;
 /// Bytes accepted ahead of what the reader consumed.
 const RECEIVE_BUFFER: usize = 1 << 20;
-/// A packet with at most this many data bytes is sent twice.
-const DUPLICATE_BELOW: usize = 256;
+/// A packet with at most this many data bytes is sent twice, and one with at
+/// most `TRIPLICATE_BELOW` three times.
+const DUPLICATE_BELOW: usize = 512;
+const TRIPLICATE_BELOW: usize = 256;
 const INITIAL_RTT: Duration = Duration::from_millis(500);
 const MIN_PTO: Duration = Duration::from_millis(40);
-const PROBE_INTERVAL: Duration = Duration::from_millis(500);
-const LONG_PROBE_INTERVAL: Duration = Duration::from_secs(1);
-const LONG_OUTAGE_PROBES: u32 = 8;
+/// Probes while the peer is silent come this often, less often the longer
+/// the silence: a link that returns is noticed within a fraction of a second
+/// at first, while a sleeping laptop is not woken by a stream of packets.
+const SILENCE_STEPS: [(Duration, Duration); 3] = [
+    (Duration::from_secs(20), Duration::from_millis(250)),
+    (Duration::from_secs(120), Duration::from_millis(500)),
+    (Duration::from_secs(600), Duration::from_secs(1)),
+];
+const LONGEST_PROBE_INTERVAL: Duration = Duration::from_secs(2);
 const PERSISTENT_PROBES: u32 = 3;
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const MIN_WINDOW: u64 = 16 * MSS as u64;
@@ -205,6 +213,7 @@ pub struct Stats {
 }
 
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub(super) struct Connection {
     epoch: Instant,
 
@@ -221,7 +230,7 @@ pub(super) struct Connection {
     in_flight: u64,
     peer_limit: u64,
     latest_acked: Option<Instant>,
-    duplicates: VecDeque<Duplicate>,
+    duplicates: Vec<Duplicate>,
 
     // Congestion control and timers.
     window: u64,
@@ -271,7 +280,7 @@ impl Connection {
             in_flight: 0,
             peer_limit: u64::try_from(RECEIVE_BUFFER).unwrap_or(u64::MAX),
             latest_acked: None,
-            duplicates: VecDeque::new(),
+            duplicates: Vec::new(),
             window: INITIAL_WINDOW,
             threshold: u64::MAX,
             recovery_end: 0,
@@ -392,6 +401,13 @@ impl Connection {
     pub(super) fn on_packet(&mut self, now: Instant, plain: &[u8]) -> Result<(), Malformed> {
         let packet = Packet::parse(plain).ok_or(Malformed)?;
         self.stats.packets_received += 1;
+        if self.probes_unanswered >= PERSISTENT_PROBES {
+            // Silence ended. Whatever was in flight went into a dead link,
+            // so send it again now instead of waiting to find that out.
+            self.mark_all_lost();
+            self.probes_unanswered = 0;
+            self.timer_base = now;
+        }
         self.last_heard = now;
 
         if packet.flags & ECHO != 0 {
@@ -661,34 +677,56 @@ impl Connection {
 
     // ----- sending -----
 
-    fn probe_interval(&self) -> Duration {
+    /// How often to try a peer that has been silent for `silence`.
+    fn silent_interval(&self, silence: Duration) -> Duration {
+        let interval = SILENCE_STEPS
+            .iter()
+            .find(|(until, _)| silence < *until)
+            .map_or(LONGEST_PROBE_INTERVAL, |(_, interval)| *interval);
+        // Probing faster than the peer can answer only adds copies.
+        interval.max((self.rtt.get() / 2).min(Duration::from_millis(500)))
+    }
+
+    fn probe_interval(&self, now: Instant) -> Duration {
         let base = self.rtt.probe_timeout();
-        match self.probes_unanswered {
-            0 => base,
-            n if n > LONG_OUTAGE_PROBES => LONG_PROBE_INTERVAL,
-            n => (base * (1 << n.min(6))).min(PROBE_INTERVAL),
+        if self.probes_unanswered == 0 {
+            return base;
         }
+        let silence = now.saturating_duration_since(self.last_heard);
+        (base * (1 << self.probes_unanswered.min(6))).min(self.silent_interval(silence))
     }
 
-    fn probe_deadline(&self) -> Option<Instant> {
-        (self.una < self.nxt).then(|| self.timer_base + self.probe_interval())
+    fn probe_deadline(&self, now: Instant) -> Option<Instant> {
+        (self.una < self.nxt).then(|| self.timer_base + self.probe_interval(now))
     }
 
-    fn heartbeat_deadline(&self) -> Option<Instant> {
-        self.heartbeats.then(|| self.last_transmit + HEARTBEAT)
+    /// A client keeps a heartbeat going, and goes faster once the server has
+    /// been silent for longer than one beat: the server only learns where the
+    /// client is from what it sends, and after a change of network that is
+    /// the first thing the server must hear.
+    fn heartbeat_deadline(&self, now: Instant) -> Option<Instant> {
+        self.heartbeats.then(|| {
+            let silence = now.saturating_duration_since(self.last_heard);
+            let interval = if silence > HEARTBEAT {
+                self.silent_interval(silence)
+            } else {
+                HEARTBEAT
+            };
+            self.last_transmit + interval
+        })
     }
 
     /// The next packet to send now, or when to ask again.
     fn plan(&mut self, now: Instant) -> Plan {
         self.detect_losses(now);
 
-        if let Some(deadline) = self.probe_deadline()
+        if let Some(deadline) = self.probe_deadline(now)
             && deadline <= now
         {
             return Plan::Now(Pick::Probe);
         }
 
-        let mut wake: Option<Instant> = self.probe_deadline();
+        let mut wake: Option<Instant> = self.probe_deadline(now);
         let mut earlier = |time: Instant| {
             wake = Some(wake.map_or(time, |current| current.min(time)));
         };
@@ -715,7 +753,7 @@ impl Connection {
                 ));
             }
         }
-        if let Some(duplicate) = self.duplicates.front() {
+        if let Some(duplicate) = self.duplicates.iter().min_by_key(|duplicate| duplicate.due) {
             if duplicate.due <= now {
                 return Plan::Now(Pick::Range(duplicate.start, duplicate.end, Kind::Duplicate));
             }
@@ -738,7 +776,7 @@ impl Connection {
         if self.ack_pending {
             return Plan::Now(Pick::Ack);
         }
-        if let Some(heartbeat) = self.heartbeat_deadline() {
+        if let Some(heartbeat) = self.heartbeat_deadline(now) {
             if heartbeat <= now {
                 return Plan::Now(Pick::Heartbeat);
             }
@@ -787,28 +825,36 @@ impl Connection {
                 if self.probes_unanswered == PERSISTENT_PROBES {
                     self.mark_all_lost();
                 }
-                match self.probe_range() {
-                    Some((start, end)) => {
-                        self.lost.remove(start, end);
-                        (start, end)
-                    }
-                    None => {
-                        flags |= HEARTBEAT_FLAG;
-                        (self.nxt, self.nxt)
-                    }
+                if let Some((start, end)) = self.probe_range() {
+                    self.lost.remove(start, end);
+                    (start, end)
+                } else {
+                    flags |= HEARTBEAT_FLAG;
+                    (self.nxt, self.nxt)
                 }
             }
             Pick::Range(start, end, kind) => {
                 match kind {
                     Kind::New => {
                         if end - start <= as_u64(DUPLICATE_BELOW) && !self.fin_queued {
-                            let gap = (self.rtt.get() / 16)
+                            let srtt = self.rtt.get();
+                            let gap = (srtt / 16)
                                 .clamp(Duration::from_millis(5), Duration::from_millis(40));
-                            self.duplicates.push_back(Duplicate {
+                            self.duplicates.push(Duplicate {
                                 due: now + gap,
                                 start,
                                 end,
                             });
+                            if end - start <= as_u64(TRIPLICATE_BELOW) {
+                                // Far enough behind to miss a burst of loss.
+                                let later = (srtt / 2)
+                                    .clamp(Duration::from_millis(60), Duration::from_millis(600));
+                                self.duplicates.push(Duplicate {
+                                    due: now + later,
+                                    start,
+                                    end,
+                                });
+                            }
                         }
                     }
                     Kind::Retransmit => {
@@ -817,7 +863,15 @@ impl Connection {
                     }
                     Kind::Duplicate => {
                         self.stats.duplicated_packets += 1;
-                        self.duplicates.pop_front();
+                        if let Some(index) = self
+                            .duplicates
+                            .iter()
+                            .enumerate()
+                            .min_by_key(|(_, duplicate)| duplicate.due)
+                            .map(|(index, _)| index)
+                        {
+                            self.duplicates.swap_remove(index);
+                        }
                     }
                 }
                 (start, end)
@@ -862,6 +916,8 @@ impl Connection {
         })
     }
 
+    /// Byte counts here are far below where `f64` loses precision.
+    #[allow(clippy::cast_precision_loss)]
     fn pace(&mut self, now: Instant, length: u64) {
         let srtt = self.rtt.get().as_secs_f64().max(0.001);
         // Twice the window per round trip: enough to fill the pipe while

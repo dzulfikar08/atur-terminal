@@ -1,6 +1,13 @@
 //! The state machine on a simulated link: a virtual clock, one-way delay with
 //! jitter, random loss, and outages. Runs are deterministic.
 
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless
+)]
+
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
@@ -111,6 +118,11 @@ impl Sim {
         }
     }
 
+    fn finished(&mut self, done: &mut impl FnMut(&mut [Connection; 2], Duration) -> bool) -> bool {
+        let elapsed = self.elapsed();
+        done(&mut self.ends, elapsed)
+    }
+
     /// Runs until `done` or the limit; false on the limit.
     fn run(
         &mut self,
@@ -120,10 +132,7 @@ impl Sim {
         let deadline = self.start + limit;
         loop {
             self.transmit();
-            if {
-                let elapsed = self.elapsed();
-                done(&mut self.ends, elapsed)
-            } {
+            if self.finished(&mut done) {
                 return true;
             }
             let mut next = self.flights.peek().map(|flight| flight.0.at);
@@ -137,10 +146,7 @@ impl Sim {
             };
             if next > deadline {
                 self.now = deadline;
-                return {
-                    let elapsed = self.elapsed();
-                    done(&mut self.ends, elapsed)
-                };
+                return self.finished(&mut done);
             }
             self.now = next.max(self.now);
             while self
@@ -156,10 +162,7 @@ impl Sim {
                     .expect("well-formed packet");
             }
             if self.now >= deadline {
-                return {
-                    let elapsed = self.elapsed();
-                    done(&mut self.ends, elapsed)
-                };
+                return self.finished(&mut done);
             }
         }
     }
@@ -232,7 +235,7 @@ fn small_messages(link: Link, count: usize, gap: Duration, seed: u64) -> Vec<Dur
     let mut next_write = Duration::ZERO;
     let mut received = Vec::new();
     let mut latencies = Vec::new();
-    let mut seen = 0usize;
+    let mut delivered = 0usize;
     sim.run(
         gap * u32::try_from(count + 40).unwrap_or(u32::MAX),
         |ends, elapsed| {
@@ -246,14 +249,14 @@ fn small_messages(link: Link, count: usize, gap: Duration, seed: u64) -> Vec<Dur
                 next_write += gap;
             }
             drain(&mut ends[1], &mut received);
-            while received.len() >= (seen + 1) * 16 {
-                latencies[seen].1 = Some(elapsed - latencies[seen].0);
-                seen += 1;
+            while received.len() >= (delivered + 1) * 16 {
+                latencies[delivered].1 = Some(elapsed.saturating_sub(latencies[delivered].0));
+                delivered += 1;
             }
-            seen == count
+            delivered == count
         },
     );
-    assert_eq!(seen, count, "every message arrives");
+    assert_eq!(delivered, count, "every message arrives");
     let mut sorted: Vec<Duration> = latencies
         .into_iter()
         .filter_map(|(_, latency)| latency)
@@ -344,6 +347,22 @@ fn small_packets_go_out_twice_and_large_ones_once() {
 }
 
 #[test]
+fn a_client_with_nothing_to_send_keeps_trying_a_silent_server() {
+    let mut sim = Sim::new(link(100, 0, 0.0), 2);
+    sim.run(Duration::from_secs(5), |_, _| false);
+    sim.blackout_until = Some(sim.now + Duration::from_secs(30));
+    let before = sim.ends[0].stats().packets_sent;
+    sim.run(Duration::from_secs(25), |_, _| false);
+    let during = sim.ends[0].stats().packets_sent - before;
+    // A packet every quarter second once the server has been silent for more
+    // than a heartbeat, which is what gets it to learn a new address quickly.
+    assert!(
+        (40..=100).contains(&during),
+        "{during} packets in 20 silent seconds"
+    );
+}
+
+#[test]
 fn an_idle_connection_stays_quiet() {
     let mut sim = Sim::new(link(100, 0, 0.0), 2);
     sim.run(Duration::from_secs(60), |_, _| false);
@@ -405,5 +424,43 @@ fn latency_table() {
             percentile(&latencies, 0.99),
             latencies.last().unwrap()
         );
+    }
+}
+
+#[test]
+#[ignore = "prints recovery times"]
+fn recovery_table() {
+    for rtt in [50u64, 100, 300, 800] {
+        for up_bytes in [0usize, 20_000] {
+            let mut sim = Sim::new(link(rtt, 0, 0.0), 3);
+            sim.ends[0].write(b"warm");
+            let (mut left, mut right) = (Vec::new(), Vec::new());
+            sim.run(Duration::from_secs(5), |ends, _| {
+                drain(&mut ends[1], &mut left);
+                left == b"warm"
+            });
+            let start = sim.elapsed();
+            let restored = start + Duration::from_secs(10);
+            sim.blackout_until = Some(sim.now + Duration::from_secs(10));
+            sim.ends[0].write(b"during");
+            if up_bytes > 0 {
+                sim.ends[1].write(&pattern(up_bytes));
+            }
+            let (mut at_up, mut at_down) = (None, None);
+            sim.run(start + Duration::from_secs(40), |ends, elapsed| {
+                drain(&mut ends[1], &mut left);
+                drain(&mut ends[0], &mut right);
+                if at_up.is_none() && left.ends_with(b"during") {
+                    at_up = Some(elapsed.saturating_sub(restored));
+                }
+                if at_down.is_none() && right.len() >= up_bytes && up_bytes > 0 {
+                    at_down = Some(elapsed.saturating_sub(restored));
+                }
+                at_up.is_some() && (up_bytes == 0 || at_down.is_some())
+            });
+            println!(
+                "rtt {rtt} up_bytes {up_bytes}: client data after {at_up:?}, server data after {at_down:?}"
+            );
+        }
     }
 }

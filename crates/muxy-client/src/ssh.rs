@@ -48,7 +48,7 @@ pub struct SshTarget {
     identity: Option<PathBuf>,
     askpass: Option<Askpass>,
     host_key_prompt: bool,
-    udp: Option<UdpSettings>,
+    udp: Option<Box<UdpSettings>>,
 }
 
 /// A program that answers ssh's prompts, such as for a saved password. ssh
@@ -128,7 +128,7 @@ impl SshTarget {
     /// connect. ssh still logs in and starts the bridge.
     #[must_use]
     pub fn with_udp(mut self, settings: UdpSettings) -> Self {
-        self.udp = Some(settings);
+        self.udp = Some(Box::new(settings));
         self
     }
 
@@ -162,7 +162,7 @@ impl SshTarget {
             return None;
         }
         let settings = match &self.udp {
-            Some(settings) => settings.clone(),
+            Some(settings) => (**settings).clone(),
             None => UdpSettings::default().from_environment(),
         };
         Some(
@@ -183,21 +183,20 @@ impl SshTarget {
     /// The addresses of the host as ssh connects to it, from its resolved
     /// configuration.
     fn udp_addresses(&self, host: Option<&str>) -> Result<Vec<IpAddr>, String> {
-        let host = match host {
-            Some(host) => host.to_owned(),
-            None => {
-                if self.is_custom_command() {
-                    return Err("custom commands do not name a host to reach over UDP".into());
-                }
-                let config = self.config().map_err(|error| error.to_string())?;
-                config
-                    .lines()
-                    .find_map(|line| {
-                        let (name, value) = line.split_once(' ')?;
-                        (name == "hostname").then(|| value.trim().to_owned())
-                    })
-                    .ok_or("ssh did not report a host name")?
+        let host = if let Some(host) = host {
+            host.to_owned()
+        } else {
+            if self.is_custom_command() {
+                return Err("custom commands do not name a host to reach over UDP".into());
             }
+            let config = self.config().map_err(|error| error.to_string())?;
+            config
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(' ')?;
+                    (name == "hostname").then(|| value.trim().to_owned())
+                })
+                .ok_or("ssh did not report a host name")?
         };
         let mut addresses: Vec<IpAddr> = Vec::new();
         for address in (host.as_str(), 0)
@@ -447,22 +446,22 @@ impl Client {
     /// certificate. The host's key must already be trusted.
     pub fn connect_ssh(target: &SshTarget, start: Start) -> Result<Self, ClientError> {
         let plan = match target.udp_plan() {
-            None => return Self::connect_ssh_with(target, bridge::command(start).into(), None),
+            None => return Self::connect_ssh_with(target, bridge::command(start), None),
             Some(Err(reason)) => {
                 return Ok(
-                    Self::connect_ssh_with(target, bridge::command(start).into(), None)?
+                    Self::connect_ssh_with(target, bridge::command(start), None)?
                         .with_transport(Transport::UdpFailed(reason)),
                 );
             }
             Some(Ok(plan)) => plan,
         };
         let (plan, relay) = plan;
-        match Self::connect_ssh_with(target, bridge::udp_command(start, &relay), Some(&plan)) {
+        match Self::connect_ssh_with(target, &bridge::udp_command(start, &relay), Some(&plan)) {
             Err(ClientError::Remote { detail, .. })
                 if detail.contains("usage: atur-term stdio") =>
             {
                 // An older Atur Terminal there does not know `--udp`.
-                let client = Self::connect_ssh_with(target, bridge::command(start).into(), None)?;
+                let client = Self::connect_ssh_with(target, bridge::command(start), None)?;
                 Ok(client.with_transport(Transport::UdpFailed(
                     "the server's Atur Terminal is too old for UDP; update it".into(),
                 )))
@@ -473,10 +472,10 @@ impl Client {
 
     fn connect_ssh_with(
         target: &SshTarget,
-        remote: String,
+        remote: &str,
         plan: Option<&UdpPlan>,
     ) -> Result<Self, ClientError> {
-        let mut command = target.command(&remote)?;
+        let mut command = target.command(remote)?;
         let program = PathBuf::from(command.get_program());
         command.stderr(Stdio::piped());
         let mut stream = ChildStream::spawn(command).map_err(|error| {

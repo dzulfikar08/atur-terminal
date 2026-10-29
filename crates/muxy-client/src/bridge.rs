@@ -110,12 +110,11 @@ pub fn serve(
     let input = File::from(io::stdin().as_fd().try_clone_to_owned()?);
     let mut output = File::from(io::stdout().as_fd().try_clone_to_owned()?);
     output.write_all(&[READY, VERSION, b"\n"].concat())?;
-    match udp {
-        Some(relay) => udp::serve(server, relay, input, output),
-        None => {
-            transport::relay(server, input, output)?;
-            Ok(())
-        }
+    if let Some(relay) = udp {
+        udp::serve(server, relay, input, output)
+    } else {
+        transport::relay(server, input, output)?;
+        Ok(())
     }
 }
 

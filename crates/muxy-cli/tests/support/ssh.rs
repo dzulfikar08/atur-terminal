@@ -33,6 +33,7 @@ impl FakeRemote {
 
     /// Like [`FakeRemote::new`], but the remote command keeps running when
     /// the fake ssh is killed, as it does under a real sshd.
+    #[allow(dead_code)]
     pub(super) fn detached() -> Result<Self> {
         Self::build("", true)
     }

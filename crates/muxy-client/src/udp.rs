@@ -108,12 +108,11 @@ fn seconds_from(variable: &str) -> Option<Duration> {
 
 /// `LOW-HIGH`, or one port.
 pub fn parse_ports(text: &str) -> Option<RangeInclusive<u16>> {
-    let (low, high) = match text.trim().split_once('-') {
-        Some((low, high)) => (low.trim().parse().ok()?, high.trim().parse().ok()?),
-        None => {
-            let port = text.trim().parse().ok()?;
-            (port, port)
-        }
+    let (low, high) = if let Some((low, high)) = text.trim().split_once('-') {
+        (low.trim().parse().ok()?, high.trim().parse().ok()?)
+    } else {
+        let port = text.trim().parse().ok()?;
+        (port, port)
     };
     (low >= 1024 && low <= high).then_some(low..=high)
 }
@@ -290,11 +289,9 @@ pub(crate) fn serve(
         .spawn(move || {
             let mut input = input;
             let mut buffer = vec![0; BUFFER];
-            let event = loop {
-                match input.read(&mut buffer) {
-                    Ok(0) | Err(_) => break First::SshEnded,
-                    Ok(read) => break First::Ssh(buffer[..read].to_vec(), input),
-                }
+            let event = match read_some(&mut input, &mut buffer) {
+                Some(bytes) => First::Ssh(bytes, input),
+                None => First::SshEnded,
             };
             let _ = ssh_events.send(event);
         })?;
@@ -303,11 +300,9 @@ pub(crate) fn serve(
         .spawn(move || {
             let mut reader = wire_reader;
             let mut buffer = vec![0; BUFFER];
-            let event = loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) | Err(_) => break First::WireEnded,
-                    Ok(read) => break First::Wire(buffer[..read].to_vec(), reader),
-                }
+            let event = match read_some(&mut reader, &mut buffer) {
+                Some(bytes) => First::Wire(bytes, reader),
+                None => First::WireEnded,
             };
             let _ = events.send(event);
         })?;
@@ -331,6 +326,18 @@ pub(crate) fn serve(
                 detach();
                 return carry(server, &bytes, reader, wire_writer, &status, &*cancellation);
             }
+        }
+    }
+}
+
+/// The next bytes from `reader`, or `None` once it has ended or failed.
+fn read_some(reader: &mut impl Read, buffer: &mut [u8]) -> Option<Vec<u8>> {
+    loop {
+        match reader.read(buffer) {
+            Ok(0) => return None,
+            Ok(read) => return Some(buffer[..read].to_vec()),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => return None,
         }
     }
 }

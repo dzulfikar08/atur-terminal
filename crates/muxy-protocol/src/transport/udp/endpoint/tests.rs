@@ -68,8 +68,8 @@ impl Proxy {
             while let Ok((length, from)) = front.recv_from(&mut buffer) {
                 *client.lock().unwrap() = Some(from);
                 state = state
-                    .wrapping_mul(6364136223846793005)
-                    .wrapping_add(1442695040888963407);
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
                 let drop_it = (state >> 33) % 1000 < loss.load(Ordering::Relaxed);
                 if blackhole.load(Ordering::Relaxed) || drop_it {
                     continue;
@@ -326,5 +326,7 @@ fn the_port_comes_from_the_requested_range() {
     assert_eq!(server.port(), 43_210);
     let second = UdpServer::bind(43_210..=43_210, &secret(), options());
     assert_eq!(second.unwrap_err().kind(), io::ErrorKind::AddrInUse);
-    assert!(UdpServer::bind(5..=4, &secret(), options()).is_err());
+    #[allow(clippy::reversed_empty_ranges)]
+    let empty = 5..=4;
+    assert!(UdpServer::bind(empty, &secret(), options()).is_err());
 }

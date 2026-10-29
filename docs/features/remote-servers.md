@@ -97,6 +97,66 @@ atur-term --host ssh://me@devbox:2222   # with a user and port
 `ssh://user@host:port`. It never prompts, so use a key or an agent. Folder
 arguments must be absolute paths on that computer.
 
+## On slow or unreliable networks
+
+SSH runs over TCP, so one lost packet holds up everything behind it, and a
+network that comes and goes ends the connection. Over a link with a round trip of
+a second and a few lost packets in ten, typing stalls for seconds. UDP mode
+keeps the connection usable there, in the manner of mosh:
+
+- SSH still logs in and starts the server's bridge. Once that works, the
+  connection moves to encrypted UDP and SSH is dropped.
+- Lost packets are sent again within about a round trip, small ones such as
+  keystrokes and echoes are sent more than once up front, and one stall never
+  holds up the rest.
+- Changing network, such as Wi-Fi to a phone hotspot, or sleeping the laptop,
+  keeps the connection. The server waits an hour for you to come back.
+- If UDP does not connect within 3 seconds, Atur Terminal carries on over SSH
+  as if nothing was asked, and says so once.
+
+Turn it on with **Use UDP on slow or unreliable networks** in the server's
+form, or in `settings.toml`:
+
+```toml
+[[servers]]
+id = "6f9619ff-8b86-4011-b42d-00c04fc964ff"
+name = "Devbox"
+ssh = "devbox"
+udp = true
+```
+
+From a shell, add `--udp` after the host, or set `ATUR_TERM_UDP=1`:
+
+```bash
+atur-term --host devbox --udp
+```
+
+### Firewalls and ports
+
+The server's bridge picks a random UDP port from **60001-61000** for each
+connection. Packets travel directly between the two computers, to the host SSH
+connects to.
+
+- **Tailscale or another VPN** needs nothing: the virtual network is already open
+  between your computers.
+- **The plain internet** needs UDP 60001-61000 open in the server's firewall,
+  for example `ufw allow 60001:61000/udp`, or the same range in a cloud
+  provider's security group. Open fewer ports by narrowing the range.
+- **Behind NAT** the server must be reachable on those ports, or by a VPN. Only
+  the client's address may change.
+- A hotel or office network that blocks UDP falls back to SSH after 3 seconds.
+
+| Setting | Environment variable | Default |
+| --- | --- | --- |
+| Ports the server may use | `ATUR_TERM_UDP_PORTS=LOW-HIGH` | `60001-61000` |
+| Host to send UDP to, if not the SSH host | `ATUR_TERM_UDP_HOST` | the host SSH connects to |
+| Seconds the server keeps a connection that went quiet | `ATUR_TERM_UDP_IDLE` | `3600` |
+| Seconds before the app gives up on a silent server and reconnects | `ATUR_TERM_UDP_TIMEOUT` | `300` |
+
+These read from the environment of the app or `atur-term` that connects. The
+server needs Atur Terminal with UDP support, and an older one falls back to SSH.
+[How it works](../tech/udp-transport.md)
+
 ## Working with remote files
 
 - Files dropped or pasted into a remote terminal, or sent from the

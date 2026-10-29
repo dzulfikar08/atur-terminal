@@ -208,20 +208,16 @@ impl Opener {
         }
         let start = out.len();
         out.extend_from_slice(sealed);
-        match self.key.open_in_place(
+        let Ok(plain) = self.key.open_in_place(
             nonce(self.direction, counter),
             Aad::empty(),
             &mut out[start..],
-        ) {
-            Ok(plain) => {
-                let length = plain.len();
-                out.truncate(start + length);
-            }
-            Err(_) => {
-                out.truncate(start);
-                return None;
-            }
-        }
+        ) else {
+            out.truncate(start);
+            return None;
+        };
+        let length = plain.len();
+        out.truncate(start + length);
         self.window.accept(counter);
         Some(counter)
     }

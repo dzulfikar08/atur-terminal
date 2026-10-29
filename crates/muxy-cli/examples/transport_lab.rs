@@ -13,6 +13,12 @@
 //!
 //! `--down` and `--up` are shell commands that break and restore the network.
 
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+
 use std::io::{self, Write};
 use std::process::Command;
 use std::sync::mpsc::RecvTimeoutError;
@@ -156,7 +162,6 @@ fn percentile(sorted: &[f64], fraction: f64) -> f64 {
     if sorted.is_empty() {
         return f64::NAN;
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let index = ((sorted.len() as f64) * fraction) as usize;
     sorted[index.min(sorted.len() - 1)]
 }
