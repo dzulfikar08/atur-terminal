@@ -11,7 +11,7 @@ pub struct BundleLease {
 }
 
 pub fn lock_replacement(directory: &Path) -> io::Result<FileLock> {
-    crate::file_lock::try_lock(&directory.join(".muxy-beta-update.lock"))
+    crate::file_lock::try_lock(&directory.join(".atur-term-beta-update.lock"))
 }
 
 /// The app bundle whose `Contents/MacOS` holds `executable`.
