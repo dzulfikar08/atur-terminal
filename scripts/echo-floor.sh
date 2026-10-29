@@ -7,6 +7,8 @@
 # <bin-dir> holds atur-term and atur-term-server. The server runs with an isolated ATUR_TERM_DIR,
 # phone access on <mobile-port> and UDP offers on 60096-60103; the bench pairs once with the link the
 # command-line client prints and then connects once per variant (see bench_facade_external).
+# ECHO_FLOOR_LOAD=<n> keeps n busy processes running meanwhile; ECHO_FLOOR_PROXY=1 puts a plain
+# socat TCP forwarder (Nagle on, like an emulator's user-mode network) between phone and server.
 set -euo pipefail
 
 label="$1"
@@ -23,8 +25,10 @@ export SHELL=/bin/bash
 chmod +x "$bin/atur-term" "$bin/atur-term-server"
 nohup "$bin/atur-term-server" > "$dir/server.log" 2>&1 &
 server=$!
+burners=()
 cleanup() {
   kill "$server" 2>/dev/null || true
+  for pid in "${burners[@]:-}" "${proxy:-}"; do kill "$pid" 2>/dev/null || true; done
   kill "${pairing:-0}" 2>/dev/null || true
   cp "$dir/server.log" "server-$label.log" 2>/dev/null || true
 }
@@ -48,6 +52,17 @@ if [ ! -s "$dir/link" ]; then
   cat "$dir/pair.log" >&2
   exit 1
 fi
+
+if [ -n "${ECHO_FLOOR_PROXY:-}" ]; then
+  socat "TCP-LISTEN:$((port + 100)),reuseaddr,fork" "TCP:127.0.0.1:$port" &
+  proxy=$!
+  export ATUR_BENCH_PORT=$((port + 100))
+  sleep 0.5
+fi
+for _ in $(seq "${ECHO_FLOOR_LOAD:-0}"); do
+  yes > /dev/null &
+  burners+=($!)
+done
 
 echo "== $label: $(nproc) cpus, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
 ATUR_BENCH_LINK_FILE="$dir/link" ATUR_BENCH_LABEL="$label" ATUR_BENCH_VARIANTS="$variants" \

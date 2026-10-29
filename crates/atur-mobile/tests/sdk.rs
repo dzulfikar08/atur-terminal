@@ -1442,6 +1442,32 @@ fn bench_external_facade(label: &str, variant: &str, credential: &Value) -> Test
         )?;
         extra = format!("{extra} history_ms={:.1}", millis(started));
     }
+    if flags.contains(&"type") {
+        let started = Instant::now();
+        fire(
+            &direct,
+            "input",
+            &json!({ "session": session, "data": "echo e2e-$((40+2))\r" }),
+        )?;
+        wait_json(&events, |event| {
+            rows.apply(event);
+            rows.0.iter().any(|row| row.trim() == "e2e-42")
+        })?;
+        extra = format!("{extra} type_ms={:.1}", millis(started));
+    }
+    if flags.contains(&"paste") {
+        let started = Instant::now();
+        call(
+            &direct,
+            "pasteImage",
+            &json!({
+                "session": session,
+                "name": "paste-bench.png",
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+            }),
+        )?;
+        extra = format!("{extra} paste_ms={:.1}", millis(started));
+    }
     call(&direct, "echoMode", &json!({ "mode": "never" }))?;
     fire(
         &direct,
@@ -1510,7 +1536,14 @@ fn bench_facade_external() -> TestResult {
     let link = std::fs::read_to_string(
         std::env::var_os("ATUR_BENCH_LINK_FILE").ok_or("ATUR_BENCH_LINK_FILE is not set")?,
     )?;
-    let credential = ok(&direct_pair(link.trim().to_owned(), "Echo bench".into()))?;
+    let mut credential = ok(&direct_pair(link.trim().to_owned(), "Echo bench".into()))?;
+    // A proxy in front of the server (`ATUR_BENCH_PORT`): pairing went to the server itself.
+    if let Some(port) = std::env::var("ATUR_BENCH_PORT")
+        .ok()
+        .and_then(|port| port.parse::<u16>().ok())
+    {
+        credential["port"] = json!(port);
+    }
     let variants = std::env::var("ATUR_BENCH_VARIANTS")
         .unwrap_or_else(|_| "core,tls,tls+sessions,auto,auto+sessions".into());
     for variant in variants.split(',').map(str::trim).filter(|v| !v.is_empty()) {
