@@ -107,7 +107,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 fn unhex(text: &str) -> Option<Vec<u8>> {
-    if text.len() % 2 != 0 || !text.is_ascii() {
+    if !text.len().is_multiple_of(2) || !text.is_ascii() {
         return None;
     }
     (0..text.len())
@@ -641,6 +641,15 @@ impl Direct {
                 connection.acknowledge_activity(ids)?;
                 Ok(Value::Null)
             }
+            other => Self::tools(&live, other, &args),
+        }
+    }
+
+    /// The requests that read or tune the connection rather than manage sessions.
+    fn tools(live: &Live, method: &str, args: &Value) -> Answer {
+        let connection = &live.connection;
+        let shared = &live.shared;
+        match method {
             "echoMode" => {
                 let mode: PredictMode = str_arg(&args, "mode")?.parse().map_err(|_| bad("mode"))?;
                 *lock(&shared.mode) = mode;
@@ -827,21 +836,20 @@ fn activity(connection: &Connection) -> Answer {
 
 fn attach(live: &Live, session: u64, cols: u16, rows: u16) -> Answer {
     let shared = &live.shared;
-    let attached = match shared.attached(session) {
-        Some(existing) => existing,
-        None => {
-            let terminal = live.connection.attach(session, cols, rows)?;
-            lock_content(&terminal)
-                .predict
-                .set_mode(*lock(&shared.mode));
-            let attached = Arc::new(Attached {
-                session,
-                terminal,
-                shown: Mutex::new(None),
-            });
-            lock(&shared.attached).insert(session, Arc::clone(&attached));
-            attached
-        }
+    let attached = if let Some(existing) = shared.attached(session) {
+        existing
+    } else {
+        let terminal = live.connection.attach(session, cols, rows)?;
+        lock_content(&terminal)
+            .predict
+            .set_mode(*lock(&shared.mode));
+        let attached = Arc::new(Attached {
+            session,
+            terminal,
+            shown: Mutex::new(None),
+        });
+        lock(&shared.attached).insert(session, Arc::clone(&attached));
+        attached
     };
     // Starts (or restarts) the frame stream for the app.
     shared.refresh(&attached, true);
