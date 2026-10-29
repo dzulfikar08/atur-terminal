@@ -90,7 +90,14 @@ report() {
     bare="$(grep -E -i '(^|[^[:alnum:]_./:-])[[:alnum:];]*muxy[[:alnum:];]*($|[^[:alnum:]_./:[:space:]-]|[[:space:]]*$)' <<<"$outer" | grep -v -E -i 'muxy[[:space:]]+[[:alnum:]]' || true)"
     # The lowercase directory name "muxy" of the old Linux data directory sits next to unrelated
     # literals; it is legacy unless it forms a name with - _ . / : or starts a sentence-like word run.
-    lower="$(grep -P '^(?!.*(?i:muxy)(?<!muxy))(?!.*[-_./:]muxy)(?!.*muxy[-_./:])(?!.*muxy +[A-Za-z]).*muxy' <<<"$outer" || true)"
+    lower="$(python3 -c '
+import re, sys
+bad = re.compile(r"(?i:muxy)(?<!muxy)|[-_./:]muxy|muxy[-_./:]|muxy +[A-Za-z]")
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if "muxy" in line and not bad.search(line):
+        print(line)
+' <<<"$outer" || true)"
     [[ -n "$lower" ]] && bare="$bare"$'\n'"$lower"
     bare="$(sed '/^$/d' <<<"$bare")"
     if [[ -n "$bare" ]]; then
