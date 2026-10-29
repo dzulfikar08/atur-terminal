@@ -253,11 +253,18 @@ impl Connection {
 }
 
 impl Connection {
+    /// The protocol client, for the facade the React Native module drives.
+    pub(crate) fn client(&self) -> &Client {
+        &self.client
+    }
+
     fn start(
         client: Client,
         listener: Arc<dyn ConnectionListener>,
     ) -> Result<Arc<Self>, MobileError> {
         let events = client.events().ok_or(MobileError::Disconnected)?;
+        // Keeps `Client::rtt` fresh for the local echo and the app's latency readout.
+        let _ = client.start_rtt_probe();
         let terminals = Arc::<Terminals>::default();
         let pump = (client.clone(), Arc::clone(&terminals));
         thread::Builder::new()

@@ -1,10 +1,10 @@
 # Mobile SDK
 
-How to build the Atur Terminal phone apps on `muxy-mobile`, the Rust client library
+How to build the Atur Terminal phone apps on `atur-mobile`, the Rust client library
 with generated Swift and Kotlin bindings. This guide explains behavior. For
-exact signatures, read the generated `muxy_mobile.swift` or `muxy_mobile.kt`.
-The Rust source is in `crates/muxy-mobile`, and
-`crates/muxy-mobile/tests/sdk.rs` runs the whole flow against a real server.
+exact signatures, read the generated `atur_mobile.swift` or `atur_mobile.kt`.
+The Rust source is in `crates/atur-mobile`, and
+`crates/atur-mobile/tests/sdk.rs` runs the whole flow against a real server.
 
 ## How it works
 
@@ -43,7 +43,7 @@ screen and sends input.
 - Call `resize` and `endSession` only when the user asks. Both affect every
   client showing the session.
 - Don't edit the generated bindings. Change the Rust SDK in
-  `crates/muxy-mobile`, then rebuild it.
+  `crates/atur-mobile`, then rebuild it.
 - The SDK talks to any server that shares a protocol version with it; see
   [Getting the SDK](#getting-the-sdk). Otherwise connecting fails with
   `IncompatibleVersion`. When one side is older, a request the other can't
@@ -72,9 +72,9 @@ Every release publishes the SDK next to the desktop app, on the
 
 | File | Contents |
 | --- | --- |
-| `muxy-mobile-<version>-ios.zip` | `MuxyMobile.xcframework` and `muxy_mobile.swift` |
-| `muxy-mobile-<version>-android.zip` | `jniLibs/` and `muxy_mobile.kt` |
-| `muxy-mobile-<version>.json` | `version`, `protocol` versions, the legacy `compatibility`, and the `sha256` of each zip |
+| `atur-mobile-<version>-ios.zip` | `AturMobile.xcframework` and `atur_mobile.swift` |
+| `atur-mobile-<version>-android.zip` | `jniLibs/` and `atur_mobile.kt` |
+| `atur-mobile-<version>.json` | `version`, `protocol` versions, the legacy `compatibility`, and the `sha256` of each zip |
 
 Pin one version in the app repository, together with the SHA-256 that its JSON
 lists for the zip. A small script downloads the zip, checks it, and unpacks it
@@ -83,16 +83,16 @@ for [Project setup](#project-setup):
 ```sh
 set -euo pipefail
 VERSION=2.1.0
-SHA256=<the ios zip's sha256 from muxy-mobile-2.1.0.json>
-ZIP=muxy-mobile-$VERSION-ios.zip
+SHA256=<the ios zip's sha256 from atur-mobile-2.1.0.json>
+ZIP=atur-mobile-$VERSION-ios.zip
 curl -fsSLO "https://github.com/dzulfikar08/atur-terminal/releases/download/v$VERSION/$ZIP"
 echo "$SHA256  $ZIP" | shasum -a 256 -c
-unzip -oq "$ZIP" -d MuxyMobile
+unzip -oq "$ZIP" -d AturMobile
 ```
 
 - On iOS, the zip also works as a Swift Package Manager binary target. Name
-  the target `MuxyMobile` to match the XCFramework, use the zip's URL and
-  SHA-256, and add `muxy_mobile.swift` to a target that depends on it.
+  the target `AturMobile` to match the XCFramework, use the zip's URL and
+  SHA-256, and add `atur_mobile.swift` to a target that depends on it.
 - The phone connects to any Atur Terminal build that shares one of its `protocol`
   versions. `atur-term --build-info` prints them for the computer's build. Move the
   pin forward to use newer features; you only have to when the protocol
@@ -120,25 +120,25 @@ python3 scripts/package-mobile-sdk.py 2.1.0 target/mobile-sdk ~/muxy-sdk-release
 
 ```text
 target/mobile-sdk/
-├── MuxyMobile.xcframework        static library for iPhone and the Simulator
+├── AturMobile.xcframework        static library for iPhone and the Simulator
 ├── swift/
-│   ├── muxy_mobile.swift         the Swift API
-│   ├── muxy_mobileFFI.h          already inside the XCFramework
-│   └── muxy_mobileFFI.modulemap  already inside the XCFramework
+│   ├── atur_mobile.swift         the Swift API
+│   ├── atur_mobileFFI.h          already inside the XCFramework
+│   └── atur_mobileFFI.modulemap  already inside the XCFramework
 ├── ios/                          intermediate files; ignore
 └── android/                      only when cargo-ndk is installed
-    ├── jniLibs/<abi>/libmuxy_mobile.so   arm64-v8a, armeabi-v7a, x86_64
-    └── kotlin/uniffi/muxy_mobile/muxy_mobile.kt
+    ├── jniLibs/<abi>/libatur_mobile.so   arm64-v8a, armeabi-v7a, x86_64
+    └── kotlin/uniffi/atur_mobile/atur_mobile.kt
 ```
 
 ## Project setup
 
 ### iOS
 
-1. Add `MuxyMobile.xcframework` to the app target and set it to **Do Not
+1. Add `AturMobile.xcframework` to the app target and set it to **Do Not
    Embed**. It is a static library.
-2. Add `muxy_mobile.swift` to the app target; a local build has it in
-   `swift/`. It imports the `muxy_mobileFFI` module that the XCFramework
+2. Add `atur_mobile.swift` to the app target; a local build has it in
+   `swift/`. It imports the `atur_mobileFFI` module that the XCFramework
    provides.
 3. Add these Info.plist keys:
 
@@ -169,8 +169,8 @@ Security exception is needed, because the SDK doesn't use HTTP.
 
 1. Copy `jniLibs/*` into `app/src/main/jniLibs/`; a local build has them in
    `android/jniLibs/`.
-2. Copy `muxy_mobile.kt` into the Kotlin sources. Its package is
-   `uniffi.muxy_mobile`.
+2. Copy `atur_mobile.kt` into the Kotlin sources. Its package is
+   `uniffi.atur_mobile`.
 3. Add JNA, which the bindings use to load the library:
    `implementation("net.java.dev.jna:jna:5.17.0@aar")`.
 4. Add the manifest entries and R8 rules below.
@@ -192,7 +192,7 @@ Security exception is needed, because the SDK doesn't use HTTP.
 -dontwarn java.awt.*
 -keep class com.sun.jna.* { *; }
 -keepclassmembers class * extends com.sun.jna.* { public *; }
--keep class uniffi.muxy_mobile.** { *; }
+-keep class uniffi.atur_mobile.** { *; }
 ```
 
 If the target SDK enforces Android's local network permission, request it
@@ -992,7 +992,7 @@ target/debug/atur-term mobile disable
   address in the pairing link.
 - For SSH, use any computer with Atur Terminal installed and an SSH login. From a Mac,
   `atur-term --host you@computer project list` checks that the bridge works there.
-- `cargo test -p muxy-mobile` pairs, connects, attaches, types, scrolls back,
+- `cargo test -p atur-mobile` pairs, connects, attaches, types, scrolls back,
   sends taps and scrolling, works with Git and files, and revokes against a
   real server. It also connects through a simulated SSH channel.
 

@@ -11,11 +11,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use muxy_client::Client;
-use muxy_mobile::{
+use atur_mobile::{
     BridgeChannel, ChannelWriter, ClientKind, Connection, ConnectionEvent, ConnectionListener, Key,
     MobileError, Modifiers,
 };
+use muxy_client::Client;
 use muxy_protocol::transport::relay;
 use muxy_server::connection::serve;
 use muxy_server::{Registry, ServerEvent, ServerSettings};

@@ -11,11 +11,14 @@
     reason = "exported functions receive owned values from Swift and Kotlin"
 )]
 
+mod ansi;
 mod channel;
 mod connection;
+mod direct;
 mod error;
 mod files;
 mod git;
+mod input;
 mod keys;
 mod mouse;
 mod records;
@@ -28,6 +31,7 @@ use muxy_protocol::{MAX_DEVICE_NAME, PairingInvite};
 
 pub use channel::{BridgeChannel, ChannelWriter, bridge_command};
 pub use connection::{Connection, ConnectionEvent, ConnectionListener};
+pub use direct::{Direct, DirectListener, direct_pair, direct_parse_link};
 pub use error::MobileError;
 pub use files::{FileEntry, FileInfo, ProjectFiles};
 pub use git::{

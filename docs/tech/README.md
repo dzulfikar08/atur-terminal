@@ -7,7 +7,7 @@ flowchart LR
     subgraph APPS["Apps · one shared client library"]
         DESKTOP["atur-terminal<br/>desktop · Rust + GPUI"]
         TUI["atur-term<br/>CLI and terminal UI · Ratatui"]
-        PHONE["Phone apps<br/>muxy-mobile SDK"]
+        PHONE["Phone apps<br/>atur-mobile SDK"]
     end
     SERVER["atur-term-server<br/>Ghostty terminals · history · projects"]
     REMOTE["atur-term-server<br/>on another computer"]

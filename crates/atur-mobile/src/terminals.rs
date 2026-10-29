@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use muxy_client::{Attachment, RunGrid};
+use std::time::Instant;
+
+use muxy_client::{Attachment, PredictMode, Predictor, RunGrid};
 use muxy_protocol::{ChannelId, InputModes, MetadataEvent, ScreenFrame, ServerPath, SessionId};
 
 /// Channels still attaching; the server allows one unacknowledged frame each.
@@ -39,6 +41,8 @@ pub(crate) struct Content {
     pub(crate) title: String,
     pub(crate) directory: ServerPath,
     pub(crate) input: InputModes,
+    /// Typing guessed on screen before the server echoes it.
+    pub(crate) predict: Predictor,
 }
 
 pub(crate) enum Delivery {
@@ -64,6 +68,7 @@ impl Terminals {
             title: attachment.title,
             directory: attachment.directory,
             input: InputModes::default(),
+            predict: Predictor::new(PredictMode::default()),
         };
         content.grid.graphics = muxy_protocol::Graphics::default();
         let acknowledge = early.frame.map(|frame| {
@@ -159,6 +164,7 @@ impl Content {
             self.grid.resize(frame.size);
         }
         self.grid.apply(frame);
+        self.predict.frame(&self.grid, frame.reset, Instant::now());
     }
 
     /// Returns whether the change shows in `Screen`.
@@ -172,6 +178,7 @@ impl Content {
                 let shown = |modes: InputModes| (modes.mouse_tracking, modes.alternate_scroll);
                 let changed = shown(input) != shown(self.input);
                 self.input = input;
+                self.predict.set_alternate_screen(input.alternate_scroll);
                 return changed;
             }
             _ => return false,

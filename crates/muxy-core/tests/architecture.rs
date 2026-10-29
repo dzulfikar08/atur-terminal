@@ -50,7 +50,7 @@ fn production_dependencies_preserve_client_and_headless_boundaries() -> Result<(
         ),
         ("muxy-server", &["muxy-app", "muxy-ui"]),
         (
-            "muxy-mobile",
+            "atur-mobile",
             &[
                 "muxy-server",
                 "muxy-terminal",

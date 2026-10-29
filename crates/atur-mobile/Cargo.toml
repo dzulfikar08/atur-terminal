@@ -1,5 +1,5 @@
 [package]
-name = "muxy-mobile"
+name = "atur-mobile"
 description = "Rust core for the Atur Terminal mobile apps"
 version.workspace = true
 edition.workspace = true
@@ -26,6 +26,7 @@ workspace = true
 [dependencies]
 muxy-client = { path = "../muxy-client" }
 muxy-protocol = { path = "../muxy-protocol" }
+serde_json.workspace = true
 uniffi = "=0.32.2"
 
 [dev-dependencies]

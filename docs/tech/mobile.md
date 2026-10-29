@@ -11,7 +11,7 @@ cloud service. A phone connects in one of two ways:
 ```mermaid
 flowchart LR
     subgraph PHONE["Phone app · Swift or Kotlin"]
-        VIEW["Screen and keyboard"] --> SDK["muxy-mobile<br/>Rust client library"]
+        VIEW["Screen and keyboard"] --> SDK["atur-mobile<br/>Rust client library"]
     end
     SDK <-->|"TLS 1.3 · pinned certificate"| SERVER["atur-term-server"]
     SDK <-->|"SSH · atur-term stdio<br/>through the app's SSH client"| SERVER
@@ -52,7 +52,7 @@ such as a cloud server behind NAT, puts that name first with
 
 ## The SDK
 
-- `muxy-mobile` wraps the shared Rust client with UniFFI, which generates Swift
+- `atur-mobile` wraps the shared Rust client with UniFFI, which generates Swift
   and Kotlin bindings. Phones use the same protocol and flow control as the
   desktop app.
 - The SDK keeps each attached screen up to date. The app draws it and sends
@@ -63,4 +63,4 @@ such as a cloud server behind NAT, puts that name first with
   releases only need to follow breaking protocol changes.
 
 The full integration guide, with the API, setup, and error handling, is in
-[`crates/muxy-mobile/README.md`](../../crates/muxy-mobile/README.md).
+[`crates/atur-mobile/README.md`](../../crates/atur-mobile/README.md).

@@ -17,10 +17,10 @@ def contents(sdk):
     framework = sdk / "AturMobile.xcframework"
     ios = [(path.relative_to(sdk).as_posix(), path)
            for path in sorted(framework.rglob("*")) if path.is_file()]
-    ios.append(("muxy_mobile.swift", sdk / "swift/muxy_mobile.swift"))
-    android = [(f"jniLibs/{abi}/libmuxy_mobile.so", sdk / "android/jniLibs" / abi / "libmuxy_mobile.so")
+    ios.append(("atur_mobile.swift", sdk / "swift/atur_mobile.swift"))
+    android = [(f"jniLibs/{abi}/libatur_mobile.so", sdk / "android/jniLibs" / abi / "libatur_mobile.so")
                for abi in ANDROID_ABIS]
-    android.append(("muxy_mobile.kt", sdk / "android/kotlin/uniffi/muxy_mobile/muxy_mobile.kt"))
+    android.append(("atur_mobile.kt", sdk / "android/kotlin/uniffi/atur_mobile/atur_mobile.kt"))
     required = [framework / "Info.plist", *(source for _, source in ios + android)]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:

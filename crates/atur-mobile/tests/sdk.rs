@@ -8,11 +8,12 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use muxy_client::Client;
-use muxy_mobile::{
-    Connection, ConnectionEvent, ConnectionListener, GitChangeKind, GitDiffKind, Key, Line,
-    MobileError, Modifiers, MouseButton, ScrollDirection, ServerCredential,
+use atur_mobile::{
+    Connection, ConnectionEvent, ConnectionListener, Direct, DirectListener, GitChangeKind,
+    GitDiffKind, Key, Line, MobileError, Modifiers, MouseButton, ScrollDirection, ServerCredential,
+    direct_pair, direct_parse_link,
 };
+use muxy_client::Client;
 use muxy_protocol::transport::Listener;
 use muxy_protocol::transport::tls::TlsListener;
 use muxy_protocol::{
@@ -21,6 +22,7 @@ use muxy_protocol::{
 };
 use muxy_server::connection::{serve, serve_remote};
 use muxy_server::{Registry, ServerEvent, ServerSettings};
+use serde_json::{Value, json};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -246,9 +248,9 @@ fn paired() -> TestResult<(Server, Client, ServerCredential)> {
     let mut offer = local.start_pairing()?;
     offer.invite.hosts = vec!["127.0.0.1".into()];
     let link = offer.invite.to_link();
-    let preview = muxy_mobile::parse_pairing_link(link.clone())?;
+    let preview = atur_mobile::parse_pairing_link(link.clone())?;
     assert_eq!(preview.port, port);
-    let credential = muxy_mobile::pair(link, "  Test phone\n".into())?;
+    let credential = atur_mobile::pair(link, "  Test phone\n".into())?;
     assert_eq!(credential.fingerprint.len(), 32);
     Ok((server, local, credential))
 }
@@ -690,5 +692,320 @@ fn a_phone_browses_and_edits_project_files() -> TestResult {
         Err(MobileError::Server { .. })
     ));
     files.unwatch()?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------------------------
+// The facade the React Native module drives
+
+struct Collector(Mutex<Sender<Value>>);
+
+impl DirectListener for Collector {
+    fn on_message(&self, json: String) {
+        if let Ok(value) = serde_json::from_str(&json) {
+            let _ = self
+                .0
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .send(value);
+        }
+    }
+}
+
+/// A paired phone's credential as the module stores it, and a connected facade.
+fn direct_phone() -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>)> {
+    let server = Server::new();
+    let local = server.local()?;
+    listen(&local)?;
+    let mut offer = local.start_pairing()?;
+    offer.invite.hosts = vec!["127.0.0.1".into()];
+    let link = offer.invite.to_link();
+    let target = ok(&direct_parse_link(link.clone()))?;
+    assert_eq!(target["hosts"][0], "127.0.0.1");
+    let credential = ok(&direct_pair(link, "Test phone".into()))?;
+    assert_eq!(credential["fingerprint"].as_str().map(str::len), Some(64));
+    let (sender, events) = mpsc::channel();
+    let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
+    let info = ok(&direct.connect(credential.to_string()))?;
+    assert!(info["serverId"].as_str().is_some_and(|id| !id.is_empty()));
+    Ok((server, local, direct, events))
+}
+
+fn ok(answer: &str) -> TestResult<Value> {
+    let value: Value = serde_json::from_str(answer)?;
+    match value.get("ok") {
+        Some(ok) => Ok(ok.clone()),
+        None => Err(format!("error answer: {answer}").into()),
+    }
+}
+
+fn call(direct: &Direct, method: &str, args: &Value) -> TestResult<Value> {
+    ok(&direct.call(method.into(), args.to_string()))
+}
+
+fn fire(direct: &Direct, method: &str, args: &Value) -> TestResult<()> {
+    ok(&direct.fire(method.into(), args.to_string())).map(drop)
+}
+
+fn wait_json(events: &Receiver<Value>, mut done: impl FnMut(&Value) -> bool) -> TestResult<Value> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let event = events.recv_timeout(deadline.saturating_duration_since(Instant::now()))?;
+        if done(&event) {
+            return Ok(event);
+        }
+    }
+}
+
+/// Keeps the rows the app would draw from `snapshot` and `diff` events.
+#[derive(Default)]
+struct Rows(Vec<String>);
+
+impl Rows {
+    fn apply(&mut self, event: &Value) {
+        match event["t"].as_str() {
+            Some("snapshot") => {
+                self.0 = event["ansi"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .split("\r\n")
+                    .map(plain)
+                    .collect();
+            }
+            Some("diff") => {
+                for row in event["rows"].as_array().into_iter().flatten() {
+                    let (Some(index), Some(text)) = (row[0].as_u64(), row[1].as_str()) else {
+                        continue;
+                    };
+                    let index = usize::try_from(index).unwrap_or(usize::MAX);
+                    if self.0.len() <= index {
+                        self.0.resize(index + 1, String::new());
+                    }
+                    self.0[index] = plain(text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn has(&self, needle: &str) -> bool {
+        self.0.iter().any(|row| row.contains(needle))
+    }
+}
+
+/// Text without escape sequences.
+fn plain(ansi: &str) -> String {
+    let mut out = String::new();
+    let mut chars = ansi.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for next in chars.by_ref() {
+                if next.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+fn home_session(direct: &Direct, cols: u16, rows: u16) -> TestResult<String> {
+    let projects = call(direct, "projects", &Value::Null)?;
+    let home = projects
+        .as_array()
+        .and_then(|all| all.iter().find(|project| project["isHome"] == true))
+        .ok_or("no Home project")?;
+    let created = call(
+        direct,
+        "createSession",
+        &json!({ "projectId": home["id"], "cols": cols, "rows": rows }),
+    )?;
+    Ok(created["id"].as_str().ok_or("no session id")?.to_owned())
+}
+
+#[test]
+fn the_facade_pairs_attaches_types_and_streams_rows() -> TestResult {
+    let (_server, _local, direct, events) = direct_phone()?;
+    let session = home_session(&direct, 40, 6)?;
+    let attached = call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    assert_eq!(attached["cols"], 40);
+
+    let mut rows = Rows::default();
+    let hello = wait_json(&events, |event| event["t"] == "hello")?;
+    assert_eq!(
+        (hello["cols"].clone(), hello["rows"].clone()),
+        (json!(40), json!(6))
+    );
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "printf '\\ndirect-%d\\n' $((40+2))\r" }),
+    )?;
+    wait_json(&events, |event| {
+        rows.apply(event);
+        rows.has("direct-42")
+    })
+    .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+
+    let listed = call(&direct, "sessions", &Value::Null)?;
+    assert!(listed.as_array().is_some_and(|all| {
+        all.iter()
+            .any(|s| s["id"] == session.as_str() && s["attached"] == true)
+    }));
+    let history = call(
+        &direct,
+        "history",
+        &json!({ "session": session, "lines": 100 }),
+    )?;
+    assert_eq!(history["visible"], 6);
+    assert!(history["rows"].as_array().is_some_and(|all| all.len() >= 6));
+    let ping = call(&direct, "ping", &Value::Null)?;
+    assert!(ping.as_f64().is_some_and(|ms| ms >= 0.0));
+    let stats = call(&direct, "echoStats", &json!({ "session": session }))?;
+    assert_eq!(stats["mode"], "auto");
+
+    // Arrow keys reach the program as the keys they are: Ctrl-C ends the running command.
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "sleep 30\r" }),
+    )?;
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "\u{3}" }),
+    )?;
+    fire(
+        &direct,
+        "paste",
+        &json!({ "session": session, "text": "echo pasted-ok", "submit": true }),
+    )?;
+    wait_json(&events, |event| {
+        rows.apply(event);
+        rows.has("pasted-ok")
+    })
+    .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+
+    call(&direct, "detach", &json!({ "session": session }))?;
+    call(&direct, "endSession", &json!({ "session": session }))?;
+    direct.disconnect();
+    wait_json(&events, |event| event["t"] == "disconnected")?;
+    let after = direct.call("projects".into(), "{}".into());
+    assert!(after.contains("Disconnected"), "{after}");
+    Ok(())
+}
+
+#[test]
+fn the_facade_reports_errors_as_codes() -> TestResult {
+    let (sender, _events) = mpsc::channel();
+    let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
+    let answer: Value = serde_json::from_str(&direct.call("projects".into(), "{}".into()))?;
+    assert_eq!(answer["error"]["code"], "Disconnected");
+    let answer: Value = serde_json::from_str(&direct_parse_link("not a link".into()))?;
+    assert_eq!(answer["error"]["code"], "InvalidLink");
+    let answer: Value = serde_json::from_str(&direct.connect("{}".into()))?;
+    assert_eq!(answer["error"]["code"], "InvalidCredential");
+    Ok(())
+}
+
+/// Reports attach time and input-to-screen latency through the facade over loopback TLS:
+/// `cargo test -p atur-mobile --test sdk bench -- --ignored --nocapture`.
+#[test]
+#[ignore = "prints measurements"]
+#[allow(
+    clippy::print_stderr,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn bench_facade_attach_and_echo() -> TestResult {
+    let (_server, _local, direct, events) = direct_phone()?;
+    let session = home_session(&direct, 100, 10)?;
+    let started = Instant::now();
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 100, "rows": 10 }),
+    )?;
+    let mut rows = Rows::default();
+    wait_json(&events, |event| {
+        rows.apply(event);
+        event["t"] == "snapshot"
+    })?;
+    eprintln!(
+        "bench attach_ms={:.2}",
+        started.elapsed().as_secs_f64() * 1000.0
+    );
+
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "cat >/dev/null\r" }),
+    )?;
+    std::thread::sleep(Duration::from_millis(300));
+    for mode in ["never", "always"] {
+        call(&direct, "echoMode", &json!({ "mode": mode }))?;
+        let mut samples = Vec::new();
+        let mut typed = String::new();
+        // A different letter per round, so the earlier round's line does not match.
+        let letter = if mode == "never" { 'q' } else { 'w' };
+        for _ in 0..40 {
+            typed.push(letter);
+            let sent = Instant::now();
+            fire(
+                &direct,
+                "input",
+                &json!({ "session": session, "data": letter.to_string() }),
+            )?;
+            wait_json(&events, |event| {
+                rows.apply(event);
+                rows.has(&typed)
+            })?;
+            samples.push(sent.elapsed().as_secs_f64() * 1000.0);
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        // Start the next round on a fresh line.
+        fire(
+            &direct,
+            "input",
+            &json!({ "session": session, "data": "\u{4}" }),
+        )?;
+        fire(
+            &direct,
+            "input",
+            &json!({ "session": session, "data": "cat >/dev/null\r" }),
+        )?;
+        std::thread::sleep(Duration::from_millis(300));
+        rows = Rows::default();
+        call(
+            &direct,
+            "attach",
+            &json!({ "session": session, "cols": 100, "rows": 10 }),
+        )?;
+        wait_json(&events, |event| {
+            rows.apply(event);
+            event["t"] == "snapshot"
+        })?;
+        samples.sort_by(f64::total_cmp);
+        let at = |fraction: f64| {
+            samples[((samples.len() as f64 * fraction) as usize).min(samples.len() - 1)]
+        };
+        eprintln!(
+            "bench echo mode={mode} n={} p50_ms={:.2} p90_ms={:.2} max_ms={:.2}",
+            samples.len(),
+            at(0.5),
+            at(0.9),
+            samples[samples.len() - 1]
+        );
+    }
+    let ping = call(&direct, "ping", &Value::Null)?;
+    eprintln!("bench ping_ms={:.2}", ping.as_f64().unwrap_or_default());
+    direct.disconnect();
     Ok(())
 }

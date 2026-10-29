@@ -49,7 +49,7 @@ flowchart TB
     APP --> CLIENT["muxy-client"]
     CLI["muxy-cli"] --> APPCORE
     CLI --> CLIENT
-    MOBILE["muxy-mobile"] --> CLIENT
+    MOBILE["atur-mobile"] --> CLIENT
     CLIENT --> PROTOCOL["muxy-protocol"]
     APPCORE --> PROTOCOL
     SERVER["atur-term-server"] --> TERMINAL["muxy-terminal"]
@@ -64,7 +64,7 @@ flowchart TB
 | `atur-terminal-core` | The app model without UI, shared by desktop and terminal UI: layouts, workspaces, settings, extensions. |
 | `muxy-cli` | The `atur-term` command: CLI and terminal UI. |
 | `muxy-client` | Connects to a server, starting a local one if needed. |
-| `muxy-mobile` | The client library for phones, with Swift and Kotlin bindings. |
+| `atur-mobile` | The client library for phones, with Swift and Kotlin bindings. |
 | `muxy-protocol` | Messages, encoding, screen types, and transports. |
 | `atur-term-server` | The server: projects, sessions, history, Git, files, and mobile access. |
 | `muxy-terminal` | Wraps the Ghostty terminal and the PTY. |
