@@ -43,6 +43,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -59,9 +61,13 @@ jobs:
         run: |
           echo "ATUR_TERM_ZIG=$(command -v zig)" >> "$GITHUB_ENV"
           echo "$GITHUB_WORKSPACE/scripts/zig" >> "$GITHUB_PATH"
-      - run: cargo fmt -p atur-mobile -- --check
-      - run: cargo clippy --locked -p atur-mobile --all-targets -- -D warnings
-      - run: cargo test --locked -p atur-mobile
+      - run: cargo fmt -p atur-mobile -p muxy-protocol -p muxy-server -p muxy-client -- --check
+      - run: cargo clippy --locked -p atur-mobile -p muxy-protocol -p muxy-server -p muxy-client --all-targets -- -D warnings
+      - run: cargo test --locked -p atur-mobile -p muxy-protocol -p muxy-server -p muxy-client
+      - name: Protocol fixtures stay append-only
+        run: |
+          git fetch --no-tags origin atur-terminal
+          python3 scripts/protocol_fixtures.py append-only --base "$(git merge-base HEAD origin/atur-terminal)"
       - name: Measure attach and echo through the facade (loopback TLS)
         run: |
           cargo test --locked -p atur-mobile --test sdk bench_facade -- --ignored --nocapture 2>&1 | tee bench.txt
