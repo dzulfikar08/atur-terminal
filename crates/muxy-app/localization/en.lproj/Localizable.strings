@@ -141,6 +141,7 @@
 "Allow programs to use the mouse" = "Allow programs to use the mouse";
 "Also make backgrounds drawn by terminal programs translucent." = "Also make backgrounds drawn by terminal programs translucent.";
 "Also restart the server" = "Also restart the server";
+"Always" = "Always";
 "Amber" = "Amber";
 "An agent is waiting for your attention." = "An agent is waiting for your attention.";
 "An import is ready for the next launch. Quit and reopen Atur Terminal to apply it, or cancel the import here." = "An import is ready for the next launch. Quit and reopen Atur Terminal to apply it, or cancel the import here.";
@@ -872,6 +873,7 @@
 "Needs your attention" = "Needs your attention";
 "Neither" = "Neither";
 "Network port phones connect to, from 1024 to 65535." = "Network port phones connect to, from 1024 to 65535.";
+"Never" = "Never";
 "Never connected" = "Never connected";
 "New Branch" = "New Branch";
 "New Branch…" = "New Branch…";
@@ -1016,6 +1018,7 @@
 "Pixels" = "Pixels";
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Port" = "Port";
+"Predict typed text so it appears at once over slow connections. Auto turns it on when the connection is slow." = "Predict typed text so it appears at once over slow connections. Auto turns it on when the connection is slow.";
 "Preparing on-device dictation…" = "Preparing on-device dictation…";
 "Press Return after inserting standalone voice dictation into the terminal." = "Press Return after inserting standalone voice dictation into the terminal.";
 "Press a key…" = "Press a key…";
@@ -1267,6 +1270,7 @@
 "Show status bar" = "Show status bar";
 "Show the agents panel, or its button when the sidebar is collapsed." = "Show the agents panel, or its button when the sidebar is collapsed.";
 "Show tips" = "Show tips";
+"Show typing before the server echoes it" = "Show typing before the server echoes it";
 "Show unread completion counts beside worktrees." = "Show unread completion counts beside worktrees.";
 "Show unread worktree indicators" = "Show unread worktree indicators";
 "Show “%@”" = "Show “%@”";

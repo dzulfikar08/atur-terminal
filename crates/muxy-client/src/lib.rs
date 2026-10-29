@@ -14,6 +14,7 @@ mod error;
 mod events;
 mod grid;
 mod handshake;
+mod predict;
 mod requests;
 mod ssh;
 
@@ -22,6 +23,7 @@ pub use client::{Attachment, Client};
 pub use error::{ClientError, RemoteReason};
 pub use events::{ClientEvent, ClipboardWrite};
 pub use grid::{RunGrid, ScreenLinks, ScreenPrompts};
+pub use predict::{PredictMode, PredictStats, PredictedCell, Predictor, UNDERLINE_AFTER};
 pub use ssh::{Askpass, SshTarget};
 
 mod catalog;

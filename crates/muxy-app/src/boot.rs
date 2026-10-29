@@ -375,6 +375,8 @@ pub(crate) enum Work {
     Mouse(ChannelId, MouseEvent),
     CellSize(ChannelId, muxy_protocol::CellSize),
     Ack(ChannelId, u64),
+    /// Pings the server after typed input, to tell local echo it has had its say.
+    Settle(ChannelId, std::time::Instant),
     Event(ClientEvent),
     Stop,
 }
@@ -428,6 +430,7 @@ impl Work {
             Self::Mouse(..) => "Mouse",
             Self::CellSize(..) => "CellSize",
             Self::Ack(..) => "Ack",
+            Self::Settle(..) => "Settle",
             Self::Event(..) => "Event",
             Self::Stop => "Stop",
         }
@@ -436,6 +439,10 @@ impl Work {
 
 #[derive(Debug)]
 pub(crate) enum Update {
+    InputSettled {
+        channel: ChannelId,
+        stamp: std::time::Instant,
+    },
     Activity(Result<muxy_protocol::ActivitySnapshot, ClientError>),
     ActivityAcknowledged {
         ids: Vec<u64>,
@@ -645,6 +652,23 @@ pub(crate) fn worker(
                         .and_then(|client| perform(work, client, &target))
                         .into_iter()
                         .collect(),
+                    Work::Settle(channel, stamp) => {
+                        if let Some(client) = &client {
+                            let completed = event_sender.clone();
+                            client.ping_async().on_complete(move |result| {
+                                if result.is_ok() {
+                                    let _ = completed.send((
+                                        requested,
+                                        Work::AsyncCompleted(Box::new(Update::InputSettled {
+                                            channel,
+                                            stamp,
+                                        })),
+                                    ));
+                                }
+                            });
+                        }
+                        Vec::new()
+                    }
                     Work::Git(request) => {
                         if let Some(client) = &client {
                             dispatch_git(client, request, requested, event_sender.clone());
@@ -1131,6 +1155,7 @@ fn perform(work: Work, client: &Client, target: &Target) -> Option<Update> {
         | Work::ExtensionClient(_)
         | Work::ExtensionConnection(_)
         | Work::Event(_)
+        | Work::Settle(..)
         | Work::Stop
         | Work::Completed(_)
         | Work::AsyncCompleted(_) => {

@@ -1704,9 +1704,11 @@ impl AppModel {
                     ),
                 );
                 model.send_channel(id, Work::Input(*channel, bytes.clone()), cx);
+                model.settle_echo(id, *channel, cx);
             }
             PaneEvent::TerminalInput(channel, input) => {
                 model.send_channel(id, Work::TerminalInput(*channel, input.clone()), cx);
+                model.settle_echo(id, *channel, cx);
             }
             PaneEvent::ClearScreen(channel) => {
                 model.send_channel(id, Work::ClearScreen(*channel), cx);
@@ -1731,6 +1733,22 @@ impl AppModel {
     }
 
     /// Sends a pane's channel work to the server that attached it.
+    /// Pings right behind typed input when the pane has guesses waiting, so their fate is
+    /// known one round trip later.
+    fn settle_echo(
+        &mut self,
+        pane: PaneId,
+        channel: muxy_protocol::ChannelId,
+        cx: &mut Context<Self>,
+    ) {
+        let wanted = self
+            .terminal(&pane)
+            .is_some_and(|terminal| terminal.view.read(cx).predict.wants_barrier());
+        if wanted {
+            self.send_channel(pane, Work::Settle(channel, std::time::Instant::now()), cx);
+        }
+    }
+
     fn send_channel(&mut self, pane: PaneId, work: Work, cx: &mut Context<Self>) {
         if self.quitting == Quitting::Idle
             && !self.retained.contains(&pane)
@@ -2115,6 +2133,11 @@ impl AppModel {
                 request,
                 result,
             } => self.receive_search(pane, &request, result, cx),
+            Update::InputSettled { channel, stamp } => {
+                if let Some(view) = self.attached_view(server, channel, cx) {
+                    view.update(cx, |pane, cx| pane.settle_echo(stamp, cx));
+                }
+            }
             Update::Connected(sessions) => {
                 if local {
                     self.updates.sessions = sessions.len();

@@ -3,9 +3,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::{self, JoinHandle};
+use std::time::Instant;
 
 use muxy_app_core::PaneId;
-use muxy_client::{Attachment, Client, ClientError, ClientEvent, RunGrid};
+use muxy_client::{Attachment, Client, ClientError, ClientEvent, PredictMode, Predictor, RunGrid};
 use muxy_protocol::{
     ActivitySnapshot, CatalogPage, ChannelId, ForegroundProcess, InputModes, MetadataEvent,
     MouseEvent, ProjectSession, ScreenFrame, SessionId, SessionMetadata, Size,
@@ -26,6 +27,7 @@ pub(crate) struct View {
     pub viewport: Size,
     pub ended: bool,
     pub scroll: Scroll,
+    pub predict: Predictor,
 }
 
 impl View {
@@ -43,13 +45,23 @@ impl View {
             viewport,
             ended: false,
             scroll: Scroll::default(),
+            predict: Predictor::default(),
         }
+    }
+
+    /// Applies a server frame and settles the local echo guesses against it.
+    pub(crate) fn apply(&mut self, frame: &ScreenFrame) {
+        self.grid.apply(frame);
+        self.predict.frame(&self.grid, frame.reset, Instant::now());
     }
 
     fn metadata(&mut self, event: MetadataEvent) {
         match event {
             MetadataEvent::Title(title) => self.title = title,
-            MetadataEvent::InputModes(input) => self.input = input,
+            MetadataEvent::InputModes(input) => {
+                self.input = input;
+                self.predict.set_alternate_screen(input.alternate_scroll);
+            }
             MetadataEvent::ForegroundProcess { name, is_shell } => {
                 self.process = Some(ForegroundProcess { name, is_shell });
             }
@@ -105,6 +117,8 @@ pub(crate) struct Shared {
     pub metadata: BTreeMap<SessionId, SessionMetadata>,
     pub activity: ActivitySnapshot,
     pub activity_dirty: bool,
+    /// When typing is guessed on screen before the server echoes it.
+    pub echo: PredictMode,
     pending: BTreeMap<ChannelId, Pending>,
     last_channel: u32,
 }
@@ -163,11 +177,12 @@ impl Shared {
                     view.metadata(event);
                 }
                 if let Some(frame) = pending.frame {
-                    view.grid.apply(&frame);
+                    view.apply(&frame);
                     ack = Some((channel, frame.seq));
                 }
             }
         }
+        view.predict.set_mode(self.echo);
         self.views.insert(id, view);
         ack
     }
@@ -183,9 +198,37 @@ impl Shared {
         self.activity_dirty = true;
         for view in self.views.values_mut() {
             view.channel = None;
+            view.predict.reset();
             view.scroll.bottom();
         }
     }
+}
+
+/// Pings right behind typed input, so the answer tells the local echo that the server has
+/// had its say on it: whatever was guessed and has not been echoed by then never will be.
+fn settle_guesses(shared: &Arc<Mutex<Shared>>, client: &Client, channel: ChannelId) {
+    let wanted = lock(shared)
+        .views
+        .values()
+        .any(|view| view.channel == Some(channel) && view.predict.wants_barrier());
+    if !wanted {
+        return;
+    }
+    let stamp = Instant::now();
+    let shared = Arc::clone(shared);
+    client.ping_async().on_complete(move |reply| {
+        if reply.is_err() {
+            return;
+        }
+        let now = Instant::now();
+        if let Some(view) = lock(&shared)
+            .views
+            .values_mut()
+            .find(|view| view.channel == Some(channel))
+        {
+            view.predict.barrier(stamp, now);
+        }
+    });
 }
 
 pub(crate) fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -219,7 +262,7 @@ pub(super) fn reader(
                             if frame.reset {
                                 view.scroll.bottom();
                             }
-                            view.grid.apply(&frame);
+                            view.apply(&frame);
                             ack = Some((channel, frame.seq));
                         } else if channel.0 > state.last_channel {
                             state.pending.entry(channel).or_default().frame = Some(frame);
@@ -334,6 +377,7 @@ impl InputWriter {
                         }
                     }
                     count.fetch_sub(bytes.len(), Ordering::AcqRel);
+                    settle_guesses(&shared, &client, channel);
                 }
             })
             .map_err(|error| error.to_string())?;

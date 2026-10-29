@@ -354,11 +354,17 @@ fn prepare(
     let count = usize::from(height) + usize::from(remainder < 0.0);
     let mut rows = view.rows.borrow_mut();
     rows.begin(&renderer, count);
+    let now = std::time::Instant::now();
+    let guessing = view.scroll.view.is_none();
     for index in 0..count {
         let Some(runs) = grid.content_row(start + index) else {
             continue;
         };
         let row = u16::try_from(index).unwrap_or(MAX_ROWS);
+        let guessed = guessing
+            .then(|| view.predict.overlay_runs(row, runs, grid.size.cols, now))
+            .flatten();
+        let runs = guessed.as_deref().unwrap_or(runs);
         let position = origin + point(px(0.0), cell.height * f32::from(row));
         search_highlights(view, start + index, position, cell, &mut painting);
         link_highlight(view, start + index, position, cell, palette, &mut painting);
@@ -406,22 +412,27 @@ fn prepare(
             &mut renderer,
         ));
     }
+    let (cursor_row, cursor_col) = view
+        .predict
+        .cursor(now)
+        .filter(|_| guessing)
+        .unwrap_or((grid.cursor.row, grid.cursor.col));
     if view.scroll.view.is_none()
         && view.focused
         && view.cursor_blink.visible
         && grid.cursor.visible
-        && grid.cursor.col < grid.size.cols
-        && grid.cursor.row < height
+        && cursor_col < grid.size.cols
+        && cursor_row < height
     {
         painting.cursor_shape = grid.cursor.shape;
         let cursor_style = grid
-            .content_row(grid.history.len() + usize::from(grid.cursor.row))
+            .content_row(grid.history.len() + usize::from(cursor_row))
             .and_then(|runs| {
                 let mut column = 0;
                 runs.iter()
                     .find(|run| {
                         column += run.width;
-                        column > grid.cursor.col
+                        column > cursor_col
                     })
                     .map(|run| run.style)
             })
@@ -439,8 +450,8 @@ fn prepare(
         painting.cursor = Some(Bounds::new(
             origin
                 + point(
-                    cell.width * f32::from(grid.cursor.col),
-                    cell.height * f32::from(grid.cursor.row),
+                    cell.width * f32::from(cursor_col),
+                    cell.height * f32::from(cursor_row),
                 ),
             cell,
         ));

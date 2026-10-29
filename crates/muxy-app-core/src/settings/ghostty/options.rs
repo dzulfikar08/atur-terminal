@@ -22,6 +22,7 @@ pub(super) const KEYS: &[&str] = &[
     "bold-is-bright",
     "copy-on-select",
     "mouse-reporting",
+    "local-echo",
     "mouse-scroll-multiplier",
     "scroll-to-bottom",
     "window-padding-x",
@@ -45,6 +46,40 @@ impl TerminalColor {
             Self::CellForeground => foreground,
             Self::CellBackground => background,
         }
+    }
+}
+
+/// When typed text is shown at once, before the server echoes it: over a slow link only
+/// (`Auto`), always, or never.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalEcho {
+    #[default]
+    Auto,
+    Always,
+    Never,
+}
+
+impl std::str::FromStr for LocalEcho {
+    type Err = Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value {
+            "" | "auto" => Ok(Self::Auto),
+            "always" => Ok(Self::Always),
+            "never" => Ok(Self::Never),
+            _ => Err(Error::new("local-echo", "expected auto, always, or never")),
+        }
+    }
+}
+
+impl std::fmt::Display for LocalEcho {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Auto => "auto",
+            Self::Always => "always",
+            Self::Never => "never",
+        })
     }
 }
 
@@ -80,6 +115,7 @@ pub struct TerminalOptions {
     pub bold_is_bright: bool,
     pub copy_on_select: Option<bool>,
     pub mouse_reporting: bool,
+    pub local_echo: LocalEcho,
     pub scroll_precision: f32,
     pub scroll_discrete: f32,
     pub scroll_on_keystroke: bool,
@@ -112,6 +148,7 @@ impl Default for TerminalOptions {
             bold_is_bright: false,
             copy_on_select: None,
             mouse_reporting: true,
+            local_echo: LocalEcho::default(),
             scroll_precision: 1.0,
             scroll_discrete: 1.0,
             scroll_on_keystroke: true,
@@ -207,6 +244,7 @@ impl TerminalOptions {
                     .unwrap_or_default(),
             ),
             ("mouse-reporting", self.mouse_reporting.to_string()),
+            ("local-echo", self.local_echo.to_string()),
             (
                 "mouse-scroll-multiplier",
                 format!(
@@ -349,6 +387,7 @@ impl TerminalOptions {
                 })?;
             }
             "mouse-reporting" => self.mouse_reporting = boolean(value, true)?,
+            "local-echo" => self.local_echo = value.parse()?,
             "mouse-scroll-multiplier" => self.read_scroll(value)?,
             "scroll-to-bottom" => {
                 self.scroll_on_keystroke = true;

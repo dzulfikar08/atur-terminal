@@ -33,6 +33,7 @@ pub(super) const PICKERS: &[&str] = &[
     "adjust-cell-width",
     "adjust-cursor-thickness",
     "window-padding-color",
+    "local-echo",
     BINDING_ACTION,
 ];
 const PERCENT_RANGE: (f32, f32) = (-50.0, 200.0);
@@ -318,6 +319,14 @@ pub(super) fn choices(pane: &SettingsView, id: &str) -> (String, Vec<(&'static s
                 ("false", tr!("Neither")),
                 ("left", tr!("Left")),
                 ("right", tr!("Right")),
+            ],
+        ),
+        "local-echo" => (
+            terminal.options.local_echo.to_string(),
+            vec![
+                ("auto", tr!("Auto")),
+                ("always", tr!("Always")),
+                ("never", tr!("Never")),
             ],
         ),
         "directory" => (
@@ -632,6 +641,7 @@ pub(super) fn rows(
                 | "cursor-style-blink"
                 | "macos-option-as-alt"
                 | "directory"
+                | "local-echo"
                 | "window-padding-color" => picker(pane, id, cx),
                 "terminal-import-notes" if !terminal.diagnostics.is_empty() => {
                     let messages = terminal.diagnostics.iter().map(|note| {

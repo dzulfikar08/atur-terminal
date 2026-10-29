@@ -4,12 +4,14 @@ mod keys;
 mod menu;
 mod mouse;
 
+use std::fmt::Write as _;
 use std::io;
 use std::path::Path;
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use muxy_app_core::PaneId;
-use muxy_client::{SshTarget, Start};
+use muxy_client::{Client, PredictMode, SshTarget, Start};
 use muxy_protocol::CursorShape;
 use ratatui::crossterm::{
     cursor,
@@ -34,6 +36,7 @@ use crate::{
 /// unreachable host or a refused login reports to the shell.
 pub(crate) fn run(remote: Option<SshTarget>, folder: Option<&Path>) -> Result {
     terminal::require_interactive().map_err(|error| error.to_string())?;
+    let echo = local_echo()?;
     let target = Target::new(remote).map_err(|error| error.to_string())?;
     let executable = muxy_core::executable::current_path().map_err(|error| error.to_string())?;
     let _lease = muxy_client::local::bundle::acquire_runtime(&executable)
@@ -57,12 +60,59 @@ pub(crate) fn run(remote: Option<SshTarget>, folder: Option<&Path>) -> Result {
     let ui = Ui::default();
     let body = Chrome::new(Rect::new(0, 0, size.width, size.height), ui.sidebar()).body;
     let events = terminal::Events::start().map_err(|error| error.to_string())?;
-    let worker = Worker::start(target, first, body, open, events.waker())?;
+    let worker = Worker::start(target, first, body, open, events.waker(), echo)?;
     let result = event_loop(&mut host, &worker, &events, ui);
+    write_echo_stats(&worker);
     drop(events);
     drop(host);
     drop(worker);
     result
+}
+
+/// The local echo mode from `ATUR_TERM_LOCAL_ECHO`: `auto` (the default; guesses typing on
+/// slow links), `always` or `never`.
+fn local_echo() -> std::result::Result<PredictMode, String> {
+    match std::env::var("ATUR_TERM_LOCAL_ECHO") {
+        Ok(value) if !value.is_empty() => value
+            .parse()
+            .map_err(|error| format!("ATUR_TERM_LOCAL_ECHO: {error}")),
+        _ => Ok(PredictMode::default()),
+    }
+}
+
+/// With `ATUR_TERM_ECHO_STATS=FILE`, writes what happened to the local echo guesses on exit.
+fn write_echo_stats(worker: &Worker) {
+    let Some(path) = std::env::var_os("ATUR_TERM_ECHO_STATS").filter(|path| !path.is_empty())
+    else {
+        return;
+    };
+    let shared = lock(&worker.shared);
+    let mut lines = String::new();
+    for view in shared.views.values() {
+        let stats = view.predict.stats();
+        let _ = writeln!(
+            lines,
+            "{{\"mode\":\"{}\",\"keys\":{},\"visible_confirmed\":{},\"hidden_confirmed\":{},\"visible_wrong\":{},\"hidden_wrong\":{}}}",
+            view.predict.mode().as_str(),
+            stats.keys,
+            stats.visible_confirmed,
+            stats.hidden_confirmed,
+            stats.visible_wrong,
+            stats.hidden_wrong,
+        );
+    }
+    let _ = std::fs::write(path, lines);
+}
+
+/// Feeds the round trip time to the local echo and expires guesses the server never echoed.
+fn tick_echo(worker: &Worker) {
+    let now = Instant::now();
+    let mut shared = lock(&worker.shared);
+    let rtt = shared.client.as_ref().and_then(Client::rtt);
+    for view in shared.views.values_mut() {
+        view.predict.set_rtt(rtt);
+        view.predict.tick(&view.grid, now);
+    }
 }
 
 fn event_loop(host: &mut Host, worker: &Worker, events: &terminal::Events, mut ui: Ui) -> Result {
@@ -120,6 +170,7 @@ fn event_loop(host: &mut Host, worker: &Worker, events: &terminal::Events, mut u
             execute!(io::stdout(), style).map_err(|error| error.to_string())?;
         }
         pointer.tick(worker, &mut ui);
+        tick_echo(worker);
         host.terminal
             .draw(|frame| ui::draw(frame, &lock(&worker.shared), &mut ui))
             .map_err(|error| error.to_string())?;

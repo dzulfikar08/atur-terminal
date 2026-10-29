@@ -12,7 +12,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use muxy_app_core::{Direction, PaneId};
-use muxy_client::{Client, ClientError, Start};
+use muxy_client::{Client, ClientError, PredictMode, Start};
 use muxy_protocol::{
     CatalogPage, ChannelId, ErrorCode, MouseEvent, ProjectId, ProjectSession, ServerIdentity,
     SessionId, Size,
@@ -88,8 +88,10 @@ impl Worker {
         viewport: Rect,
         open: Option<ProjectId>,
         redraw: Waker,
+        echo: PredictMode,
     ) -> Result<Self> {
         let mut initial = Shared::default();
+        initial.echo = echo;
         target.describe().clone_into(&mut initial.server);
         let shared = Arc::new(Mutex::new(initial));
         let input = Arc::new(InputWriter::new(Arc::clone(&shared))?);
@@ -381,6 +383,9 @@ impl Core {
         {
             let mut shared = lock(&self.shared);
             shared.client = Some(client.clone());
+            if matches!(self.target, Target::Ssh { .. }) {
+                let _ = client.start_rtt_probe();
+            }
             shared.refresh = true;
             shared.activity_dirty = true;
         }
@@ -753,6 +758,7 @@ impl Core {
                     if let Some(view) = lock(&self.shared).views.get_mut(&id) {
                         view.viewport = size;
                         view.grid.resize(size);
+                        view.predict.reset();
                         view.scroll.bottom();
                     }
                     client
@@ -996,22 +1002,29 @@ fn apply(
 }
 
 fn send_input(shared: &Mutex<Shared>, writer: &InputWriter, input: Input) -> Result {
-    let shared = lock(shared);
-    let Some(view) = shared
-        .state
+    let mut shared = lock(shared);
+    let Shared {
+        client,
+        state,
+        views,
+        ..
+    } = &mut *shared;
+    let Some(view) = state
         .as_ref()
         .and_then(|state| state.tab())
-        .and_then(|tab| shared.views.get(&tab.focus))
+        .and_then(|tab| views.get_mut(&tab.focus))
         .filter(|view| !view.ended)
     else {
         return Ok(());
     };
-    let Some((client, channel)) = shared.client.clone().zip(view.channel) else {
+    let Some((client, channel)) = client.clone().zip(view.channel) else {
         return Ok(());
     };
-    let modes = view.grid.modes;
+    let bytes = input.encode(view.grid.modes);
+    if !bytes.is_empty() {
+        view.predict.keys(&bytes, &view.grid, Instant::now());
+    }
     drop(shared);
-    let bytes = input.encode(modes);
     if !bytes.is_empty() {
         writer.send(client, channel, bytes)?;
     }
