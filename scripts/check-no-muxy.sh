@@ -39,7 +39,7 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-ALLOWED_FILE='(^|/)(LICENSE|NOTICE|THIRD_PARTY)[^/]*$'
+ALLOWED_FILE='(^|/)(LICENSE|NOTICE|THIRD_PARTY)[^/]*$|(^|/)usr/share/doc/[^/]+/copyright$'
 ALLOWED_LINE='Based on Muxy'
 LEGACY='\.muxy/|/muxy/|\.config/muxy|muxy/(worktree|voice|layouts)|MUXY_|MUXY-(STDIO|UDP)|MUXYSAV|muxy://|muxy/1|pending-import\.muxy|com\.muxy|app\.muxy|--muxy-|__muxy|muxy-(beta|dev|pr-number|ext|pane|[0-9a-f]{8})|Muxy (Dev|Beta|2|Light|Runtime|1\.x)|muxy\.(configuration|theme|showStatusBar|tips|general|worktrees|sidebarCollapsedStyle|activeSidebar|localization|appLayout|richInput|quickTerminal|recording|ai|projectPicker|tabs|ext)|muxy\.[a-z]+ =|muxy: |(const|globalThis\.atur =|return|of Object\.values\() ?\(?muxy|`muxy`|`--muxy|\(c\) 2026 Muxy|muxy-cli|Application Support/Muxy|(window|globalThis)\.(atur = )?(window|globalThis)?\.?muxy|[(\[ ]muxy\.[a-z]+[.(]|window\.atur = window\.muxy|^[[:space:]]*(//.*)?muxy[.[:space:]]'
 INTERNAL='crates/muxy-|muxy_[a-z0-9_]+|muxy-app/(muxy|gpui)|/muxy-[a-z-]+/src/'
@@ -49,14 +49,15 @@ internal=0
 legacy=0
 
 extract() {
-    local source="$1" dest="$2"
+    local source dest="$2"
+    source="$(realpath "$1")"
     mkdir -p "$dest"
     case "$source" in
         *.deb) dpkg-deb -x "$source" "$dest" ;;
         *.zip) unzip -q "$source" -d "$dest" ;;
         *.tar.gz|*.tgz|*.tar.xz|*.tar) tar -xf "$source" -C "$dest" ;;
-        *.AppImage) (cd "$dest" && cp "$source" ./image && chmod +x ./image && ./image --appimage-extract >/dev/null 2>&1) ;;
-        *.dmg) 7z x -y -o"$dest" "$source" >/dev/null ;;
+        *.AppImage) (cd "$dest" && cp "$source" ./image && chmod +x ./image && ./image --appimage-extract >&2) ;;
+        *.dmg) 7z x -y -o"$dest" "$source" >&2 || 7zz x -y -o"$dest" "$source" >&2 ;;
         *) return 1 ;;
     esac
 }
@@ -121,10 +122,11 @@ for artifact in "${ARGS[@]}"; do
             printf 'VISIBLE artifact name: %s\n' "$name"
         fi
         dest="$WORK/$index"
-        if extract "$artifact" "$dest" 2>/dev/null && [[ -n "$(find "$dest" -type f -print -quit)" ]]; then
+        if extract "$artifact" "$dest" 2>"$WORK/extract.err" && [[ -n "$(find "$dest" -type f -print -quit)" ]]; then
             scan_tree "$dest" "$name"
         elif [[ "$name" =~ \.(deb|zip|tar|tar\.gz|tgz|tar\.xz|AppImage|dmg)$ ]]; then
             echo "error: could not unpack $name" >&2
+            head -n 20 "$WORK/extract.err" >&2
             exit 2
         else
             report "$name" "$artifact" "$name"
