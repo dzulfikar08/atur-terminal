@@ -173,6 +173,9 @@ impl Requests {
             RequestBody::OfferUdp => {
                 Ok(Some(ReplyBody::UdpOffer(self.registry.offer_udp(outbox)?)))
             }
+            RequestBody::ReadAddresses => {
+                Ok(Some(ReplyBody::Addresses(self.registry.remote.addresses())))
+            }
             RequestBody::Exec(request) => {
                 self.commands
                     .start(request, id, Arc::clone(&self.registry), Arc::clone(outbox))?;
@@ -404,6 +407,12 @@ fn ordered_request(
             return Err(ServerError::new(
                 ErrorCode::BadRequest,
                 "UDP offers are answered by the connection",
+            ));
+        }
+        RequestBody::ReadAddresses => {
+            return Err(ServerError::new(
+                ErrorCode::BadRequest,
+                "addresses are answered by the connection",
             ));
         }
         RequestBody::ReadRemoteAccess => {

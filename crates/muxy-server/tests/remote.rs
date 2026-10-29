@@ -61,6 +61,18 @@ impl Fixture {
             } else {
                 ListenerStatus::Disabled
             }
+        })
+        .with_address_source(|| {
+            // A repeated address, a spelling that is not a host and a ninth address, as a
+            // lookup on a busy machine might produce them.
+            let mut found = vec![
+                "192.168.43.7".to_owned(),
+                "not a host".to_owned(),
+                "192.168.43.7".to_owned(),
+                "100.64.0.9".to_owned(),
+            ];
+            found.extend((1..=8).map(|last| format!("10.0.0.{last}")));
+            found
         });
         if udp {
             let offered = Arc::clone(&subscribers);
@@ -532,6 +544,44 @@ fn udp_is_offered_only_to_paired_devices_and_only_when_it_is_on() -> TestResult 
     // A local connection has a socket already.
     assert!(matches!(
         local.request(RequestBody::OfferUdp)?,
+        ReplyBody::Error(error) if error.code == ErrorCode::BadRequest
+    ));
+    Ok(())
+}
+
+#[test]
+fn a_paired_device_learns_the_servers_addresses_and_a_local_connection_cannot_ask() -> TestResult {
+    let fixture = Fixture::new();
+    let mut local = fixture.enabled()?;
+    let (paired, mut phone) = fixture.pair(&mut local)?;
+    let ReplyBody::Addresses(addresses) = phone.request(RequestBody::ReadAddresses)? else {
+        return Err("expected addresses".into());
+    };
+    assert_eq!(addresses.port, 7419);
+    // Each address once and only what a pairing link can carry, at most eight.
+    assert_eq!(
+        addresses.hosts,
+        [
+            "192.168.43.7",
+            "100.64.0.9",
+            "10.0.0.1",
+            "10.0.0.2",
+            "10.0.0.3",
+            "10.0.0.4",
+            "10.0.0.5",
+            "10.0.0.6",
+        ]
+    );
+    assert!(addresses.validate().is_ok());
+    // Signing in again, as a phone does on its next connect, may ask too.
+    drop(phone);
+    let mut again = fixture.authenticated(paired.credential)?;
+    assert!(matches!(
+        again.request(RequestBody::ReadAddresses)?,
+        ReplyBody::Addresses(_)
+    ));
+    assert!(matches!(
+        local.request(RequestBody::ReadAddresses)?,
         ReplyBody::Error(error) if error.code == ErrorCode::BadRequest
     ));
     Ok(())

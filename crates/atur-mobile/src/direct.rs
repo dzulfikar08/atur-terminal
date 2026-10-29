@@ -27,6 +27,7 @@ use crate::connection::{Connection, ConnectionEvent, ConnectionListener, Transpo
 use crate::input::{self, Segment};
 use crate::keys::{self, Key, Modifiers};
 use crate::records::{AgentState, ServerCredential, SessionStatus};
+use crate::route::RouteInfo;
 use crate::terminal::Terminal;
 use crate::terminals::Content;
 use crate::{MobileError, ansi};
@@ -523,6 +524,7 @@ impl Direct {
         let connection = opened.connection;
         let server_id = connection.server_id()?;
         let version = connection.server_version();
+        let transport = connection.transport_name();
 
         let (jobs, queue) = mpsc::channel();
         let worker = Worker {
@@ -546,8 +548,10 @@ impl Direct {
             "serverId": server_id,
             "serverName": name,
             "serverVersion": version,
-            "transport": connection.transport_name(),
+            "transport": transport,
             "udpNote": opened.udp_note,
+            "route": opened.route.to_json(),
+            "addresses": opened.addresses,
         }))
     }
 
@@ -689,6 +693,7 @@ impl Direct {
                     "mode": content.predict.mode().as_str(),
                     "rttMs": rtt.map(|rtt| rtt.as_secs_f64() * 1000.0),
                     "transport": connection.transport_name(),
+                    "route": connection.route().map(RouteInfo::to_json),
                     "keys": stats.keys,
                     "visibleConfirmed": stats.visible_confirmed,
                     "hiddenConfirmed": stats.hidden_confirmed,
@@ -974,8 +979,30 @@ fn attach(live: &Live, session: u64, cols: u16, rows: u16) -> Answer {
     }))
 }
 
+/// How often a read starts over when the computer rewrites its scrollback under it.
+const HISTORY_ATTEMPTS: usize = 3;
+
 /// The newest `lines` rows including scrollback, oldest first, ending with the visible screen.
+///
+/// A page cursor goes stale when the computer clears or rewrites its scrollback between two pages
+/// (a full-screen redraw of an agent does that); the read then starts over from the newest page,
+/// and only the last attempt settles for the rows it has, which are a short read, not a wrong one.
 fn history(terminal: &Terminal, lines: usize) -> Result<(Vec<String>, usize), Fail> {
+    let mut attempt = 1;
+    loop {
+        if let Some(read) = history_once(terminal, lines, attempt >= HISTORY_ATTEMPTS)? {
+            return Ok(read);
+        }
+        attempt += 1;
+    }
+}
+
+/// One read; `None` when a cursor went stale and `settle` is off.
+fn history_once(
+    terminal: &Terminal,
+    lines: usize,
+    settle: bool,
+) -> Result<Option<(Vec<String>, usize)>, Fail> {
     let client = &terminal.client;
     let channel = terminal.view.channel;
     let page_rows = u16::try_from(lines.min(usize::from(HISTORY_PAGE))).unwrap_or(HISTORY_PAGE);
@@ -1005,6 +1032,9 @@ fn history(terminal: &Terminal, lines: usize) -> Result<(Vec<String>, usize), Fa
             Err(muxy_client::ClientError::Server(error))
                 if error.code == muxy_protocol::ErrorCode::StaleHistoryCursor =>
             {
+                if !settle {
+                    return Ok(None);
+                }
                 break;
             }
             Err(error) => return Err(error.into()),
@@ -1014,7 +1044,7 @@ fn history(terminal: &Terminal, lines: usize) -> Result<(Vec<String>, usize), Fa
     if rows.len() > lines.max(visible) {
         rows.drain(..rows.len() - lines.max(visible));
     }
-    Ok((rows, visible))
+    Ok(Some((rows, visible)))
 }
 
 // ---------------------------------------------------------------------------------------------

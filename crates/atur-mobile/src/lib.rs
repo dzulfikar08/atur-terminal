@@ -22,6 +22,7 @@ mod input;
 mod keys;
 mod mouse;
 mod records;
+mod route;
 mod scrollback;
 mod terminal;
 mod terminals;

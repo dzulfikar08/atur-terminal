@@ -28,7 +28,10 @@ pub(super) fn permit(device: bool, body: &RequestBody) -> Result<(), ServerError
         | RequestBody::IdentifyClient(ClientKind::Desktop | ClientKind::Tui | ClientKind::Cli) => {
             local_only(device)
         }
-        RequestBody::OfferUdp => network_only(device),
+        RequestBody::OfferUdp => network_only(device, "UDP is only offered to paired devices"),
+        RequestBody::ReadAddresses => {
+            network_only(device, "addresses are only told to paired devices")
+        }
         RequestBody::IdentifyClient(ClientKind::Mobile)
         | RequestBody::CancelCreation(_)
         | RequestBody::ListSessions
@@ -74,14 +77,12 @@ fn local_only(device: bool) -> Result<(), ServerError> {
     }
 }
 
-/// A local connection has a socket of its own; UDP is for the network.
-fn network_only(device: bool) -> Result<(), ServerError> {
+/// A local connection has a socket of its own; what a phone needs from the
+/// network is for paired devices.
+fn network_only(device: bool, refusal: &str) -> Result<(), ServerError> {
     if device {
         Ok(())
     } else {
-        Err(ServerError::new(
-            ErrorCode::BadRequest,
-            "UDP is only offered to paired devices",
-        ))
+        Err(ServerError::new(ErrorCode::BadRequest, refusal))
     }
 }

@@ -141,6 +141,7 @@ fn remote_samples() -> Vec<Message> {
         RequestBody::CancelPairing,
         RequestBody::RevokeDevice(device),
         RequestBody::OfferUdp,
+        RequestBody::ReadAddresses,
     ] {
         messages.push(Message::Request {
             id: RequestId(40),
@@ -179,6 +180,10 @@ fn remote_samples() -> Vec<Message> {
         ReplyBody::UdpOffer(crate::UdpOffer {
             port: 60001,
             key: [9; 32],
+        }),
+        ReplyBody::Addresses(crate::ServerAddresses {
+            hosts: vec!["192.168.1.5".into(), "100.64.0.9".into()],
+            port: crate::DEFAULT_REMOTE_PORT,
         }),
         ReplyBody::Error(ErrorReply {
             code: ErrorCode::Unauthorized,

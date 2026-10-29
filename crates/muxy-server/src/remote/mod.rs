@@ -14,7 +14,7 @@ use muxy_protocol::transport::tls::TlsIdentity;
 use muxy_protocol::{
     ClientId, DeviceCredential, DeviceId, ErrorCode, ListenerStatus, MAX_DEVICES, PairRequest,
     Paired, PairedDevice, PairingInvite, PairingOffer, RemoteAccessSettings, RemoteAccessState,
-    ServerIdentity,
+    ServerAddresses, ServerIdentity, validate_pairing_hosts,
 };
 
 use crate::ServerError;
@@ -28,10 +28,15 @@ const AUTHENTICATION_TIMEOUT: Duration = Duration::from_secs(10);
 pub(crate) type ListenerControl =
     dyn Fn(Option<(u16, TlsIdentity)>) -> ListenerStatus + Send + Sync;
 
+/// Names the addresses phones can reach this server at, when the executable's own
+/// lookup (the machine's routes and name) is not the one to use.
+pub(crate) type AddressSource = dyn Fn() -> Vec<String> + Send + Sync;
+
 pub struct RemoteAccess {
     state: Mutex<State>,
     store: Option<PathBuf>,
     listener: Option<Box<ListenerControl>>,
+    address_source: Option<Box<AddressSource>>,
     writes: Mutex<()>,
     revision: AtomicU64,
     unauthenticated: Arc<AtomicUsize>,
@@ -103,6 +108,7 @@ impl RemoteAccess {
             }),
             store,
             listener: None,
+            address_source: None,
             writes: Mutex::new(()),
             revision: AtomicU64::new(1),
             unauthenticated: Arc::default(),
@@ -111,6 +117,30 @@ impl RemoteAccess {
 
     pub(crate) fn set_listener(&mut self, listener: Box<ListenerControl>) {
         self.listener = Some(listener);
+    }
+
+    pub(crate) fn set_address_source(&mut self, source: Box<AddressSource>) {
+        self.address_source = Some(source);
+    }
+
+    /// Where a paired phone can reach this server now: the addresses a pairing
+    /// link would list at this moment, and the listener's port. A phone on a new
+    /// network (its hotspot, another Wi-Fi) learns the address it needs this way.
+    pub(crate) fn addresses(&self) -> ServerAddresses {
+        let found = match &self.address_source {
+            Some(source) => source(),
+            None => hosts::candidates(&[]),
+        };
+        let hosts = hosts::unique(
+            found
+                .into_iter()
+                .filter(|host| validate_pairing_hosts(std::slice::from_ref(host)).is_ok())
+                .collect(),
+        );
+        ServerAddresses {
+            hosts,
+            port: self.lock().stored.settings.port,
+        }
     }
 
     pub(crate) fn revision(&self) -> u64 {

@@ -292,6 +292,28 @@ impl UdpOffer {
     }
 }
 
+/// Where the server can be reached now: the addresses a pairing link would list
+/// (IPv4 addresses and names, at most [`MAX_PAIRING_HOSTS`]) and the port its
+/// network listener uses.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct ServerAddresses {
+    #[n(0)]
+    pub hosts: Vec<String>,
+    #[n(1)]
+    pub port: u16,
+}
+
+impl ServerAddresses {
+    pub fn validate(&self) -> Result<(), ErrorCode> {
+        validate_pairing_hosts(&self.hosts)?;
+        if self.port < 1024 {
+            Err(ErrorCode::BadRequest)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub struct DeviceCredential {
     #[n(0)]

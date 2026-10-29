@@ -23,7 +23,7 @@ pub(super) fn candidates(given: &[String]) -> Vec<String> {
 
 /// Each address once, in its first spelling since DNS ignores case, and only
 /// as many as a pairing link holds.
-fn unique(hosts: Vec<String>) -> Vec<String> {
+pub(super) fn unique(hosts: Vec<String>) -> Vec<String> {
     let mut kept: Vec<String> = Vec::with_capacity(MAX_PAIRING_HOSTS);
     for host in hosts {
         if kept.len() < MAX_PAIRING_HOSTS

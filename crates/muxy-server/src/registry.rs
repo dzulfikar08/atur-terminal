@@ -296,6 +296,18 @@ impl Registry {
         self
     }
 
+    /// Replaces the lookup of the machine's own addresses that paired devices
+    /// ask for (and pairing links list), for a server whose addresses are known
+    /// by other means.
+    #[must_use]
+    pub fn with_address_source(
+        mut self,
+        source: impl Fn() -> Vec<String> + Send + Sync + 'static,
+    ) -> Self {
+        self.remote.set_address_source(Box::new(source));
+        self
+    }
+
     /// Lets paired devices ask for a UDP stream over their connection.
     #[must_use]
     pub fn with_udp_offers(mut self, offers: crate::UdpOffers) -> Self {

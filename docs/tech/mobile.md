@@ -86,6 +86,57 @@ reports `transport`. Revoking a device or turning mobile access off ends its UDP
 connection as it ends a TLS one. On a firewall, UDP 60001-61000 (or the range you
 set) must be open to the phone, which Tailscale does by itself.
 
+## Choosing the route
+
+A computer is usually reachable several ways at once (its address on the local network, its Tailscale
+address, a `.local` name), and they differ in speed. Tailscale cannot connect two devices directly when the
+phone itself hosts the hotspot the computer is on, so it relays through a server far away (123 ms in one
+measurement) although the phone and the computer are 2.6 ms apart on the local link. The addresses saved
+at pairing time were tried in order, one after another, so a stale or slow first address held everything
+back.
+
+`Client::connect_remote_at` therefore races the server's addresses (`muxy-client/src/race.rs`):
+
+- **Ranking.** Local addresses first (RFC 1918, link-local, loopback, `.local` names), then Tailscale
+  (100.64.0.0/10, its IPv6 range, `*.ts.net`), then everything else; each group keeps the saved order, and a
+  repeated address is tried once. `race::plan` is the pure function with the ranking and the start times.
+- **Stagger.** The first address starts at once, the next 150 ms later if nothing has signed in yet, and so
+  on; an address that fails (refused, wrong certificate) starts the next one immediately instead of waiting.
+- **Pinning.** Every attempt runs the same TLS handshake pinned to the certificate fingerprint stored at
+  pairing, then Hello and the device sign-in. The first connection to finish all of that is kept and the
+  others are closed; a wrong certificate is never trusted, and is reported as an identity mismatch only
+  when no address worked. With one address nothing is raced and the behaviour is exactly the old one.
+  Pairing races the link's addresses to the first TLS connection only, because its secret works once.
+- **Answer.** The connection says which address won (`Route { host, kind, elapsed }`, `kind` from the host
+  as ranked above); `elapsed` is that address's own connect, TLS and sign-in time.
+
+### Learning the server's addresses
+
+A pairing link lists the addresses the computer had that day. After connecting, a phone asks a server that
+lists `Feature::SERVER_ADDRESSES` (3) for the addresses it would put in a pairing link now, so a new
+hotspot or Wi-Fi address is used the next time without pairing again.
+
+- `RequestBody::ReadAddresses` (variant 45, no fields) answers `ReplyBody::Addresses(ServerAddresses)`
+  (variant 40): `{ hosts: [string], port: u16 }`, CBOR `[hosts, port]` with `hosts` an array of at most
+  eight IPv4 addresses or DNS names (the same list, from the same code, as `atur-term mobile pair`: the
+  address of the default route, the Tailscale address if there is one, then the machine's `.local` name).
+  Only a paired network connection may ask; a local connection gets `BadRequest`, and a server without the
+  feature is never asked. `Registry::with_address_source` replaces the lookup (tests; a server whose
+  addresses are known by other means).
+- The facade merges the answer with the stored hosts (`atur-mobile/src/route.rs`): the server's list
+  first, then the winning address if the server did not list it, then the stored ones not in the list, each
+  once and at most eight. `connect` returns it as `addresses`; the app persists it as the credential's
+  `hosts`. It is only ever more addresses to try: the certificate fingerprint, the port and the device token
+  never change.
+- The connect answer is `{serverId, serverName, serverVersion, transport, udpNote, route: {host, kind:
+  "local" | "tailscale" | "other", ms}, addresses}`, and `echoStats` carries `route` too.
+
+The route race has an integration test in `muxy-client/tests/remote.rs`: a proxy that holds connections on
+`127.0.0.2` back, so the fast `127.0.0.1` wins even when listed second, and a server reachable only
+through one address among refusing ones. The `route` job of `.github/workflows/mobile.yml` repeats it with
+`scripts/route-netem.sh` delaying `127.0.0.2` by 120 ms each way (a `prio` qdisc with `u32` filters on that
+address) and prints one `route race winner=<host> ms=<n>` line per race into the job summary.
+
 The full integration guide, with the API, setup, and error handling, is in
 [`crates/atur-mobile/README.md`](../../crates/atur-mobile/README.md).
 

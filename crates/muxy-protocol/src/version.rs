@@ -33,7 +33,13 @@ impl Feature {
     pub const TERMINAL_INPUT: Self = Self(1);
     /// `RequestBody::OfferUdp`: a paired connection can ask for a UDP port to move to.
     pub const UDP_OFFER: Self = Self(2);
+    /// `RequestBody::ReadAddresses`: a paired connection can ask for the server's current addresses.
+    pub const SERVER_ADDRESSES: Self = Self(3);
 }
 
 /// Features this build's server supports.
-pub const FEATURES: &[Feature] = &[Feature::TERMINAL_INPUT, Feature::UDP_OFFER];
+pub const FEATURES: &[Feature] = &[
+    Feature::TERMINAL_INPUT,
+    Feature::UDP_OFFER,
+    Feature::SERVER_ADDRESSES,
+];

@@ -4,13 +4,15 @@ use std::io;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::time::Duration;
 
+use muxy_protocol::transport::ByteStream;
 use muxy_protocol::transport::udp::Secret;
-use muxy_protocol::transport::{ByteStream, tls};
 use muxy_protocol::{
     DeviceCredential, DeviceId, ErrorCode, ErrorReply, Feature, PairRequest, Paired, PairingInvite,
-    PairingOffer, RemoteAccessSettings, RemoteAccessState, ReplyBody, RequestBody, UdpOffer,
+    PairingOffer, RemoteAccessSettings, RemoteAccessState, ReplyBody, RequestBody, ServerAddresses,
+    UdpOffer,
 };
 
+use crate::race::{self, Route, STAGGER, Target};
 use crate::udp::{self, UdpSettings};
 use crate::{Client, ClientError, Transport};
 
@@ -35,8 +37,20 @@ impl From<&PairingInvite> for RemoteEndpoint {
     }
 }
 
+impl RemoteEndpoint {
+    fn target(&self) -> Target {
+        Target {
+            hosts: self.hosts.clone(),
+            port: self.port,
+            fingerprint: self.fingerprint,
+            timeout: CONNECT_TIMEOUT,
+        }
+    }
+}
+
 impl Client {
-    /// Connects as a paired device, trying each host in order.
+    /// Connects as a paired device through whichever address signs in first
+    /// (see [`Client::connect_remote_at`]).
     pub fn connect_remote(
         endpoint: &RemoteEndpoint,
         credential: DeviceCredential,
@@ -44,14 +58,21 @@ impl Client {
         Self::connect_remote_at(endpoint, credential).map(|(client, _)| client)
     }
 
-    /// Like [`Client::connect_remote`], and also names the host that answered,
-    /// so a second path to the same server can use the address that worked.
+    /// Like [`Client::connect_remote`], and also names the route that won, so a
+    /// second path to the same server can use the address that worked.
+    ///
+    /// The server's addresses are raced: local ones start first, then Tailscale
+    /// ones, then the rest, each next one [`STAGGER`] after the one before it
+    /// (at once if that one failed); the first connection to finish the TLS
+    /// handshake against the pinned certificate and sign in is kept and the
+    /// others are closed. With one address nothing is raced.
     pub fn connect_remote_at(
         endpoint: &RemoteEndpoint,
         credential: DeviceCredential,
-    ) -> Result<(Self, String), ClientError> {
-        let (stream, host) = connect(endpoint)?;
-        Self::connect_remote_stream(stream, credential).map(|client| (client, host))
+    ) -> Result<(Self, Route), ClientError> {
+        race::race(&endpoint.target(), STAGGER, move |stream| {
+            Self::connect_remote_stream(stream, credential)
+        })
     }
 
     /// Says Hello and signs in as a paired device over a stream that already
@@ -82,6 +103,21 @@ impl Client {
         }
     }
 
+    /// Whether the connected server answers [`Client::request_addresses`].
+    /// Older servers do not, and are never asked.
+    pub fn supports_addresses(&self) -> bool {
+        self.supports(Feature::SERVER_ADDRESSES)
+    }
+
+    /// Asks a server for the addresses a pairing link would list now. Only a
+    /// paired connection may ask.
+    pub fn request_addresses(&self) -> Result<ServerAddresses, ClientError> {
+        match self.request(RequestBody::ReadAddresses)? {
+            ReplyBody::Addresses(addresses) => Ok(addresses),
+            body => Err(ClientError::UnexpectedReply(Box::new(body))),
+        }
+    }
+
     /// Connects to a server's UDP `offer` at `host` and signs in as a paired
     /// device over it, with the settings' first-contact and idle times. Fails
     /// with an I/O error of kind `TimedOut` when nothing answers.
@@ -103,8 +139,11 @@ impl Client {
     }
 
     /// Pairs with the server that issued the invite; the connection stays open.
+    /// The invite's addresses are raced to the first TLS connection, and only
+    /// that one is used: the invite's secret works once.
     pub fn pair(invite: &PairingInvite, name: &str) -> Result<(Self, Paired), ClientError> {
-        let (stream, _) = connect(&RemoteEndpoint::from(invite))?;
+        let target = RemoteEndpoint::from(invite).target();
+        let (stream, _) = race::race(&target, STAGGER, Ok)?;
         let client = Self::from_stream_with_timeout(stream, CONNECT_TIMEOUT)?;
         match client.request(RequestBody::Pair(PairRequest {
             secret: invite.secret,
@@ -171,28 +210,6 @@ fn remote_access(body: ReplyBody) -> Result<RemoteAccessState, ClientError> {
         ReplyBody::RemoteAccess(state) => Ok(state),
         body => Err(ClientError::UnexpectedReply(Box::new(body))),
     }
-}
-
-/// A host presenting another certificate is skipped, never trusted; the
-/// mismatch is reported only if no host answers with the pinned one.
-fn connect(endpoint: &RemoteEndpoint) -> Result<(Box<dyn ByteStream>, String), ClientError> {
-    let mut mismatch = false;
-    let mut failure = None;
-    for host in &endpoint.hosts {
-        match tls::connect(host, endpoint.port, endpoint.fingerprint, CONNECT_TIMEOUT) {
-            Ok(stream) => return Ok((stream, host.clone())),
-            Err(error) => {
-                mismatch |= tls::is_identity_mismatch(&error);
-                failure = Some(error);
-            }
-        }
-    }
-    if mismatch {
-        return Err(ClientError::IdentityMismatch);
-    }
-    Err(ClientError::Io(failure.unwrap_or_else(|| {
-        io::Error::new(io::ErrorKind::NotFound, "the server has no known address")
-    })))
 }
 
 /// The addresses a host name stands for, without duplicates.

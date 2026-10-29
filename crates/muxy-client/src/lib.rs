@@ -32,5 +32,8 @@ mod catalog;
 
 pub mod local;
 
+pub mod race;
+pub use race::{Route, RouteKind};
+
 mod remote;
 pub use remote::RemoteEndpoint;

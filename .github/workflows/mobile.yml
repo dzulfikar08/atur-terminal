@@ -1,7 +1,8 @@
 name: mobile
 
 # The phone core (crates/atur-mobile): checks and tests on Linux, the same facade over a lossy link
-# (TLS against UDP), then the Android libraries and the iOS XCFramework the Atur app links.
+# (TLS against UDP), the route race with one address delayed, then the Android libraries and the
+# iOS XCFramework the Atur app links.
 # GitHub-hosted runners only.
 on:
   push:
@@ -14,15 +15,18 @@ on:
       - "crates/muxy-server/**"
       - "scripts/build-mobile-sdk.sh"
       - "scripts/lossy-netem.sh"
+      - "scripts/route-netem.sh"
       - ".github/workflows/mobile.yml"
       - "Cargo.lock"
   pull_request:
     paths:
       - "crates/atur-mobile/**"
+      - "crates/muxy-client/**"
       - "crates/muxy-server/**"
       - "crates/muxy-protocol/**"
       - "scripts/build-mobile-sdk.sh"
       - "scripts/lossy-netem.sh"
+      - "scripts/route-netem.sh"
       - ".github/workflows/mobile.yml"
   workflow_dispatch:
 
@@ -141,6 +145,60 @@ jobs:
         with:
           name: facade-lossy
           path: lossy-*.txt
+
+  route:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config iproute2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/atur-terminal' || github.ref == 'refs/heads/feat/mobile-rn' }}
+      - name: Point the build at the pinned Zig through the baseline-CPU wrapper
+        run: |
+          echo "ATUR_TERM_ZIG=$(command -v zig)" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/scripts/zig" >> "$GITHUB_PATH"
+      - name: Build the route tests before the network is shaped
+        run: cargo test --locked -p muxy-client --test remote --no-run
+      - name: Check that the runner can shape loopback traffic
+        run: |
+          sudo modprobe sch_netem || true
+          sudo modprobe sch_prio || true
+          sudo modprobe cls_u32 || true
+          if ! sudo tc qdisc add dev lo root netem delay 1ms; then
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)" || true
+            sudo modprobe sch_netem sch_prio cls_u32
+            sudo tc qdisc add dev lo root netem delay 1ms
+          fi
+          sudo tc qdisc del dev lo root
+      - name: The race with 127.0.0.2 delayed 120 ms each way and 127.0.0.1 untouched
+        run: |
+          set -euo pipefail
+          scripts/route-netem.sh on
+          cargo test --locked -p muxy-client --test remote netem_ -- --ignored --nocapture --test-threads=1 2>&1 | tee route.txt
+          {
+            echo '### Route race on loopback: 127.0.0.2 delayed 120 ms each way, 127.0.0.1 not'
+            echo 'ms is the time the winning address needed to connect, run TLS and sign in; total_ms is the whole race.'
+            echo '```'
+            grep -ho 'route race winner=.*' route.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the shaping
+        if: always()
+        run: scripts/route-netem.sh off || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: route-race
+          path: route.txt
 
   android:
     runs-on: ubuntu-24.04

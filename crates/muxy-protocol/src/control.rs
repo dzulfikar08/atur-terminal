@@ -180,6 +180,12 @@ pub enum RequestBody {
     /// servers that list `Feature::UDP_OFFER` know it.
     #[n(44)]
     OfferUdp,
+    /// Asks a server for the addresses a pairing link would list now, so a
+    /// paired phone learns a new network's address without pairing again. Only
+    /// network connections may ask, and only servers that list
+    /// `Feature::SERVER_ADDRESSES` know it.
+    #[n(45)]
+    ReadAddresses,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -296,6 +302,9 @@ pub enum ReplyBody {
     /// Where to reach the UDP stream that `OfferUdp` asked for.
     #[n(39)]
     UdpOffer(#[n(0)] crate::UdpOffer),
+    /// The server's addresses, as `ReadAddresses` asked.
+    #[n(40)]
+    Addresses(#[n(0)] crate::ServerAddresses),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

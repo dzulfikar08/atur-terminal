@@ -27,6 +27,9 @@ use serde_json::{Value, json};
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 const TIMEOUT: Duration = Duration::from_secs(10);
 
+/// An address the test server reports for itself that no phone can reach.
+const SERVER_ADDRESS: &str = "192.168.43.7";
+
 type Subscribers = Arc<Mutex<Vec<Sender<ServerEvent>>>>;
 
 /// An in-process server whose network listener is a real TLS listener on loopback.
@@ -79,7 +82,10 @@ impl Server {
                 ..ServerSettings::default()
             },
             sender,
-        );
+        )
+        // What a paired phone is told about the computer's addresses: a new network's
+        // address, and the loopback one this test server is really reached at.
+        .with_address_source(|| vec![SERVER_ADDRESS.to_owned(), "127.0.0.1".to_owned()]);
         let offers = udp
             .then(|| {
                 UdpOffers::from_environment(move |stream, registry, admission| {
@@ -1083,6 +1089,50 @@ fn sessions_carry_the_terminals_title_and_attaching_still_counts() -> TestResult
         thread::sleep(Duration::from_millis(100));
     }
     call(&direct, "endSession", &json!({ "session": session }))?;
+    direct.disconnect();
+    Ok(())
+}
+
+#[test]
+fn the_connect_answer_names_the_route_and_the_addresses_to_keep() -> TestResult {
+    let server = Server::new();
+    let local = server.local()?;
+    listen(&local)?;
+    let mut offer = local.start_pairing()?;
+    offer.invite.hosts = vec!["127.0.0.1".into()];
+    let mut credential = ok(&direct_pair(offer.invite.to_link(), "Test phone".into()))?;
+    // The first stored address refuses at once: nothing listens on 127.0.0.3.
+    credential["hosts"] = json!(["127.0.0.3", "127.0.0.1"]);
+    credential["transport"] = json!("tls");
+    let (sender, _events) = mpsc::channel();
+    let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
+    let started = Instant::now();
+    let info = ok(&direct.connect(credential.to_string()))?;
+    // The refused address did not cost a timeout, and the second one answered.
+    assert!(started.elapsed() < Duration::from_secs(3));
+    assert_eq!(info["route"]["host"], "127.0.0.1", "{info}");
+    assert_eq!(info["route"]["kind"], "local", "{info}");
+    assert!(
+        info["route"]["ms"]
+            .as_f64()
+            .is_some_and(|ms| ms > 0.0 && ms < 3000.0),
+        "{info}"
+    );
+    // What the server reported first, then the stored address it did not list.
+    assert_eq!(
+        info["addresses"],
+        json!([SERVER_ADDRESS, "127.0.0.1", "127.0.0.3"]),
+        "{info}"
+    );
+    let session = home_session(&direct, 40, 6)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    let stats = call(&direct, "echoStats", &json!({ "session": session }))?;
+    assert_eq!(stats["route"]["host"], "127.0.0.1", "{stats}");
+    assert_eq!(stats["route"]["kind"], "local", "{stats}");
     direct.disconnect();
     Ok(())
 }

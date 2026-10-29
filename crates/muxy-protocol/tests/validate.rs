@@ -116,6 +116,14 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 body: RequestBody::OfferUdp,
                 ..
             } => ("OfferUdp", ChannelKind::Control),
+            Message::Request {
+                body: RequestBody::ReadAddresses,
+                ..
+            } => ("ReadAddresses", ChannelKind::Control),
+            Message::Reply {
+                body: ReplyBody::Addresses(_),
+                ..
+            } => ("Addresses", ChannelKind::Control),
             Message::Reply {
                 body: ReplyBody::UdpOffer(_),
                 ..
@@ -560,6 +568,8 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "Uploaded",
             "OfferUdp",
             "UdpOffer",
+            "ReadAddresses",
+            "Addresses",
             "CancelPairing",
             "RevokeDevice",
             "Authenticated",

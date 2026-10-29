@@ -19,6 +19,7 @@ use crate::channel::BridgeChannel;
 use crate::files::ProjectFiles;
 use crate::git::GitRepository;
 use crate::records::{Activity, Project, ServerCredential, Session, SessionStatus, text};
+use crate::route::{self, RouteInfo};
 use crate::terminal::Terminal;
 use crate::terminals::{Delivery, Terminals};
 
@@ -77,6 +78,10 @@ pub(crate) struct Opened {
     pub(crate) connection: Arc<Connection>,
     /// Empty when UDP carries the connection.
     pub(crate) udp_note: String,
+    /// The address that won the race, and how long it took to sign in.
+    pub(crate) route: RouteInfo,
+    /// The addresses to keep in the credential: what the server reported, then the stored ones.
+    pub(crate) addresses: Vec<String>,
 }
 
 /// How long `sessions` waits for the server to push the terminals' titles.
@@ -136,6 +141,8 @@ impl Titles {
 #[derive(uniffi::Object)]
 pub struct Connection {
     client: Client,
+    /// The address a paired connection was made through; none over a bridge.
+    route: Option<RouteInfo>,
     terminals: Arc<Terminals>,
     titles: Arc<Titles>,
     /// Frames are held only for channels newer than every attached one, which
@@ -167,7 +174,8 @@ impl Connection {
         listener: Arc<dyn ConnectionListener>,
     ) -> Result<Arc<Self>, MobileError> {
         let (endpoint, device) = remote(credential)?;
-        Self::start(Client::connect_remote(&endpoint, device)?, listener)
+        let (client, route) = Client::connect_remote_at(&endpoint, device)?;
+        Self::start(client, Some(RouteInfo::new(&route)), listener)
     }
 
     /// Connects through an SSH exec channel that the app opened to run
@@ -184,7 +192,7 @@ impl Connection {
             Ok(_) | Err(ClientError::Server(_)) => {}
             Err(error) => return Err(error.into()),
         }
-        Self::start(client, listener)
+        Self::start(client, None, listener)
     }
 
     pub fn server_version(&self) -> String {
@@ -313,6 +321,11 @@ impl Connection {
         &self.client
     }
 
+    /// The address this connection was made through, when it is a paired one.
+    pub(crate) fn route(&self) -> Option<&RouteInfo> {
+        self.route.as_ref()
+    }
+
     /// Which transport carries the connection: `udp`, or `tls` for anything else.
     pub(crate) fn transport_name(&self) -> &'static str {
         match self.client.transport() {
@@ -321,22 +334,28 @@ impl Connection {
         }
     }
 
-    /// Connects over TLS and, with `TransportMode::Auto`, moves to UDP when the
-    /// server offers it and answers. Any UDP failure keeps the TLS connection.
+    /// Connects over TLS through the first of the server's addresses that signs in (they are
+    /// raced, local ones first), learns the server's current addresses, and, with
+    /// `TransportMode::Auto`, moves to UDP when the server offers it and answers. Any UDP failure
+    /// keeps the TLS connection.
     pub(crate) fn connect_direct(
         credential: ServerCredential,
         mode: TransportMode,
         listener: Arc<dyn ConnectionListener>,
     ) -> Result<Opened, MobileError> {
         let (endpoint, device) = remote(credential)?;
-        let (tls, host) = Client::connect_remote_at(&endpoint, device)?;
+        let (tls, won) = Client::connect_remote_at(&endpoint, device)?;
+        let addresses = route::learn(&tls, &endpoint.hosts, &won.host);
+        let route_info = RouteInfo::new(&won);
         let (client, udp_note) = match mode {
             TransportMode::Tls => (tls, "turned off".to_owned()),
-            TransportMode::Auto => upgrade(tls, &host, device),
+            TransportMode::Auto => upgrade(tls, &won.host, device),
         };
         Ok(Opened {
-            connection: Self::start(client, listener)?,
+            connection: Self::start(client, Some(route_info.clone()), listener)?,
             udp_note,
+            route: route_info,
+            addresses,
         })
     }
 
@@ -379,6 +398,7 @@ impl Connection {
 
     fn start(
         client: Client,
+        route: Option<RouteInfo>,
         listener: Arc<dyn ConnectionListener>,
     ) -> Result<Arc<Self>, MobileError> {
         let events = client.events().ok_or(MobileError::Disconnected)?;
@@ -395,6 +415,7 @@ impl Connection {
             })?;
         Ok(Arc::new(Self {
             client,
+            route,
             terminals,
             titles,
             attaching: Mutex::new(()),
