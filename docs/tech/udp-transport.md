@@ -148,7 +148,7 @@ first candidate. It was measured, not ruled out by taste: see
 bulk traffic, in particular a probe timeout of the smoothed round trip plus four
 times its variance, doubled after each loss, that cannot be tuned from outside the
 crate. A keystroke lost on a link with a round trip near a second waits that
-long and then twice that. The results are in the table below.
+long and then twice that. The table under "The stream alone" has the result.
 
 Using QUIC's unreliable datagrams for screen frames would avoid the stall, but
 the protocol's frames carry only the rows that changed, so a lost frame cannot be
@@ -170,7 +170,60 @@ typed 250 to 400 ms apart, a program printing the time ten times a second for
 25 s, and then a 10 s outage. The host was busy (load average 40 to 80), so
 single-run tails are noisy.
 
-RESULTS_TABLE
+### The whole stack
+
+`atur-term` connecting to a server over ssh and over UDP, same lab, same run.
+Times in milliseconds. Echo is from sending a key to seeing it drawn, with no
+prediction; staleness is how old the 10 Hz program's time looked on screen,
+sampled every 25 ms; recovery is from the network coming back to a screen
+showing output produced after that.
+
+| Link | Transport | Echo p50 | p90 | worst | Stale p50 | p90 | worst | Recovery after 10 s down |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 50 ms RTT, no loss | ssh | 53 | 59 | 68 | 93 | 143 | 200 | 8,266 |
+| | **UDP** | 53 | 59 | 70 | 85 | 135 | 172 | **303** |
+| 300 ms RTT ±60, 5% loss | ssh | 313 | 379 | 881 | 259 | 570 | 1,104 | 8,807 |
+| | **UDP** | 302 | 339 | 439 | 216 | 280 | 416 | **730** |
+| 800 ms RTT ±400, 10% loss | ssh | 918 | 2,700 | 4,105 | 1,758 | 2,966 | 5,205 | 11,717 |
+| | **UDP** | 741 | 996 | 1,249 | 519 | 792 | 2,143 | **2,230** |
+
+- At 800 ms, ssh stalled typing for up to 4.1 s and the screen for up to
+  5.2 s; UDP's worst was 1.2 s and 2.1 s, and its echo median is at the
+  round trip (741 ms for a mean of 800, since jitter helps the quicker echoes).
+- Recovery on ssh was 8 to 12 s in these runs, and 26 s in another at 800 ms: TCP's
+  retransmit timer had backed off by the time the link returned. On UDP it is
+  the round trip plus a probe, plus the muxy server's own round trip to hand out
+  the next frame once the stale ones are acknowledged. Five runs at 800 ms
+  gave 1.5, 1.7, 1.9, 2.2 and 2.3 s, median 1.9 s; at 300 ms 0.7 s.
+- At 50 ms with no loss UDP costs nothing: the same echo, and a connection that
+  took 0.8 s against 1.0 s for ssh alone (ssh dominates both).
+- Both rows of each pair were measured in the same debug build, with the host
+  busy; single-run tails vary by a few hundred ms. Connecting takes the ssh login
+  plus one UDP round trip.
+
+### The stream alone
+
+A 16-byte request and its echo every 250 to 400 ms, 120 of them, over a
+loopback interface shaped the same way (`scripts/transport-lab/pingpong.sh`),
+round trip in milliseconds. This is the measurement that chose the transport.
+
+| Link | Transport | p50 | p90 | p99 | worst |
+| --- | --- | --- | --- | --- | --- |
+| 50 ms RTT, no loss | TCP | 50 | 57 | 73 | 101 |
+| | QUIC (quinn) | 52 | 57 | 74 | 76 |
+| | **UDP stream** | 51 | 56 | 78 | 82 |
+| 300 ms RTT ±60, 5% loss | TCP | 305 | 351 | 1,207 | 1,472 |
+| | QUIC (quinn) | 303 | 995 | 1,769 | 1,830 |
+| | **UDP stream** | 296 | 331 | 351 | 360 |
+| 800 ms RTT ±400, 10% loss | TCP | 893 | 2,936 | 5,878 | 7,446 |
+| | QUIC (quinn) | 841 | 3,002 | 6,892 | 7,334 |
+| | **UDP stream** | 746 | 943 | 1,144 | 1,198 |
+
+QUIC matches TCP on a clean link and is no better under loss: its probe
+timeout, the smoothed round trip plus four times its variance and doubled after
+each loss (RFC 9002), is not a setting in quinn's `TransportConfig`. TCP's
+retransmit timer has the same arithmetic.
+
 
 ## Code
 

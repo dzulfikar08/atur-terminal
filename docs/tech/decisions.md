@@ -23,6 +23,7 @@ are in git history.
 | D10 | portable-pty for PTYs | Same speed, ready for Windows |
 | D11 | Phones pin a certificate, or use SSH | No cloud; pairing needs no SSH setup |
 | D12 | Protocol changes are additive | Old and new builds keep talking |
+| D13 | Bad networks get a UDP stream of our own | Typing holds up at 10% loss, and a new network keeps the session |
 
 ## D1. Ghostty is the terminal engine
 
@@ -129,3 +130,22 @@ version. See the [protocol](./protocol.md#versions).
 
 Turned down: a version per change, protobuf, JSON, and a custom postcard
 extension.
+
+## D13. Bad networks get a UDP stream of our own
+
+Over a link with a round trip of 0.8 s and 10% loss, ssh's TCP made typing wait
+3 to 4 seconds in the tail and took 12 to 26 seconds to recover from a 10 second
+outage, and a change of network ended the connection. The fix is a byte stream
+over encrypted UDP that ssh sets up, as mosh does, with the protocol unchanged
+above it. See [UDP transport](./udp-transport.md).
+
+Measured on emulated links (a keystroke typed, then its echo): at 800 ms round
+trip, 10% loss, the 90th percentile went from 2.7 s to 1.0 s, and recovery after
+the outage from 12 to 26 s to about 2 s. QUIC was measured too and was no better
+than TCP in the tail (p90 3.0 s against 2.9 s), because its probe timeout cannot
+be set from outside the library.
+
+Turned down: QUIC (quinn), for that reason and for the TLS machinery the ssh-borne
+secret makes unnecessary; unreliable datagrams for frames, because frames carry
+only changed rows; mosh itself, whose state synchronization would need the
+terminal emulated on both ends; and a tuned TCP, which cannot roam.
