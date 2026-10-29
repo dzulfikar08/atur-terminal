@@ -15,11 +15,11 @@
 //! The predictor owns no clock, socket or screen; callers pass `now` and render
 //! [`Predictor::cells`] and [`Predictor::cursor`] over the real grid.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use muxy_protocol::Style;
+use muxy_protocol::{KeyAction, KeyEvent, KeyModifiers, Run, Style, Underline};
 
 use crate::RunGrid;
 
@@ -29,12 +29,24 @@ const RTT_ON: Duration = Duration::from_millis(30);
 const RTT_OFF: Duration = Duration::from_millis(20);
 /// A shown prediction still unconfirmed after this long is underlined.
 pub const UNDERLINE_AFTER: Duration = Duration::from_millis(250);
-/// After a ping answer, input sent before that ping is given this long for its echo to appear.
-const SETTLE: Duration = Duration::from_millis(250);
+/// After a ping answer, input sent before that ping is given at least this long for its echo
+/// to appear. The server sends the next frame only once the last one is acknowledged and a lost
+/// frame is resent late, so on slow links an echo can trail the ping by several round trips.
+const SETTLE_MIN: Duration = Duration::from_millis(500);
+const SETTLE_MAX: Duration = Duration::from_secs(8);
 /// Without pings, an unresolved control key stops blocking predictions after this long.
 const UNBLOCK_AFTER: Duration = Duration::from_secs(2);
 /// A slow confirmation keeps `Auto` predicting for this long even when the RTT looks low.
 const SLOW_MEMORY: Duration = Duration::from_secs(10);
+/// A frame this recent may be the middle of a repaint, so it is neither trusted as a place to
+/// start guessing nor held against a guess; a later frame or the quiet after it decides.
+const QUIET: Duration = Duration::from_millis(30);
+/// Keys remembered for `reanchor`.
+const LOG_KEYS: usize = 64;
+/// Guesses nobody confirmed for this long are dropped even without a ping answer, as are
+/// hidden ones (nothing showed them, so nothing is lost) after a shorter time.
+const STALE_AFTER: Duration = Duration::from_secs(30);
+const HIDDEN_STALE_MIN: Duration = Duration::from_secs(5);
 /// More printable characters than this in one write is a paste, which is never predicted.
 const MAX_TYPED: usize = 8;
 
@@ -95,14 +107,6 @@ pub struct PredictedCell {
     pub underline: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum MidLine {
-    /// Text right of the cursor moves along, as readline does.
-    Shift,
-    /// Text right of the cursor stays, as in a redrawn input box.
-    Overwrite,
-}
-
 #[derive(Clone, Debug)]
 struct Glyph {
     text: String,
@@ -135,7 +139,6 @@ struct Cell {
     sent: Instant,
     epoch: u64,
     settled: Option<Instant>,
-    shifted: bool,
 }
 
 impl Cell {
@@ -173,10 +176,22 @@ pub struct Predictor {
     line_start: Option<Point>,
     epoch: u64,
     confirmed_epoch: u64,
+    rtt: Option<Duration>,
     rtt_high: bool,
+    /// Smoothed time from a confirmed key to its echo, measured here.
+    echo: Option<Duration>,
+    echo_high: bool,
+    /// Recent predictable keys, to guess again where the cursor is after a wrong guess.
+    log: VecDeque<(Instant, Key)>,
+    /// Where the first key of the log was typed.
+    log_start: Option<Point>,
+    /// Guesses were dropped: the next key starts again from the log.
+    replay: bool,
+    last_frame: Option<Instant>,
+    /// The last frame contradicted a guess; it fails if the screen is still wrong once quiet.
+    suspect: bool,
     slow_until: Option<Instant>,
     alternate: bool,
-    mid_line: MidLine,
     stats: PredictStats,
 }
 
@@ -186,6 +201,7 @@ impl Default for Predictor {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 enum Key {
     Char(char),
     Backspace,
@@ -204,10 +220,17 @@ impl Predictor {
             line_start: None,
             epoch: 1,
             confirmed_epoch: 0,
+            rtt: None,
             rtt_high: false,
+            echo: None,
+            echo_high: false,
+            log: VecDeque::new(),
+            log_start: None,
+            replay: false,
+            last_frame: None,
+            suspect: false,
             slow_until: None,
             alternate: false,
-            mid_line: MidLine::Shift,
             stats: PredictStats::default(),
         }
     }
@@ -229,10 +252,25 @@ impl Predictor {
 
     /// Feeds the latest round trip estimate; `Auto` turns on above 30 ms and off below 20 ms.
     pub fn set_rtt(&mut self, rtt: Option<Duration>) {
+        self.rtt = rtt.or(self.rtt);
         match rtt {
             Some(rtt) if rtt > RTT_ON => self.rtt_high = true,
             Some(rtt) if rtt < RTT_OFF => self.rtt_high = false,
             _ => {}
+        }
+    }
+
+    /// The server echoed a key `latency` after it was sent: the link and the program together.
+    /// Needs no ping, so clients without a round trip estimate still adapt.
+    fn observe(&mut self, latency: Duration) {
+        let echo = self
+            .echo
+            .map_or(latency, |echo| (echo * 3 + latency) / 4);
+        self.echo = Some(echo);
+        if echo > RTT_ON {
+            self.echo_high = true;
+        } else if echo < RTT_OFF {
+            self.echo_high = false;
         }
     }
 
@@ -249,19 +287,34 @@ impl Predictor {
     pub fn reset(&mut self) {
         self.abandon();
         self.blocked = None;
+        self.log.clear();
+        self.log_start = None;
     }
 
+    /// Drops every guess. Keys already sent may still move the real cursor; the next key
+    /// works that out again from the log.
     fn abandon(&mut self) {
         self.cells.clear();
         self.cursor = None;
+        self.line_start = None;
         self.epoch += 1;
+        self.suspect = false;
+        self.replay = true;
+    }
+
+    fn settle(&self) -> Duration {
+        self.rtt
+            .or(self.echo)
+            .map_or(SETTLE_MIN, |rtt| (rtt * 4 + SETTLE_MIN).min(SETTLE_MAX))
     }
 
     fn active(&self, now: Instant) -> bool {
         match self.mode {
             PredictMode::Always => true,
             PredictMode::Never => false,
-            PredictMode::Auto => self.rtt_high || self.slow_until.is_some_and(|until| now < until),
+            PredictMode::Auto => {
+                self.rtt_high || self.echo_high || self.slow_until.is_some_and(|until| now < until)
+            }
         }
     }
 
@@ -293,6 +346,54 @@ impl Predictor {
             .collect()
     }
 
+    /// The runs of row `row` (`runs`, `cols` wide) with the guesses drawn in, for renderers that
+    /// draw whole rows; `None` when nothing is guessed on that row.
+    pub fn overlay_runs(&self, row: u16, runs: &[Run], cols: u16, now: Instant) -> Option<Vec<Run>> {
+        let cells = self.cells(now);
+        if !cells.iter().any(|cell| cell.row == row) {
+            return None;
+        }
+        let mut glyphs = expand_runs(runs, cols);
+        for cell in cells.into_iter().filter(|cell| cell.row == row) {
+            if let Some(glyph) = glyphs.get_mut(usize::from(cell.col)) {
+                let mut style = cell.style;
+                if cell.underline {
+                    style.underline = Underline::Single;
+                }
+                *glyph = Glyph {
+                    text: cell.text,
+                    style,
+                    wide: false,
+                };
+            }
+        }
+        Some(collapse(&glyphs))
+    }
+
+    /// Like [`Predictor::keys`] for a structured key event; releases and keys held with Ctrl,
+    /// Alt or Super are not predictable, nor are keys without text but backspace and left/right.
+    pub fn key_event(&mut self, event: &KeyEvent, grid: &RunGrid, now: Instant) {
+        if event.action == KeyAction::Release {
+            return;
+        }
+        let held = event.modifiers.contains(KeyModifiers::CTRL)
+            || event.modifiers.contains(KeyModifiers::ALT)
+            || event.modifiers.contains(KeyModifiers::SUPER);
+        let bytes: Vec<u8> = if held {
+            b"\x1b[~".to_vec()
+        } else if !event.text.is_empty() && !event.text.chars().any(char::is_control) {
+            event.text.as_bytes().to_vec()
+        } else {
+            match event.key.as_str() {
+                "backspace" => vec![0x7f],
+                "left" => b"\x1b[D".to_vec(),
+                "right" => b"\x1b[C".to_vec(),
+                _ => b"\x1b[~".to_vec(),
+            }
+        };
+        self.keys(&bytes, grid, now);
+    }
+
     /// Where to draw the cursor instead of the server's, as `(row, col)`.
     pub fn cursor(&self, now: Instant) -> Option<Point> {
         let guess = self.cursor.as_ref()?;
@@ -301,6 +402,7 @@ impl Predictor {
 
     /// When something needs a redraw or a `tick` even if no frame arrives.
     pub fn next_deadline(&self, now: Instant) -> Option<Instant> {
+        let settle = self.settle();
         let mut next: Option<Instant> = None;
         let mut consider = |at: Instant| next = Some(next.map_or(at, |old| old.min(at)));
         let active = self.active(now);
@@ -309,14 +411,17 @@ impl Predictor {
                 consider(cell.sent + UNDERLINE_AFTER);
             }
             if let Some(settled) = cell.settled {
-                consider(settled + SETTLE);
+                consider(settled + settle);
             }
         }
         if let Some(settled) = self.cursor.as_ref().and_then(|guess| guess.settled) {
-            consider(settled + SETTLE);
+            consider(settled + settle);
+        }
+        if let (true, Some(frame)) = (self.suspect, self.last_frame) {
+            consider(frame + QUIET);
         }
         if let Some(blocked) = self.blocked {
-            consider(blocked.settled.map_or(blocked.since + UNBLOCK_AFTER, |at| at + SETTLE));
+            consider(blocked.settled.map_or(blocked.since + UNBLOCK_AFTER, |at| at + settle));
         }
         next
     }
@@ -344,22 +449,44 @@ impl Predictor {
     }
 
     /// Drops guesses whose echo never came. Returns whether the overlay changed.
-    pub fn tick(&mut self, now: Instant) -> bool {
-        let due = |settled: Option<Instant>| settled.is_some_and(|at| now >= at + SETTLE);
-        let expired = self.cells.values().any(|cell| due(cell.settled))
-            || self.cursor.as_ref().is_some_and(|guess| due(guess.settled));
+    pub fn tick(&mut self, grid: &RunGrid, now: Instant) -> bool {
+        let settle = self.settle();
+        let quiet = self.last_frame.is_none_or(|frame| now >= frame + QUIET);
+        let judged = self.suspect && quiet;
+        if judged {
+            self.evaluate(grid, now, true);
+        }
+        let due = |settled: Option<Instant>| settled.is_some_and(|at| now >= at + settle);
+        let trusted = self.confirmed_epoch;
+        let stale = |sent: Instant, epoch: u64| {
+            let limit = if epoch <= trusted {
+                STALE_AFTER
+            } else {
+                HIDDEN_STALE_MIN.max(settle * 2)
+            };
+            now.saturating_duration_since(sent) > limit
+        };
+        let expired = self
+            .cells
+            .values()
+            .any(|cell| due(cell.settled) || stale(cell.sent, cell.epoch))
+            || self
+                .cursor
+                .as_ref()
+                .is_some_and(|guess| due(guess.settled) || stale(guess.sent, guess.epoch));
         if expired {
             self.fail();
         }
         let unblocked = self.unblock(now);
-        expired || unblocked
+        judged || expired || unblocked
     }
 
     fn unblock(&mut self, now: Instant) -> bool {
+        let settle = self.settle();
         let ready = self.blocked.is_some_and(|blocked| {
             blocked.settled.map_or(
                 now >= blocked.since + UNBLOCK_AFTER,
-                |settled| now >= settled + SETTLE,
+                |settled| now >= settled + settle,
             )
         });
         if ready && self.cells.is_empty() {
@@ -381,6 +508,7 @@ impl Predictor {
             return;
         }
         let mut rows = HashMap::new();
+        self.reanchor(grid, &mut rows, now);
         for key in keys {
             let predicted = match key {
                 Key::Char(ch) => self.type_char(ch, grid, &mut rows, now),
@@ -389,12 +517,80 @@ impl Predictor {
                 Key::Right => self.right(grid, &mut rows, now),
                 Key::Other => false,
             };
-            if !predicted {
-                self.control(now);
-            } else {
+            dbg_log(&format!("key predicted={predicted} cursor={:?} cells={} epoch={}/{} blocked={}", self.cursor.as_ref().map(|c| c.at), self.cells.len(), self.epoch, self.confirmed_epoch, self.blocked.is_some()));
+            if predicted {
                 self.stats.keys += 1;
+                if self.log.is_empty() {
+                    self.log_start = self.cursor.as_ref().and_then(|guess| match key {
+                        Key::Char(_) => Some((guess.at.0, guess.at.1.saturating_sub(1))),
+                        _ => None,
+                    });
+                }
+                self.log.push_back((now, key));
+                while self.log.len() > LOG_KEYS {
+                    self.log.pop_front();
+                    self.log_start = None;
+                }
+            } else {
+                self.control(now);
             }
         }
+    }
+
+    /// Without a cursor to continue from (after a wrong guess), the grid shows the screen as
+    /// the last frame had it, and keys sent since may not have been echoed yet. The echoed ones
+    /// are the first keys of the log and make up the text just left of the cursor, so match
+    /// them there; guess the rest again, so what is typed next lands after them.
+    fn reanchor(&mut self, grid: &RunGrid, rows: &mut HashMap<u16, Vec<Glyph>>, now: Instant) {
+        let Some(frame) = self.last_frame else {
+            return;
+        };
+        if !self.replay || self.cursor.is_some() || self.blocked.is_some() || now < frame + QUIET {
+            return;
+        }
+        self.replay = false;
+        let typed: Option<Vec<char>> = self
+            .log
+            .iter()
+            .map(|(_, key)| match key {
+                Key::Char(ch) => Some(*ch),
+                _ => None,
+            })
+            .collect();
+        let Some(typed) = typed.filter(|typed| !typed.is_empty()) else {
+            return;
+        };
+        let (row, col) = (grid.cursor.row, usize::from(grid.cursor.col));
+        // Every echoed key moved the cursor one cell right of where the first one was typed.
+        let by_cursor = self
+            .log_start
+            .filter(|start| start.0 == row && usize::from(start.1) <= col)
+            .map(|start| (col - usize::from(start.1)).min(typed.len()));
+        // Else, the echoed keys are the text just left of the cursor.
+        let by_text = || {
+            let left: Vec<String> = (0..grid.cursor.col)
+                .map(|at| grid_glyph(grid, rows, (row, at)).text)
+                .collect();
+            (0..=typed.len().min(col)).rev().find(|&count| {
+                typed[..count]
+                    .iter()
+                    .zip(&left[col - count..])
+                    .all(|(ch, cell)| ch.to_string() == *cell)
+            })
+        };
+        let echoed = by_cursor.or_else(by_text);
+        let replay: Vec<(Instant, Key)> =
+            self.log.iter().skip(echoed.unwrap_or(0)).copied().collect();
+        self.last_frame = None;
+        for (sent, key) in replay {
+            let Key::Char(ch) = key else {
+                break;
+            };
+            if !self.type_char(ch, grid, rows, sent) {
+                break;
+            }
+        }
+        self.last_frame = Some(frame);
     }
 
     /// Call after the server's `frame` was applied to `grid`; `reset` is the frame's flag.
@@ -403,33 +599,53 @@ impl Predictor {
             self.abandon();
             return;
         }
+        self.last_frame = Some(now);
         self.unblock(now);
-        if !self.pending() {
-            return;
+        dbg_log(&format!("frame cursor={:?} pending cells={} guess={:?}", (grid.cursor.row, grid.cursor.col), self.cells.len(), self.cursor.as_ref().map(|c| c.at)));
+        if self.pending() {
+            self.evaluate(grid, now, false);
         }
+    }
+
+    /// Settles guesses against `grid`. A mismatch only fails the guesses once `finalize` says the
+    /// server has been quiet, since a frame can show a repaint half done.
+    fn evaluate(&mut self, grid: &RunGrid, now: Instant, finalize: bool) {
         let mut rows: HashMap<u16, Vec<Glyph>> = HashMap::new();
         let trusted = self.confirmed_epoch;
         let (mut wrong, mut slow) = (false, false);
         let mut credit: Option<u64> = None;
         let (mut visible, mut hidden) = (0, 0);
+        let mut unexplained = false;
+        let mut quickest: Option<Duration> = None;
+        let cursor = grid.cursor;
         self.cells.retain(|&(row, col), cell| {
             let glyphs = rows.entry(row).or_insert_with(|| expand(grid, row));
             let text = glyphs.get(usize::from(col)).map_or(" ", |glyph| glyph.text.as_str());
             if text == cell.text {
                 if !cell.ambiguous() {
                     credit = credit.max(Some(cell.epoch));
-                    slow |= now.saturating_duration_since(cell.sent) > UNDERLINE_AFTER;
+                    let latency = now.saturating_duration_since(cell.sent);
+                    quickest = Some(quickest.map_or(latency, |old| old.min(latency)));
+                    slow |= latency > UNDERLINE_AFTER;
                     if cell.epoch <= trusted {
                         visible += 1;
                     } else {
                         hidden += 1;
                     }
                 }
-                false
-            } else {
-                wrong |= !cell.seen.iter().any(|seen| seen == text);
-                true
+                return false;
             }
+            if !cell.seen.iter().any(|seen| seen == text) {
+                // Something the server never showed there before: another key's echo or
+                // suggestion text may still be settling, unless it has written past this cell.
+                unexplained = true;
+                let passed = cursor.visible && cursor.row == row && cursor.col > col;
+                if passed {
+                    dbg_log(&format!("cell wrong at ({row},{col}) predicted {:?} seen {:?} got {:?} cursor {:?}", cell.text, cell.seen, text, (cursor.row, cursor.col)));
+                }
+                wrong |= passed;
+            }
+            true
         });
         let mut cursor_done = false;
         if !wrong
@@ -438,6 +654,8 @@ impl Predictor {
         {
             let at = (grid.cursor.row, grid.cursor.col);
             if at == guess.at {
+                // The server has gone as far as guessed, so what is left must match.
+                wrong |= unexplained && !self.cells.is_empty();
                 if self.cells.is_empty() {
                     cursor_done = true;
                     if credit.is_none() && guess.seen.first() != Some(&guess.at) {
@@ -446,14 +664,15 @@ impl Predictor {
                     }
                 }
             } else {
-                wrong |= !guess.seen.contains(&at);
+                let bad = !guess.seen.contains(&at);
+                if bad { dbg_log(&format!("cursor wrong: at {:?} guess {:?} seen {:?} cells {}", at, guess.at, guess.seen, self.cells.len())); }
+                wrong |= bad;
             }
         }
         self.stats.visible_confirmed += visible;
         self.stats.hidden_confirmed += hidden;
-        if wrong {
-            self.fail();
-            return;
+        if let Some(latency) = quickest {
+            self.observe(latency);
         }
         if let Some(epoch) = credit {
             self.confirmed_epoch = self.confirmed_epoch.max(epoch);
@@ -461,8 +680,21 @@ impl Predictor {
         if slow {
             self.slow_until = Some(now + SLOW_MEMORY);
         }
+        if wrong {
+            if finalize {
+                self.fail();
+            } else {
+                self.suspect = true;
+            }
+            return;
+        }
+        self.suspect = false;
         if cursor_done {
             self.cursor = None;
+        }
+        if !self.pending() {
+            self.log.clear();
+            self.log_start = None;
         }
     }
 
@@ -483,12 +715,6 @@ impl Predictor {
             * u64::from(self.cursor.as_ref().is_some_and(|guess| guess.epoch <= trusted));
         self.stats.visible_wrong += seen + cursor_seen;
         self.stats.hidden_wrong += all - seen + cursor_only - cursor_seen;
-        if self.cells.values().any(|cell| cell.shifted) {
-            self.mid_line = match self.mid_line {
-                MidLine::Shift => MidLine::Overwrite,
-                MidLine::Overwrite => MidLine::Shift,
-            };
-        }
         self.abandon();
     }
 
@@ -498,6 +724,9 @@ impl Predictor {
         self.epoch += 1;
         self.cursor = None;
         self.line_start = None;
+        self.log.clear();
+        self.log_start = None;
+        self.replay = false;
         self.blocked = Some(Blocked {
             since: now,
             settled: None,
@@ -509,7 +738,10 @@ impl Predictor {
             return Some(guess.at);
         }
         self.unblock(now);
-        if self.blocked.is_some() || !grid.cursor.visible {
+        if self.blocked.is_some()
+            || !grid.cursor.visible
+            || self.last_frame.is_some_and(|frame| now < frame + QUIET)
+        {
             return None;
         }
         let at = (grid.cursor.row, grid.cursor.col);
@@ -553,7 +785,7 @@ impl Predictor {
         grid_glyph(grid, rows, point)
     }
 
-    fn put(&mut self, point: Point, glyph: &Glyph, underlying: &str, now: Instant, shifted: bool) {
+    fn put(&mut self, point: Point, glyph: &Glyph, underlying: &str, now: Instant) {
         let epoch = self.epoch;
         match self.cells.get_mut(&point) {
             Some(cell) => {
@@ -565,7 +797,6 @@ impl Predictor {
                 cell.sent = now;
                 cell.epoch = epoch;
                 cell.settled = None;
-                cell.shifted |= shifted;
             }
             None => {
                 self.cells.insert(
@@ -577,19 +808,10 @@ impl Predictor {
                         sent: now,
                         epoch,
                         settled: None,
-                        shifted,
                     },
                 );
             }
         }
-    }
-
-    /// The glyphs from `col` to the end of `row`, as shown now; `None` if any is wide.
-    fn tail(&self, grid: &RunGrid, rows: &mut HashMap<u16, Vec<Glyph>>, row: u16, col: u16) -> Option<Vec<Glyph>> {
-        let tail: Vec<Glyph> = (col..grid.size.cols)
-            .map(|at| self.shown(grid, rows, (row, at)))
-            .collect();
-        tail.iter().all(|glyph| !glyph.wide).then_some(tail)
     }
 
     fn type_char(
@@ -605,24 +827,19 @@ impl Predictor {
         if col + 1 >= grid.size.cols {
             return false;
         }
-        let Some(tail) = self.tail(grid, rows, row, col) else {
+        let here = self.shown(grid, rows, (row, col));
+        if here.wide {
             return false;
-        };
+        }
+        // Only the typed cell is guessed. Typing inside text makes the program move the text
+        // right, which shows when its frame arrives.
         let typed = Glyph {
             text: ch.to_string(),
-            style: tail.first().map(|glyph| glyph.style).unwrap_or_default(),
+            style: here.style,
             wide: false,
         };
-        let shift = self.mid_line == MidLine::Shift && tail.iter().any(|glyph| !glyph.is_blank());
-        if shift {
-            for (offset, glyph) in tail.iter().enumerate().take(tail.len() - 1) {
-                let at = (row, col + 1 + u16::try_from(offset).unwrap_or(0));
-                let underlying = grid_glyph(grid, rows, at).text;
-                self.put(at, glyph, &underlying, now, true);
-            }
-        }
         let underlying = grid_glyph(grid, rows, (row, col)).text;
-        self.put((row, col), &typed, &underlying, now, shift);
+        self.put((row, col), &typed, &underlying, now);
         self.advance((row, col + 1), now);
         true
     }
@@ -649,35 +866,24 @@ impl Predictor {
         let Some((row, col)) = self.origin(grid, now) else {
             return false;
         };
-        if col == 0 {
+        if col == 0 || !self.deletable(grid, rows, (row, col - 1)) {
             return false;
         }
-        if !self.deletable(grid, rows, (row, col - 1)) {
+        // Inside the text, the program moves the rest of the line left, which is not guessed.
+        // Dimmer text right of the cursor is a suggestion, which is not moved.
+        let under = self.shown(grid, rows, (row, col));
+        let before = self.shown(grid, rows, (row, col - 1));
+        if !under.is_blank() && under.style == before.style {
             return false;
         }
-        let Some(tail) = self.tail(grid, rows, row, col) else {
-            return false;
-        };
-        let shift = self.mid_line == MidLine::Shift && tail.iter().any(|glyph| !glyph.is_blank());
         let erased = Glyph {
             text: " ".into(),
             style: Style::default(),
             wide: false,
         };
-        if shift {
-            for (offset, glyph) in tail.iter().enumerate() {
-                let at = (row, col - 1 + u16::try_from(offset).unwrap_or(0));
-                let underlying = grid_glyph(grid, rows, at).text;
-                self.put(at, glyph, &underlying, now, true);
-            }
-            let last = (row, grid.size.cols - 1);
-            let underlying = grid_glyph(grid, rows, last).text;
-            self.put(last, &erased, &underlying, now, true);
-        } else {
-            let at = (row, col - 1);
-            let underlying = grid_glyph(grid, rows, at).text;
-            self.put(at, &erased, &underlying, now, false);
-        }
+        let at = (row, col - 1);
+        let underlying = grid_glyph(grid, rows, at).text;
+        self.put(at, &erased, &underlying, now);
         self.advance((row, col - 1), now);
         true
     }
@@ -804,9 +1010,13 @@ fn grid_glyph(grid: &RunGrid, rows: &mut HashMap<u16, Vec<Glyph>>, (row, col): P
 
 /// One glyph per column of `row`; trailing blanks the server trims come back as blanks.
 fn expand(grid: &RunGrid, row: u16) -> Vec<Glyph> {
-    let cols = usize::from(grid.size.cols);
+    expand_runs(grid.rows.get(usize::from(row)).map_or(&[][..], Vec::as_slice), grid.size.cols)
+}
+
+fn expand_runs(runs: &[Run], cols: u16) -> Vec<Glyph> {
+    let cols = usize::from(cols);
     let mut glyphs = Vec::with_capacity(cols);
-    for run in grid.rows.get(usize::from(row)).map_or(&[][..], Vec::as_slice) {
+    for run in runs {
         if glyphs.len() >= cols {
             break;
         }
@@ -839,5 +1049,40 @@ fn expand(grid: &RunGrid, row: u16) -> Vec<Glyph> {
     glyphs
 }
 
+/// Runs for a row drawn from glyphs: the inverse of `expand_runs`.
+fn collapse(glyphs: &[Glyph]) -> Vec<Run> {
+    let mut runs: Vec<Run> = Vec::new();
+    let mut merge = false;
+    for glyph in glyphs {
+        if glyph.wide && glyph.text.is_empty() {
+            continue;
+        }
+        let width = if glyph.wide { 2 } else { 1 };
+        let ascii = glyph.text.is_ascii() && glyph.text.len() == 1 && !glyph.wide;
+        match runs.last_mut() {
+            Some(run) if merge && ascii && run.style == glyph.style => {
+                run.text.push_str(&glyph.text);
+                run.width += width;
+            }
+            _ => runs.push(Run {
+                text: glyph.text.clone(),
+                width,
+                style: glyph.style,
+            }),
+        }
+        merge = ascii;
+    }
+    runs
+}
+
 #[cfg(test)]
 mod tests;
+
+fn dbg_log(line: &str) {
+    use std::io::Write;
+    if let Some(path) = std::env::var_os("ATUR_TERM_ECHO_DEBUG")
+        && let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path)
+    {
+        let _ = writeln!(file, "{line}");
+    }
+}

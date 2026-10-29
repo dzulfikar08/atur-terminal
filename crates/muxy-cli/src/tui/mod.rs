@@ -109,7 +109,7 @@ fn tick_echo(worker: &Worker) {
     let rtt = shared.client.as_ref().and_then(Client::rtt);
     for view in shared.views.values_mut() {
         view.predict.set_rtt(rtt);
-        view.predict.tick(now);
+        view.predict.tick(&view.grid, now);
     }
 }
 
