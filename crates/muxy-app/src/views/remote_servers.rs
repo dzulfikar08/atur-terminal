@@ -23,6 +23,7 @@ use super::overlays::Overlay;
 use crate::model::{AppModel, ConnectionTest, DeviceForm, RemoteServer, ServerStatus};
 
 /// The Add or Edit form for one remote server.
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct ServerForm {
     /// `None` adds a server.
     device: Option<ServerId>,
@@ -37,6 +38,7 @@ pub(crate) struct ServerForm {
     identity_task: Option<gpui::Task<()>>,
     password: Entity<TextInput>,
     password_login: bool,
+    udp: bool,
     error: Option<String>,
     _subscriptions: Vec<Subscription>,
 }
@@ -89,6 +91,7 @@ impl ServerForm {
                 text(&self.identity)
             },
             password_login: self.password_login,
+            udp: self.udp,
             password: text(&self.password),
         }
     }
@@ -645,6 +648,7 @@ impl AppModel {
             identity_task: None,
             password,
             password_login: entry.as_ref().is_some_and(|entry| entry.password_login),
+            udp: entry.as_ref().is_some_and(|entry| entry.udp),
             error: None,
             _subscriptions: subscriptions,
         })));
@@ -780,6 +784,13 @@ impl AppModel {
         self.clear_server_probe();
         if let Some(Overlay::ServerForm(form)) = &mut self.overlay {
             form.password_login = !form.password_login;
+            cx.notify();
+        }
+    }
+
+    fn toggle_udp(&mut self, cx: &mut Context<Self>) {
+        if let Some(Overlay::ServerForm(form)) = &mut self.overlay {
+            form.udp = !form.udp;
             cx.notify();
         }
     }
@@ -1200,7 +1211,7 @@ fn connection_fields(form: &ServerForm, model: &AppModel, cx: &mut Context<AppMo
         })
 }
 
-/// User, port, key file, and password login.
+/// User, port, key file, password login, and UDP.
 fn login(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
     let m = model.metrics;
     let theme = &model.theme;
@@ -1277,6 +1288,45 @@ fn login(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpu
                 text("server-password", &form.password),
                 model,
             ))
+        })
+        .child(udp_option(form, model, cx))
+}
+
+/// The switch for UDP, and what it needs.
+fn udp_option(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
+    let m = model.metrics;
+    let theme = &model.theme;
+    let style = Style { theme, metrics: &m };
+    div()
+        .flex()
+        .flex_col()
+        .gap(m.scaled(14.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(m.spacing3())
+                .child(controls::toggle(
+                    style,
+                    "server-udp",
+                    form.udp,
+                    cx.listener(|model, _, _, cx| model.toggle_udp(cx)),
+                ))
+                .child(
+                    div()
+                        .text_size(m.font_footnote())
+                        .child(tr!("Use UDP on slow or unreliable networks")),
+                ),
+        )
+        .when(form.udp, |view| {
+            view.child(
+                div()
+                    .text_size(m.font_footnote())
+                    .text_color(theme.fg_muted)
+                    .child(tr!(
+                        "SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect."
+                    )),
+            )
         })
 }
 

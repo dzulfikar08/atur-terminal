@@ -1,6 +1,6 @@
 pub(crate) const ROOT: &str = "Atur Terminal - terminal client and server management
 
-Usage: atur-term [--host DESTINATION] [COMMAND]
+Usage: atur-term [--host DESTINATION [--udp]] [COMMAND]
 
   (no command)  Open the terminal UI; Ctrl-B ? shows help
   <folder>      Open a folder as a project in the desktop app, or in the
@@ -27,6 +27,10 @@ Commands connect directly to the server, starting it if needed, except server
 status/stop, which never start it. --host uses the server on another computer
 over SSH (user@host, an ssh_config alias or ssh://user@host:port); Atur Terminal must be
 installed there, and directories are absolute paths on that computer.
+--udp (or ATUR_TERM_UDP=1) moves the connection onto encrypted UDP once ssh has
+logged in, which holds up on slow, lossy or changing networks; it falls back
+to ssh when UDP does not connect. The server needs UDP ports 60001-61000 open,
+or change them with ATUR_TERM_UDP_PORTS=LOW-HIGH.
 ATUR_TERM_DIR selects the local profile, which also keeps the terminal UI layouts
 for other computers. No desktop app is required, except by browser commands.
 Tabs, panes and workspaces belong to UI clients.

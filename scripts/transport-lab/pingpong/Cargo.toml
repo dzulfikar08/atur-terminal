@@ -1,0 +1,16 @@
+[package]
+name = "pingpong"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Times a keystroke-sized request and reply over TCP, QUIC, and the Atur Terminal UDP stream"
+
+# Not part of the Atur Terminal workspace: it pulls in QUIC only to compare.
+[workspace]
+
+[dependencies]
+muxy-protocol = { path = "../../../crates/muxy-protocol" }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "macros"] }

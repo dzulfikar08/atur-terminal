@@ -64,7 +64,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .map_err(|error| target.explain(error))?;
             mobile::run(command, &client).map_err(|error| target.explain(error))?;
         }
-        Command::Stdio(start) => {
+        Command::Stdio(start, udp) => {
             let _lease = muxy_client::local::bundle::acquire_runtime(
                 &muxy_core::executable::current_path()?,
             )?;
@@ -72,6 +72,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 &muxy_core::dirs::muxy_dir()?.join("server.sock"),
                 &muxy_client::local::server_executable()?,
                 start,
+                udp.as_ref(),
             )?;
         }
     }

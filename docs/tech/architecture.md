@@ -8,8 +8,8 @@ The processes, the crates, and how data moves between them.
 flowchart LR
     DESKTOP["Desktop app"] <-->|"Unix socket"| LOCAL
     TUI["atur-term terminal UI"] <-->|"Unix socket"| LOCAL
-    DESKTOP <-->|"SSH · atur-term stdio<br/>from another computer"| LOCAL
-    TUI <-->|"SSH · atur-term stdio<br/>from another computer"| LOCAL
+    DESKTOP <-->|"SSH or UDP · atur-term stdio<br/>from another computer"| LOCAL
+    TUI <-->|"SSH or UDP · atur-term stdio<br/>from another computer"| LOCAL
     PHONE["Phone app"] <-->|"TLS · after pairing"| NETWORK
     PHONE <-->|"SSH · atur-term stdio"| LOCAL
     subgraph SERVER["atur-term-server · one per profile"]
@@ -35,6 +35,10 @@ flowchart LR
   remote device. A second connection to each carries extension work and remote
   file transfers, so they never wait behind terminal traffic.
 - Apps never include server code. They only speak the [protocol](./protocol.md).
+- To another computer, ssh starts `atur-term stdio`, whose stdin and stdout carry
+  the protocol. With UDP on, the bridge also offers a port and a secret, and the
+  protocol moves to encrypted UDP while the server and its sessions stay as they
+  are. See [UDP transport](./udp-transport.md).
 
 ## Crates
 

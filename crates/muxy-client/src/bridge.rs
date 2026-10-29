@@ -16,7 +16,8 @@ use std::time::Duration;
 use muxy_protocol::transport::{self, ByteStream, StreamCancellation};
 
 use crate::client::DEFAULT_TIMEOUT;
-use crate::{Client, ClientError, RemoteReason, local};
+use crate::udp::{self, Offer, UdpRelay, UdpSettings};
+use crate::{Client, ClientError, RemoteReason, Transport, local};
 
 /// Starts the ready line; the bridge version and a newline follow.
 const READY: &[u8] = b"MUXY-STDIO/";
@@ -68,10 +69,33 @@ pub fn command(start: Start) -> &'static str {
     }
 }
 
+/// Like [`command`], and also asks the bridge to offer UDP.
+pub fn udp_command(start: Start, relay: &UdpRelay) -> String {
+    let flag = match start {
+        Start::IfNeeded => "",
+        Start::Never => " --no-start",
+    };
+    format!(
+        r#"sh -c 'export PATH="$PATH:$HOME/.local/bin"; exec atur-term stdio{flag} --udp --udp-ports {}-{} --udp-idle {}'"#,
+        relay.ports.start(),
+        relay.ports.end(),
+        relay.idle.as_secs().max(1),
+    )
+}
+
 /// Runs the bridge: connects to the server behind `socket`, writes the ready
 /// line, then relays stdin and stdout until the server closes. The copies are
 /// unbuffered, since std's line-buffered stdout would hold binary data back.
-pub fn serve(socket: &Path, executable: &Path, start: Start) -> Result<(), ClientError> {
+///
+/// With `udp`, the bridge also offers its client a UDP port; see
+/// [`UdpSettings`]. The client then picks ssh or UDP, and the bridge serves
+/// whichever delivers bytes first.
+pub fn serve(
+    socket: &Path,
+    executable: &Path,
+    start: Start,
+    udp: Option<&UdpRelay>,
+) -> Result<(), ClientError> {
     let server = match start {
         Start::IfNeeded => local::ensure_listening(socket, executable)?,
         Start::Never => transport::connect(socket).map_err(|error| {
@@ -86,8 +110,12 @@ pub fn serve(socket: &Path, executable: &Path, start: Start) -> Result<(), Clien
     let input = File::from(io::stdin().as_fd().try_clone_to_owned()?);
     let mut output = File::from(io::stdout().as_fd().try_clone_to_owned()?);
     output.write_all(&[READY, VERSION, b"\n"].concat())?;
-    transport::relay(server, input, output)?;
-    Ok(())
+    if let Some(relay) = udp {
+        udp::serve(server, relay, input, output)
+    } else {
+        transport::relay(server, input, output)?;
+        Ok(())
+    }
 }
 
 /// How a bridge's transport ended, to explain a connection that failed before
@@ -99,6 +127,13 @@ pub struct BridgeExit {
     pub status: Option<i32>,
     /// The end of the transport's error output.
     pub stderr: String,
+}
+
+/// How a connection through a bridge may move to UDP: the addresses ssh
+/// reached the computer at, and the settings.
+pub(crate) struct UdpPlan {
+    pub(crate) addresses: Vec<std::net::IpAddr>,
+    pub(crate) settings: UdpSettings,
 }
 
 impl Client {
@@ -113,31 +148,46 @@ impl Client {
         timeout: Duration,
         exited: impl FnOnce() -> BridgeExit,
     ) -> Result<Self, ClientError> {
+        Self::connect_bridge_with(stream, destination, timeout, exited, None)
+    }
+
+    /// Like [`Client::connect_bridge`]. With a plan, the bridge was asked to
+    /// offer UDP: the protocol moves there if the offer works, and stays on
+    /// `stream` if it does not.
+    pub(crate) fn connect_bridge_with(
+        stream: Box<dyn ByteStream>,
+        destination: &str,
+        timeout: Duration,
+        exited: impl FnOnce() -> BridgeExit,
+        plan: Option<&UdpPlan>,
+    ) -> Result<Self, ClientError> {
         let cancellation: Arc<dyn StreamCancellation> = stream.cancellation()?.into();
         let (reader, writer) = stream.split()?;
         let (sender, receiver) = mpsc::channel();
+        let expect_offer = plan.is_some();
         thread::Builder::new()
             .name("muxy-bridge-ready".into())
             .spawn(move || {
-                let _ = sender.send(ready(reader));
+                let _ = sender.send(ready(reader).map(|(reader, rest)| {
+                    let mut reader: Box<dyn Read + Send> =
+                        Box::new(Cursor::new(rest).chain(reader));
+                    let offer = expect_offer.then(|| udp::read_offer(&mut reader));
+                    (reader, offer)
+                }));
             })?;
         let (reason, detail) = match receiver.recv_timeout(timeout) {
-            Ok(Ok((reader, rest))) => {
-                let stream = Bridged {
-                    reader: Box::new(Cursor::new(rest).chain(reader)),
-                    writer,
-                    cancellation,
-                };
-                return Self::from_stream_with_timeout(Box::new(stream), DEFAULT_TIMEOUT).map_err(
-                    |error| match error {
+            Ok(Ok((reader, offer))) => {
+                let (stream, transport) = choose(reader, writer, &cancellation, plan, offer);
+                return Self::from_stream_with_timeout(stream, DEFAULT_TIMEOUT)
+                    .map(|client| client.with_transport(transport))
+                    .map_err(|error| match error {
                         ClientError::VersionUnsupported => ClientError::Remote {
                             reason: RemoteReason::Incompatible,
                             destination: destination.into(),
                             detail: "its running server is a different version".into(),
                         },
                         error => error,
-                    },
-                );
+                    });
             }
             Ok(Err(NotReady::Ended(printed))) => {
                 let exit = exited();
@@ -166,6 +216,49 @@ impl Client {
             detail,
         })
     }
+}
+
+/// Moves to UDP if the bridge offered it and it connects, else keeps the
+/// bridge's own stream.
+fn choose(
+    reader: Box<dyn Read + Send>,
+    writer: Box<dyn Write + Send>,
+    cancellation: &Arc<dyn StreamCancellation>,
+    plan: Option<&UdpPlan>,
+    offer: Option<io::Result<Offer>>,
+) -> (Box<dyn ByteStream>, Transport) {
+    let bridged = |reader, writer, transport| -> (Box<dyn ByteStream>, Transport) {
+        (
+            Box::new(Bridged {
+                reader,
+                writer,
+                cancellation: Arc::clone(cancellation),
+            }),
+            transport,
+        )
+    };
+    let (Some(plan), Some(offer)) = (plan, offer) else {
+        return bridged(reader, writer, Transport::Stream);
+    };
+    let failure = match offer {
+        Ok(Offer::Available { port, secret }) => {
+            match udp::connect(&plan.addresses, port, &secret, &plan.settings) {
+                Ok(stream) => {
+                    // Only the UDP path carries the protocol from here on.
+                    cancellation.cancel();
+                    return (stream, Transport::Udp);
+                }
+                Err(error) if error.kind() == io::ErrorKind::TimedOut => format!(
+                    "no answer from UDP port {port}; is the port range open in the firewall?"
+                ),
+                Err(error) => format!("could not use UDP port {port}: {error}"),
+            }
+        }
+        Ok(Offer::Unavailable(reason)) if reason.is_empty() => "the server declined UDP".into(),
+        Ok(Offer::Unavailable(reason)) => reason,
+        Err(error) => format!("the server's UDP offer failed: {error}"),
+    };
+    bridged(reader, writer, Transport::UdpFailed(failure))
 }
 
 /// The bridge's stream once it is ready, with any bytes read past the ready

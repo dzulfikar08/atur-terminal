@@ -1174,6 +1174,7 @@
 "SSH command" = "SSH command";
 "SSH connected. Install atur-term-server to finish setting up this server." = "SSH connected. Install atur-term-server to finish setting up this server.";
 "SSH host" = "SSH host";
+"SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect." = "SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect.";
 "Save" = "Save";
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file.";
 "Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes." = "Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes.";
@@ -1503,6 +1504,7 @@
 "Use SSH config or agent" = "Use SSH config or agent";
 "Use Save to keep command edits. Shortcut changes apply immediately." = "Use Save to keep command edits. Shortcut changes apply immediately.";
 "Use Theme" = "Use Theme";
+"Use UDP on slow or unreliable networks" = "Use UDP on slow or unreliable networks";
 "Use a port from 1 to 65535" = "Use a port from 1 to 65535";
 "Use a port from 1024 to 65535" = "Use a port from 1024 to 65535";
 "Use a specific font for a Unicode range, such as U+E000-U+F8FF for icons." = "Use a specific font for a Unicode range, such as U+E000-U+F8FF for icons.";

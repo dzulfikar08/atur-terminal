@@ -87,6 +87,9 @@ pub(super) fn ssh_target(entry: &ServerEntry) -> std::io::Result<SshTarget> {
     if let Some(identity) = &entry.identity_file {
         target = target.with_identity(identity);
     }
+    if entry.udp {
+        target = target.with_udp(muxy_client::UdpSettings::default().from_environment());
+    }
     Ok(target)
 }
 

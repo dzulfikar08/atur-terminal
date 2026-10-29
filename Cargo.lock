@@ -4635,6 +4635,7 @@ dependencies = [
  "muxy-core",
  "muxy-protocol",
  "muxy-server",
+ "rustix 1.1.4",
  "serde_json",
  "tempfile",
 ]

@@ -63,6 +63,26 @@ If `atur-term --version` shows 1.x, Muxy 1.x's CLI comes first on your `PATH`.
   to close it, or wait for it to expire. Without `XDG_RUNTIME_DIR` every
   connection logs in again.
 
+## UDP mode falls back to SSH
+
+When UDP is on and does not connect, Atur Terminal says `UDP unavailable (…)` once
+and uses SSH, so the connection works but without the benefit.
+
+- **No answer from UDP port …:** the server's firewall or network blocks UDP.
+  Open UDP 60001-61000 there (`ufw allow 60001:61000/udp`, or the same range in
+  a cloud security group), or connect through Tailscale. A different range can
+  be set with `ATUR_TERM_UDP_PORTS=LOW-HIGH`, which the client passes to the
+  server.
+- **SSH reaches the server through a jump host or another name:** UDP goes to the
+  host name `ssh -G <host>` reports. Set `ATUR_TERM_UDP_HOST` to an address the
+  server answers on.
+- **The server's Atur Terminal is too old for UDP:** update it there.
+- **Terminals work but UDP says it is stalled:** UDP waits five minutes for a
+  silent server (not counting time the computer slept) and then reconnects as
+  SSH would. The server keeps its end for an hour. On Linux a login that kills
+  its processes at logout also kills the UDP bridge, so run
+  `loginctl enable-linger`.
+
 ## A phone can't connect
 
 - Check **Settings → Mobile → Status** says it is listening.

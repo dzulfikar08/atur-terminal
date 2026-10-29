@@ -13,8 +13,8 @@ flowchart LR
     REMOTE["atur-term-server<br/>on another computer"]
     DESKTOP <-->|"Unix socket"| SERVER
     TUI <-->|"Unix socket"| SERVER
-    DESKTOP <-->|"SSH · atur-term stdio"| REMOTE
-    TUI <-->|"SSH · atur-term stdio"| REMOTE
+    DESKTOP <-->|"SSH · atur-term stdio<br/>or UDP after SSH starts it"| REMOTE
+    TUI <-->|"SSH · atur-term stdio<br/>or UDP after SSH starts it"| REMOTE
     PHONE <-->|"TLS"| SERVER
     PHONE <-->|"SSH · atur-term stdio"| REMOTE
 ```
@@ -38,6 +38,8 @@ The big ideas:
 2. [Protocol](./protocol.md): how apps and the server talk, and the
    compatibility rules.
 3. [Mobile](./mobile.md): how phones pair and connect.
-4. [herdr backend](./herdr-backend.md): running terminals in a herdr server so they outlive the Atur Terminal server.
-4. [Decisions](./decisions.md): the key choices and why they were made.
-5. [Constraints](./constraints.md): supported platforms and hard-won lessons.
+4. [UDP transport](./udp-transport.md): the mosh-style connection for slow and
+   unreliable networks, and how it was measured.
+5. [herdr backend](./herdr-backend.md): running terminals in a herdr server so they outlive the Atur Terminal server.
+6. [Decisions](./decisions.md): the key choices and why they were made.
+7. [Constraints](./constraints.md): supported platforms and hard-won lessons.

@@ -1,5 +1,5 @@
 //! Protocol-free ordered byte streams and their platform adapters: Unix
-//! sockets, TLS, and a child process's stdin and stdout, plus a relay that
+//! sockets, TLS, UDP for bad links, and a child process's stdin and stdout, plus a relay that
 //! carries a stream over a process's own stdin and stdout.
 //!
 //! Framing, messages, sessions, and application policy are deliberately
@@ -9,6 +9,7 @@ mod error;
 mod stdio;
 mod stream;
 pub mod tls;
+pub mod udp;
 mod unix;
 
 pub use error::BindError;
