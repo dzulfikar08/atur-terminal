@@ -4,11 +4,10 @@ name: Build release
 # arm64. Called by the "Atur Terminal release" workflow, which adds the
 # optional Intel Mac build after publishing.
 #
-# Adapted from upstream Muxy's release build. Removed: Developer ID signing,
-# notarization, the Sparkle update for Muxy 1.x, arm64 Linux, the Intel Mac
-# build (now a non-blocking job of the release workflow) and the mobile SDK.
-# macOS bundles are ad-hoc signed, so Gatekeeper asks before the first launch
-# (see README.md, "macOS").
+# Adapted from upstream Muxy's release build. Removed: the Sparkle update for
+# Muxy 1.x, arm64 Linux, the Intel Mac build (now a non-blocking job of the
+# release workflow) and the mobile SDK. macOS bundles are Developer ID signed
+# and notarized when the signing secrets exist, ad-hoc signed otherwise.
 on:
   workflow_call:
     inputs:
@@ -28,6 +27,17 @@ on:
         description: Commit to build
         required: true
         type: string
+    secrets:
+      MACOS_DEVELOPER_ID_P12_BASE64:
+        required: false
+      MACOS_DEVELOPER_ID_P12_PASSWORD:
+        required: false
+      ASC_KEY_ID:
+        required: false
+      ASC_ISSUER_ID:
+        required: false
+      ASC_KEY_BASE64:
+        required: false
 
 permissions:
   contents: read
@@ -36,7 +46,7 @@ env:
   CARGO_TERM_COLOR: always
   LIBGHOSTTY_VT_SYS_OPTIMIZE: ReleaseFast
   MACOSX_DEPLOYMENT_TARGET: '14.0'
-  # Compiled into muxy-app so remote installs and in-app updates find this release.
+  # Compiled into atur-terminal so remote installs and in-app updates find this release.
   ATUR_RELEASE_TAG: ${{ inputs.tag }}
 
 jobs:
@@ -49,6 +59,11 @@ jobs:
       VERSION: ${{ inputs.version }}
       ARCH: arm64
       PACKAGE_DIR: target/packages/${{ inputs.version }}/arm64
+      MACOS_DEVELOPER_ID_P12_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_P12_BASE64 }}
+      MACOS_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_P12_PASSWORD }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,22 +83,45 @@ jobs:
         run: |
           rm -rf target/packages
           python3 scripts/release.py stamp "$VERSION"
-      - name: Build the ad-hoc signed app, DMG and standalone client/server pair
+      - name: Import the Developer ID certificate
+        run: |
+          if [[ -n "$MACOS_DEVELOPER_ID_P12_BASE64" ]]; then
+            bash scripts/ci-macos-sign.sh import
+          else
+            echo "No Developer ID secrets: building ad-hoc signed."
+          fi
+      - name: Build the signed app, DMG and standalone client/server pair
         run: >-
           bash scripts/build-release.sh --arch "$ARCH" --version "$VERSION"
           --build-number "${{ inputs.revision }}"
+          ${SIGN_IDENTITY:+--sign-identity "$SIGN_IDENTITY"}
       - name: Verify packaged pair, desktop bytes and standalone installation
         run: >-
           python3 scripts/verify-release-package.py
-          "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip"
+          "$PACKAGE_DIR/atur-terminal-$VERSION-macos-$ARCH.zip"
           --version "$VERSION" --dmg "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+      - name: Notarize, staple and verify the Gatekeeper assessment
+        if: env.SIGN_IDENTITY != ''
+        run: |
+          bash scripts/ci-macos-sign.sh notarize \
+            "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" \
+            "$PACKAGE_DIR/atur-terminal-$VERSION-macos-$ARCH.zip"
+          APP="$(ls -d "$PACKAGE_DIR"/*.app)"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dvv "$APP" 2>&1 | grep -E 'Authority|TeamIdentifier|flags'
+          spctl -a -vv -t exec "$APP"
+          xcrun stapler validate "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+          spctl -a -vv -t open --context context:primary-signature "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+      - name: Remove the signing keychain
+        if: always()
+        run: bash scripts/ci-macos-sign.sh cleanup
       - name: Upload distribution archives
         uses: actions/upload-artifact@v4
         with:
           name: distribution-macos-arm64
           path: |
             ${{ env.PACKAGE_DIR }}/AturTerminal-${{ env.VERSION }}-arm64.dmg
-            ${{ env.PACKAGE_DIR }}/muxy-${{ env.VERSION }}-macos-arm64.zip
+            ${{ env.PACKAGE_DIR }}/atur-terminal-${{ env.VERSION }}-macos-arm64.zip
           if-no-files-found: error
           retention-days: 7
       - name: Upload debug symbols and dependency audits
@@ -132,13 +170,13 @@ jobs:
       - name: Verify packaged pair and standalone installation
         run: >-
           python3 scripts/verify-release-package.py
-          "$PACKAGE_DIR/muxy-$VERSION-linux-$ARCH.tar.gz"
+          "$PACKAGE_DIR/atur-terminal-$VERSION-linux-$ARCH.tar.gz"
           --version "$VERSION"
       - name: Upload distribution archives
         uses: actions/upload-artifact@v4
         with:
           name: distribution-linux-x86_64
-          path: ${{ env.PACKAGE_DIR }}/muxy-${{ env.VERSION }}-linux-${{ env.ARCH }}.tar.gz
+          path: ${{ env.PACKAGE_DIR }}/atur-terminal-${{ env.VERSION }}-linux-${{ env.ARCH }}.tar.gz
           if-no-files-found: error
           retention-days: 7
       - name: Upload debug symbols and dependency audits
@@ -190,16 +228,16 @@ jobs:
       - name: Verify install, helpers, leases and uninstall without a display
         run: >-
           python3 scripts/verify-desktop-linux.py
-          "$PACKAGE_DIR/muxy-desktop-$VERSION-linux-$ARCH.tar.gz" --version "$VERSION"
+          "$PACKAGE_DIR/atur-terminal-desktop-$VERSION-linux-$ARCH.tar.gz" --version "$VERSION"
       - name: Verify APT dependencies, package lifecycle, AppImage and the user-local installer
         run: bash scripts/verify-desktop-runtime.sh "$VERSION" "$ARCH" "$PACKAGE_DIR"
       - uses: actions/upload-artifact@v4
         with:
           name: distribution-linux-desktop-x86_64
           path: |
-            ${{ env.PACKAGE_DIR }}/muxy-desktop-${{ env.VERSION }}-linux-x86_64.tar.gz
+            ${{ env.PACKAGE_DIR }}/atur-terminal-desktop-${{ env.VERSION }}-linux-x86_64.tar.gz
             ${{ env.PACKAGE_DIR }}/AturTerminal-${{ env.VERSION }}-linux-x86_64.AppImage
-            ${{ env.PACKAGE_DIR }}/muxy-desktop*.deb
+            ${{ env.PACKAGE_DIR }}/atur-terminal_*.deb
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@v4

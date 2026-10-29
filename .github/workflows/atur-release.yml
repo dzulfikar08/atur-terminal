@@ -63,6 +63,7 @@ jobs:
   build:
     needs: prepare
     uses: ./.github/workflows/build-release.yml
+    secrets: inherit
     with:
       version: ${{ needs.prepare.outputs.version }}
       tag: ${{ needs.prepare.outputs.tag }}
@@ -91,19 +92,19 @@ jobs:
           path: artifacts
       - name: Add the installers the app and the docs refer to
         run: |
-          cp scripts/install-muxy.sh scripts/install-desktop-linux.py artifacts/
-          cp packaging/linux/muxy-desktop.apparmor artifacts/
+          cp scripts/install-atur-terminal.sh scripts/install-desktop-linux.py artifacts/
+          cp packaging/linux/atur-terminal.apparmor artifacts/
       - name: Check the expected assets and write the update feed and checksums
         working-directory: artifacts
         run: |
           required=(
-            "muxy-$VERSION-linux-x86_64.tar.gz"
-            "muxy-desktop-$VERSION-linux-x86_64.tar.gz"
+            "atur-terminal-$VERSION-linux-x86_64.tar.gz"
+            "atur-terminal-desktop-$VERSION-linux-x86_64.tar.gz"
             "AturTerminal-$VERSION-linux-x86_64.AppImage"
-            "muxy-desktop_${VERSION}_amd64.deb"
+            "atur-terminal_${VERSION}_amd64.deb"
             "AturTerminal-$VERSION-arm64.dmg"
-            "muxy-$VERSION-macos-arm64.zip"
-            install-muxy.sh install-desktop-linux.py muxy-desktop.apparmor
+            "atur-terminal-$VERSION-macos-arm64.zip"
+            install-atur-terminal.sh install-desktop-linux.py atur-terminal.apparmor
           )
           for asset in "${required[@]}"; do
             if [[ ! -s "$asset" || -L "$asset" ]]; then
@@ -126,15 +127,15 @@ jobs:
             echo "| --- | --- |"
             echo "| macOS (Apple silicon) | \`AturTerminal-$VERSION-arm64.dmg\` |"
             echo "| macOS (Intel) | \`AturTerminal-$VERSION-x86_64.dmg\`, when attached |"
-            echo "| Linux x86_64 desktop (Ubuntu 24.04) | \`muxy-desktop_${VERSION}_amd64.deb\`, \`AturTerminal-$VERSION-linux-x86_64.AppImage\` or \`muxy-desktop-$VERSION-linux-x86_64.tar.gz\` |"
-            echo "| Linux x86_64 CLI and server only (glibc 2.35+) | \`muxy-$VERSION-linux-x86_64.tar.gz\` |"
-            echo "| macOS CLI and server only | \`muxy-$VERSION-macos-<arch>.zip\` |"
+            echo "| Linux x86_64 desktop (Ubuntu 24.04) | \`atur-terminal_${VERSION}_amd64.deb\`, \`AturTerminal-$VERSION-linux-x86_64.AppImage\` or \`atur-terminal-desktop-$VERSION-linux-x86_64.tar.gz\` |"
+            echo "| Linux x86_64 CLI and server only (glibc 2.35+) | \`atur-terminal-$VERSION-linux-x86_64.tar.gz\` |"
+            echo "| macOS CLI and server only | \`atur-terminal-$VERSION-macos-<arch>.zip\` |"
             echo
             echo "Verify downloads against \`SHA256SUMS\`."
             echo
-            echo "**macOS:** the app is ad-hoc signed, not notarized by Apple. After copying it to Applications, open it once with Control-click > Open, or run \`xattr -dr com.apple.quarantine \"/Applications/Atur Terminal.app\"\`. In-app updates on macOS need a Developer ID signature and are unavailable for this build."
+            echo "**macOS:** the app is signed with a Developer ID Application certificate and notarized by Apple, so it opens normally after you copy it to Applications."
             echo
-            echo "Binary names (\`muxy\`, \`muxy-server\`, \`muxy-app\`), socket paths, \`MUXY_*\` variables and the Muxy protocol are unchanged, so existing installs, the Atur bridge and stock Muxy clients keep working."
+            echo "Binaries are \`atur-terminal\` (desktop), \`atur-term\` (CLI) and \`atur-term-server\`; environment variables are \`ATUR_TERM_*\`. On first start the server copies settings and projects from an existing Muxy data directory and leaves that directory untouched. The wire protocol is unchanged, but stock Muxy clients look for a different socket path."
           } > notes.md
       - name: Create the draft release, upload every asset and publish
         run: |
@@ -184,6 +185,11 @@ jobs:
       LIBGHOSTTY_VT_SYS_OPTIMIZE: ReleaseFast
       MACOSX_DEPLOYMENT_TARGET: '14.0'
       ATUR_RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      MACOS_DEVELOPER_ID_P12_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_P12_BASE64 }}
+      MACOS_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_P12_PASSWORD }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -201,26 +207,49 @@ jobs:
         run: |
           rm -rf target/packages
           python3 scripts/release.py stamp "$VERSION"
-      - name: Build the ad-hoc signed app, DMG and standalone client/server pair
+      - name: Import the Developer ID certificate
+        run: |
+          if [[ -n "$MACOS_DEVELOPER_ID_P12_BASE64" ]]; then
+            bash scripts/ci-macos-sign.sh import
+          else
+            echo "No Developer ID secrets: building ad-hoc signed."
+          fi
+      - name: Build the signed app, DMG and standalone client/server pair
         run: >-
           bash scripts/build-release.sh --arch "$ARCH" --version "$VERSION"
           --build-number "${{ needs.prepare.outputs.revision }}"
+          ${SIGN_IDENTITY:+--sign-identity "$SIGN_IDENTITY"}
       - name: Verify packaged pair, desktop bytes and standalone installation
         run: >-
           python3 scripts/verify-release-package.py
-          "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip"
+          "$PACKAGE_DIR/atur-terminal-$VERSION-macos-$ARCH.zip"
           --version "$VERSION" --dmg "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+      - name: Notarize, staple and verify the Gatekeeper assessment
+        if: env.SIGN_IDENTITY != ''
+        run: |
+          bash scripts/ci-macos-sign.sh notarize \
+            "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" \
+            "$PACKAGE_DIR/atur-terminal-$VERSION-macos-$ARCH.zip"
+          APP="$(ls -d "$PACKAGE_DIR"/*.app)"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dvv "$APP" 2>&1 | grep -E 'Authority|TeamIdentifier|flags'
+          spctl -a -vv -t exec "$APP"
+          xcrun stapler validate "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+          spctl -a -vv -t open --context context:primary-signature "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+      - name: Remove the signing keychain
+        if: always()
+        run: bash scripts/ci-macos-sign.sh cleanup
       - name: Attach the Intel assets and refresh the update feed and checksums
         run: |
           mkdir assets
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets
-          cp "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" "$PACKAGE_DIR/muxy-$VERSION-macos-$ARCH.zip" assets/
+          cp "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" "$PACKAGE_DIR/atur-terminal-$VERSION-macos-$ARCH.zip" assets/
           rm -f assets/SHA256SUMS
           python3 scripts/release.py update "$VERSION" "$GITHUB_REPOSITORY" assets "$TAG"
           (cd assets && ls -1 | LC_ALL=C sort | tr '\n' '\0' | xargs -0 shasum -a 256 > SHA256SUMS)
           cat assets/SHA256SUMS
           (cd assets && gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
-            "AturTerminal-$VERSION-$ARCH.dmg" "muxy-$VERSION-macos-$ARCH.zip" update.json SHA256SUMS)
+            "AturTerminal-$VERSION-$ARCH.dmg" "atur-terminal-$VERSION-macos-$ARCH.zip" update.json SHA256SUMS)
       - name: Keep packaged output out of the build cache
         if: always()
         run: rm -rf target/packages

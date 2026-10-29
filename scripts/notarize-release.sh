@@ -12,6 +12,10 @@ case "$1" in
 esac
 if [[ -n "${NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
     CREDENTIALS=(--keychain-profile "$NOTARY_KEYCHAIN_PROFILE")
+elif [[ -n "${ASC_KEY_PATH:-}" ]]; then
+    : "${ASC_KEY_ID:?ASC_KEY_ID is required}"
+    : "${ASC_ISSUER_ID:?ASC_ISSUER_ID is required}"
+    CREDENTIALS=(--key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID")
 else
     : "${APPLE_ID:?APPLE_ID is required}"
     : "${APPLE_APP_SPECIFIC_PASSWORD:?APPLE_APP_SPECIFIC_PASSWORD is required}"
@@ -62,7 +66,7 @@ case "$1" in
         ;;
     *.zip)
         # ZIPs and bare executables cannot be stapled. Verify the submitted bytes.
-        for BINARY in muxy muxy-server; do
+        for BINARY in atur-term atur-term-server; do
             unzip -p "$1" "$BINARY" > "$TEMP/$BINARY"
             chmod 755 "$TEMP/$BINARY"
             codesign --verify --strict --verbose=2 "$TEMP/$BINARY"
