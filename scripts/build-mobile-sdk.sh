@@ -14,7 +14,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/target/mobile-sdk}"
 TOOLCHAIN="$(sed -n 's/^channel = "\(.*\)"/\1/p' "$ROOT/rust-toolchain.toml")"
 IOS_TARGETS=(aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios)
-ANDROID_ABIS=(arm64-v8a armeabi-v7a x86_64)
+# ATUR_ANDROID_ABIS="x86_64" builds only that ABI (an emulator proof run needs one).
+read -r -a ANDROID_ABIS <<< "${ATUR_ANDROID_ABIS:-arm64-v8a armeabi-v7a x86_64}"
 
 wants() { [[ " $PLATFORMS " == *" $1 "* ]]; }
 
