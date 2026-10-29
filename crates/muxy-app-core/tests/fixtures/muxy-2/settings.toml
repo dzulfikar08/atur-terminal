@@ -1,0 +1,14 @@
+[window]
+confirm_running_process = true
+
+[[servers]]
+id = "b4c7e0a2f5d94e2f8a61c3d90b7e1f42"
+name = "Build box"
+ssh = "dev@build.example.com"
+udp = true
+
+[[servers]]
+id = "e91f0c6d7a2b4d3f95a8b1c4e7d02f63"
+name = "Staging"
+ssh = "staging"
+identity_file = "~/.ssh/staging_ed25519"

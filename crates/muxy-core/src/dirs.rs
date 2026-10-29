@@ -44,6 +44,29 @@ pub fn muxy_dir() -> io::Result<PathBuf> {
     Ok(directory)
 }
 
+/// The directory this channel used before the rename to Atur Terminal, if it
+/// exists. Nothing is created or changed. A profile chosen with
+/// `ATUR_TERM_DIR` has none.
+pub fn legacy_muxy_dir() -> Option<PathBuf> {
+    if crate::env::var_os("ATUR_TERM_DIR").is_some() {
+        return None;
+    }
+    let (_, legacy_name) = directory_names(
+        env!("CARGO_PKG_VERSION"),
+        cfg!(debug_assertions),
+        cfg!(target_os = "linux"),
+    );
+    resolve_directory(
+        None,
+        env::var_os("HOME"),
+        env::var_os("XDG_STATE_HOME"),
+        legacy_name,
+        cfg!(target_os = "linux"),
+    )
+    .ok()
+    .filter(|directory| directory.is_dir())
+}
+
 /// Releases of each channel and local builds never share data. The second
 /// name is the legacy directory the same channel used before the rename.
 fn directory_names(version: &str, debug: bool, linux: bool) -> (&'static str, &'static str) {

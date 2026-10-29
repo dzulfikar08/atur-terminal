@@ -153,6 +153,26 @@ fn installed_legacy() -> Result<Option<PathBuf>> {
     Ok(path.is_dir().then_some(path))
 }
 
+/// Brings over, once, the tabs, workspaces, window, and servers the desktop
+/// app kept in its profile before it was renamed from Muxy. Returns what to
+/// tell the user, if anything came along.
+pub(crate) fn import_previous_profile(profile: &Path) -> Result<Option<String>> {
+    let Some(previous) = muxy_core::dirs::legacy_muxy_dir() else {
+        return Ok(None);
+    };
+    Ok(
+        muxy_app_core::previous_profile::import(&previous, profile)?.map(|imported| {
+            tr!(
+                "Atur Terminal brought over %lld tabs, %lld workspaces, and %lld servers from Muxy.",
+                imported.tabs,
+                imported.workspaces,
+                imported.servers
+            )
+            .to_string()
+        }),
+    )
+}
+
 /// Stages the installed 1.x configuration, once, for a profile that has no
 /// projects or workspaces yet, so upgrading keeps projects, workspaces, and
 /// layouts. A profile chosen with `ATUR_TERM_DIR` is left alone. Returns what the

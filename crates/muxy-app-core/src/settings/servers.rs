@@ -132,6 +132,41 @@ impl Settings {
     pub(super) fn validate_servers(&self) -> Result<()> {
         validate(&self.servers)
     }
+
+    /// The `[[servers]]` of the settings file at `path`, read as they are:
+    /// the file is neither created nor changed. Entries that cannot be read
+    /// or that fail validation, and repeats of an ID, are left out.
+    pub fn servers_in(path: &Path) -> Result<Vec<ServerEntry>> {
+        let mut document = super::appearance::read_document(path)
+            .map_err(|error| Error::new(path.display().to_string(), error))?;
+        let Some(toml::Value::Array(entries)) = document.remove("servers") else {
+            return Ok(Vec::new());
+        };
+        let mut servers: Vec<ServerEntry> = Vec::new();
+        for entry in entries {
+            if let Ok(entry) = entry.try_into::<ServerEntry>()
+                && entry.validate().is_ok()
+                && !servers.iter().any(|listed| listed.id == entry.id)
+            {
+                servers.push(entry);
+            }
+        }
+        Ok(servers)
+    }
+
+    /// Appends `servers` to the list in the file at `path` in one write.
+    /// Entries whose ID is already listed are ignored.
+    pub fn add_servers(path: &Path, servers: Vec<ServerEntry>) -> Result<()> {
+        edit_servers(path, |listed| {
+            for server in servers {
+                if !listed.iter().any(|entry| entry.id == server.id) {
+                    listed.push(server);
+                }
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
 }
 
 fn any_uuid<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<ServerId, D::Error> {

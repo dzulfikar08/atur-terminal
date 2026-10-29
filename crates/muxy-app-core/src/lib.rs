@@ -16,6 +16,7 @@ pub mod localization;
 pub mod modal;
 pub mod opener;
 mod pane;
+pub mod previous_profile;
 mod project;
 pub mod project_layouts;
 pub mod qr;

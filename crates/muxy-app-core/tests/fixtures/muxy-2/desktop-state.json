@@ -1,0 +1,424 @@
+{
+  "projects": [
+    {
+      "color": "#808080",
+      "directory": [
+        47,
+        85,
+        115,
+        101,
+        114,
+        115,
+        47,
+        109,
+        101
+      ],
+      "home": true,
+      "icon": null,
+      "id": "b92ae28c2c5f45629e57b96d892ed444",
+      "kind": null,
+      "logo": null,
+      "name": "Home",
+      "parent_id": null,
+      "server_id": "9eedd63357b54359b76e762c6bc2775c",
+      "tabs": [
+        {
+          "color": "#30a46c",
+          "custom_title": "server",
+          "id": "5264cd7e97c44649bce635e92e90e7f1",
+          "layout": {
+            "Leaf": "e07f51e35d6143a485b8d82f27a20405"
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 4,
+                "type": "terminal"
+              },
+              "id": "e07f51e35d6143a485b8d82f27a20405",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": true,
+          "zoomed": null
+        }
+      ]
+    },
+    {
+      "color": "#e5484d",
+      "directory": [
+        47,
+        85,
+        115,
+        101,
+        114,
+        115,
+        47,
+        109,
+        101,
+        47,
+        99,
+        111,
+        100,
+        101,
+        47,
+        97,
+        112,
+        112
+      ],
+      "home": false,
+      "icon": null,
+      "id": "67d7da59e5a94f658cc157234c82c83a",
+      "kind": null,
+      "logo": null,
+      "name": "App",
+      "parent_id": null,
+      "server_id": "9eedd63357b54359b76e762c6bc2775c",
+      "tabs": [
+        {
+          "color": null,
+          "custom_title": null,
+          "id": "aacd778a867045db854a85bf3c75b3fe",
+          "layout": {
+            "Split": {
+              "axis": "horizontal",
+              "first": {
+                "Leaf": "537e0a1b53aa47d8bdb3dffb7233337d"
+              },
+              "ratio": 0.5,
+              "second": {
+                "Leaf": "05db02346af1442d8ea33d4606d93398"
+              }
+            }
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 1,
+                "type": "terminal"
+              },
+              "id": "537e0a1b53aa47d8bdb3dffb7233337d",
+              "title": "Terminal"
+            },
+            {
+              "content": {
+                "session": null,
+                "type": "terminal"
+              },
+              "id": "05db02346af1442d8ea33d4606d93398",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": false,
+          "zoomed": null
+        },
+        {
+          "color": null,
+          "custom_title": null,
+          "id": "3f7d790aac8f444eb7e940a7abdf0c62",
+          "layout": {
+            "Leaf": "76f8dad8789746fb9fb7479a9df93b4f"
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 5,
+                "type": "terminal"
+              },
+              "id": "76f8dad8789746fb9fb7479a9df93b4f",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": false,
+          "zoomed": null
+        }
+      ]
+    },
+    {
+      "color": "#808080",
+      "directory": [
+        47,
+        104,
+        111,
+        109,
+        101,
+        47,
+        100,
+        101,
+        118
+      ],
+      "home": true,
+      "icon": null,
+      "id": "3d9b7f1a5c2e4b80a6f4d1e9c7b30a52",
+      "kind": null,
+      "logo": null,
+      "name": "Home",
+      "parent_id": null,
+      "server_id": "b4c7e0a2f5d94e2f8a61c3d90b7e1f42",
+      "tabs": [
+        {
+          "color": null,
+          "custom_title": null,
+          "id": "0d7e1b9c3a5f4e28b6a1c4d9e7f20b53",
+          "layout": {
+            "Leaf": "a1b2c3d4e5f64a7b8c9d0e1f2a3b4c5d"
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 12,
+                "type": "terminal"
+              },
+              "id": "a1b2c3d4e5f64a7b8c9d0e1f2a3b4c5d",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": false,
+          "zoomed": null
+        }
+      ]
+    },
+    {
+      "color": "#3e63dd",
+      "directory": [
+        47,
+        104,
+        111,
+        109,
+        101,
+        47,
+        100,
+        101,
+        118,
+        47,
+        97,
+        112,
+        105
+      ],
+      "home": false,
+      "icon": null,
+      "id": "c5a1e2f4b7d84f0a9b3c6e1d2a8f7054",
+      "kind": null,
+      "logo": null,
+      "name": "api",
+      "parent_id": null,
+      "server_id": "b4c7e0a2f5d94e2f8a61c3d90b7e1f42",
+      "tabs": [
+        {
+          "color": null,
+          "custom_title": "logs",
+          "id": "c630443ad0c9416b9b1312f0302256c4",
+          "layout": {
+            "Leaf": "3e4fb27624e644588d1fcf12084588f3"
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 14,
+                "type": "terminal"
+              },
+              "id": "3e4fb27624e644588d1fcf12084588f3",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": false,
+          "zoomed": null
+        },
+        {
+          "color": null,
+          "custom_title": null,
+          "id": "9a8b7c6d5e4f4a3b2c1d0e9f8a7b6c5d",
+          "layout": {
+            "Split": {
+              "axis": "vertical",
+              "first": {
+                "Leaf": "443fa979a24c4ee88915a99ae5315b99"
+              },
+              "ratio": 0.4,
+              "second": {
+                "Leaf": "8ea936f8129a4905a1a15b33bb4f900f"
+              }
+            }
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 15,
+                "type": "terminal"
+              },
+              "id": "443fa979a24c4ee88915a99ae5315b99",
+              "title": "Terminal"
+            },
+            {
+              "content": {
+                "session": 16,
+                "type": "terminal"
+              },
+              "id": "8ea936f8129a4905a1a15b33bb4f900f",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": false,
+          "zoomed": null
+        }
+      ]
+    },
+    {
+      "color": "#808080",
+      "directory": [
+        47,
+        104,
+        111,
+        109,
+        101,
+        47,
+        100,
+        101,
+        112,
+        108,
+        111,
+        121
+      ],
+      "home": true,
+      "icon": null,
+      "id": "8e2a6c4f0b1d4a73b9e5f7c1d3a80b64",
+      "kind": null,
+      "logo": null,
+      "name": "Home",
+      "parent_id": null,
+      "server_id": "e91f0c6d7a2b4d3f95a8b1c4e7d02f63",
+      "tabs": []
+    },
+    {
+      "color": "#30a46c",
+      "directory": [
+        47,
+        104,
+        111,
+        109,
+        101,
+        47,
+        100,
+        101,
+        112,
+        108,
+        111,
+        121,
+        47,
+        119,
+        101,
+        98
+      ],
+      "home": false,
+      "icon": null,
+      "id": "f06b3d8a2c7e41d9a4b5e0c9f2a71d38",
+      "kind": null,
+      "logo": null,
+      "name": "web",
+      "parent_id": null,
+      "server_id": "e91f0c6d7a2b4d3f95a8b1c4e7d02f63",
+      "tabs": [
+        {
+          "color": null,
+          "custom_title": null,
+          "id": "4c3b2a1f0e9d4c8b7a6f5e4d3c2b1a09",
+          "layout": {
+            "Leaf": "bd1d9f54e68d4b289cbd7941782d0f64"
+          },
+          "panes": [
+            {
+              "content": {
+                "session": 3,
+                "type": "terminal"
+              },
+              "id": "bd1d9f54e68d4b289cbd7941782d0f64",
+              "title": "Terminal"
+            }
+          ],
+          "pinned": false,
+          "zoomed": null
+        }
+      ]
+    }
+  ],
+  "servers": {
+    "9eedd63357b54359b76e762c6bc2775c": {
+      "catalog_revision": 12,
+      "identity": "00000000000000000000000000005eed"
+    },
+    "b4c7e0a2f5d94e2f8a61c3d90b7e1f42": {
+      "catalog_revision": 7,
+      "identity": "5f1c2a7e9d3b4c68a0e4d7b1c2f39a85"
+    },
+    "e91f0c6d7a2b4d3f95a8b1c4e7d02f63": {
+      "catalog_revision": 4,
+      "identity": "a3e8b2d4c6f14970b5d1e2a7c8f40b96"
+    }
+  },
+  "starting_directories": {
+    "05db02346af1442d8ea33d4606d93398": [
+      47,
+      85,
+      115,
+      101,
+      114,
+      115,
+      47,
+      109,
+      101,
+      47,
+      99,
+      111,
+      100,
+      101,
+      47,
+      97,
+      112,
+      112,
+      47,
+      115,
+      101,
+      114,
+      118,
+      101,
+      114
+    ]
+  },
+  "startup_commands": {
+    "05db02346af1442d8ea33d4606d93398": "npm run dev"
+  },
+  "version": 3,
+  "window": {
+    "active_pane": "8ea936f8129a4905a1a15b33bb4f900f",
+    "bounds": {
+      "height": 900.0,
+      "width": 1200.0,
+      "x": 120.0,
+      "y": 40.0
+    },
+    "current_project": "c5a1e2f4b7d84f0a9b3c6e1d2a8f7054",
+    "focus_history": [
+      "8ea936f8129a4905a1a15b33bb4f900f",
+      "537e0a1b53aa47d8bdb3dffb7233337d"
+    ],
+    "selected_tab": {
+      "3d9b7f1a5c2e4b80a6f4d1e9c7b30a52": "0d7e1b9c3a5f4e28b6a1c4d9e7f20b53",
+      "67d7da59e5a94f658cc157234c82c83a": "3f7d790aac8f444eb7e940a7abdf0c62",
+      "b92ae28c2c5f45629e57b96d892ed444": "5264cd7e97c44649bce635e92e90e7f1",
+      "c5a1e2f4b7d84f0a9b3c6e1d2a8f7054": "9a8b7c6d5e4f4a3b2c1d0e9f8a7b6c5d",
+      "f06b3d8a2c7e41d9a4b5e0c9f2a71d38": "4c3b2a1f0e9d4c8b7a6f5e4d3c2b1a09"
+    },
+    "workspace": "c10c95a4df8c47afae2878ddf1a2a4e7"
+  },
+  "workspaces": [
+    {
+      "id": "c10c95a4df8c47afae2878ddf1a2a4e7",
+      "name": "Work",
+      "projects": [
+        "67d7da59e5a94f658cc157234c82c83a",
+        "c5a1e2f4b7d84f0a9b3c6e1d2a8f7054",
+        "f06b3d8a2c7e41d9a4b5e0c9f2a71d38"
+      ]
+    }
+  ]
+}

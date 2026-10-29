@@ -179,6 +179,7 @@
 "Atur Terminal 1.x was not imported. Try again from Settings → Backup & Restore. %@" = "Atur Terminal 1.x was not imported. Try again from Settings → Backup & Restore. %@";
 "Atur Terminal Settings" = "Atur Terminal Settings";
 "Atur Terminal Update" = "Atur Terminal Update";
+"Atur Terminal brought over %lld tabs, %lld workspaces, and %lld servers from Muxy." = "Atur Terminal brought over %lld tabs, %lld workspaces, and %lld servers from Muxy.";
 "Atur Terminal can open copies only of files in %@'s projects and Home." = "Atur Terminal can open copies only of files in %@'s projects and Home.";
 "Atur Terminal is already running but did not answer: %@" = "Atur Terminal is already running but did not answer: %@";
 "Atur Terminal is part of Atur by Joyo Digitama." = "Atur Terminal is part of Atur by Joyo Digitama.";
@@ -1317,6 +1318,7 @@
 "Tab Focused" = "Tab Focused";
 "Tab closed; server cleanup is pending: %@" = "Tab closed; server cleanup is pending: %@";
 "Tab type: %@" = "Tab type: %@";
+"Tabs, workspaces, and servers from Muxy were not imported. %@" = "Tabs, workspaces, and servers from Muxy were not imported. %@";
 "Teal" = "Teal";
 "Teardown hooks could not be loaded: %@\nContinuing will remove without hooks." = "Teardown hooks could not be loaded: %@\nContinuing will remove without hooks.";
 "Template" = "Template";

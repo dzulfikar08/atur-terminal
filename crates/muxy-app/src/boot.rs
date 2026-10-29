@@ -46,6 +46,15 @@ impl Boot {
                 .unwrap_or_else(|| std::path::Path::new(".")),
         );
         let profile = state_path.parent().ok_or("Missing profile directory")?;
+        let previous = crate::backup::import_previous_profile(profile).unwrap_or_else(|error| {
+            Some(
+                tr!(
+                    "Tabs, workspaces, and servers from Muxy were not imported. %@",
+                    error.to_string()
+                )
+                .to_string(),
+            )
+        });
         let migration = crate::backup::migrate_installed(profile).unwrap_or_else(|error| {
             Some(
                 tr!(
@@ -55,7 +64,11 @@ impl Boot {
                 .to_string(),
             )
         });
-        let import_message = crate::backup::apply_pending(profile)?.or(migration);
+        let notices: Vec<_> = [crate::backup::apply_pending(profile)?, previous, migration]
+            .into_iter()
+            .flatten()
+            .collect();
+        let import_message = (!notices.is_empty()).then(|| notices.join("\n\n"));
         let state = store::load(&state_path)?;
         let settings =
             muxy_app_core::settings::Settings::load(&state_path.with_file_name("settings.toml"))?;
