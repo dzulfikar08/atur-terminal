@@ -1,0 +1,82 @@
+name: echo-floor
+
+# An experiment, not a gate: the phone core's local-echo-off latency against a standalone server
+# process (built from this commit, and the released one) next to the in-process server of the
+# facade bench, over TLS and over UDP. GitHub-hosted runners only.
+on:
+  push:
+    branches: [exp/echo-floor]
+  workflow_dispatch:
+
+concurrency:
+  group: echo-floor-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  LIBGHOSTTY_VT_SYS_OPTIMIZE: ReleaseFast
+
+jobs:
+  echo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config strace
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: echo-floor
+          cache-on-failure: true
+      - name: Point the build at the pinned Zig through the baseline-CPU wrapper
+        run: |
+          echo "ATUR_TERM_ZIG=$(command -v zig)" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/scripts/zig" >> "$GITHUB_PATH"
+      - name: Build the server, the command-line client and the facade tests (release)
+        run: |
+          cargo build --release --locked -p muxy-server -p muxy-cli
+          cargo test --release --locked -p atur-mobile --test sdk --no-run
+      - name: In-process server, TLS then UDP (the facade bench)
+        run: |
+          for transport in tls udp; do
+            ATUR_BENCH_TRANSPORT="$transport" cargo test --release --locked -p atur-mobile --test sdk \
+              bench_facade_attach_and_echo -- --ignored --nocapture 2>&1 | tee "inproc-$transport.txt"
+          done
+      - name: Standalone server built from this commit
+        run: scripts/echo-floor.sh head target/release 60200
+      - name: Standalone released 2.2.0-2 server
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p released
+          gh release download atur-v2.2.0-2 --repo dzulfikar08/atur-terminal \
+            --pattern 'atur-terminal-[0-9]*-linux-x86_64.tar.gz' --dir released
+          tar -xzf released/atur-terminal-*-linux-x86_64.tar.gz -C released
+          find released -type f \( -name atur-term -o -name atur-term-server \) | sort
+          bins="$(dirname "$(find released -type f -name atur-term-server | head -1)")"
+          scripts/echo-floor.sh released-2.2.0-2 "$bins" 60201 core,tls
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Echo with local echo off (100 ms between keys)'
+            echo '```'
+            grep -h '^bench' inproc-*.txt bench-*.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: echo-floor
+          path: |
+            inproc-*.txt
+            bench-*.txt
+            server-*.log

@@ -1175,7 +1175,11 @@ fn the_facade_reports_errors_as_codes() -> TestResult {
     clippy::cast_sign_loss
 )]
 fn bench_facade_attach_and_echo() -> TestResult {
-    let (_server, _local, direct, events) = direct_phone()?;
+    // `ATUR_BENCH_TRANSPORT=tls` keeps the phone on TLS; otherwise it moves to UDP, as the app does.
+    let tls_only = std::env::var("ATUR_BENCH_TRANSPORT").is_ok_and(|transport| transport == "tls");
+    let (_server, _local, direct, events, info) =
+        connect_phone(Server::new(), tls_only.then_some("tls"), None)?;
+    eprintln!("bench transport={}", info["transport"]);
     let session = home_session(&direct, 100, 10)?;
     let started = Instant::now();
     call(
@@ -1262,6 +1266,263 @@ fn bench_facade_attach_and_echo() -> TestResult {
     let ping = call(&direct, "ping", &Value::Null)?;
     eprintln!("bench ping_ms={:.2}", ping.as_f64().unwrap_or_default());
     direct.disconnect();
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------------------------
+// The same measurement against a server that is already running (the executable, not the
+// in-process one): `ATUR_BENCH_LINK_FILE` names a file holding the pairing link it printed.
+
+fn millis(since: Instant) -> f64 {
+    since.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Count, median, 90th percentile and maximum of `samples`, in milliseconds.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn describe(samples: &[f64]) -> String {
+    if samples.is_empty() {
+        return "n=0".into();
+    }
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let at =
+        |fraction: f64| sorted[((sorted.len() as f64 * fraction) as usize).min(sorted.len() - 1)];
+    format!(
+        "n={} p50_ms={:.1} p90_ms={:.1} max_ms={:.1}",
+        sorted.len(),
+        at(0.5),
+        at(0.9),
+        sorted[sorted.len() - 1]
+    )
+}
+
+/// Keys typed per variant: `ATUR_BENCH_KEYS`, 30 by default.
+fn bench_keys() -> usize {
+    std::env::var("ATUR_BENCH_KEYS")
+        .ok()
+        .and_then(|keys| keys.parse().ok())
+        .unwrap_or(30)
+}
+
+fn unhex(text: &str) -> TestResult<Vec<u8>> {
+    (0..text.len())
+        .step_by(2)
+        .map(|at| -> TestResult<u8> { Ok(u8::from_str_radix(&text[at..at + 2], 16)?) })
+        .collect()
+}
+
+/// The stored credential the facade uses, as the core's own record.
+fn core_credential(value: &Value) -> TestResult<ServerCredential> {
+    let text = |name: &str| {
+        value[name]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| format!("the credential has no {name}"))
+    };
+    Ok(ServerCredential {
+        server_id: text("serverId")?,
+        server_name: text("serverName").unwrap_or_default(),
+        hosts: value["hosts"]
+            .as_array()
+            .ok_or("the credential has no hosts")?
+            .iter()
+            .filter_map(|host| host.as_str().map(str::to_owned))
+            .collect(),
+        port: value["port"]
+            .as_u64()
+            .and_then(|port| u16::try_from(port).ok())
+            .ok_or("the credential has no port")?,
+        fingerprint: unhex(&text("fingerprint")?)?,
+        device_id: text("deviceId")?,
+        token: unhex(&text("token")?)?,
+    })
+}
+
+/// Connects with the core's own API (no facade, no address learning, no UDP offer, no title
+/// references), types one key at a time and times the screen change.
+#[allow(clippy::print_stderr)]
+fn bench_core(label: &str, credential: &Value) -> TestResult {
+    let (recorder, events) = listener();
+    let started = Instant::now();
+    let connection = Connection::connect(core_credential(credential)?, recorder)?;
+    let connect_ms = millis(started);
+    let projects = connection.projects()?;
+    let home = projects
+        .iter()
+        .find(|project| project.is_home)
+        .ok_or("no Home project")?;
+    let session = connection.create_session(home.id.clone(), 80, 24)?;
+    let started = Instant::now();
+    let terminal = connection.attach(session.id, 80, 24)?;
+    let attach_ms = millis(started);
+    terminal.send_input(b"cat >/dev/null\r".to_vec())?;
+    thread::sleep(Duration::from_millis(1200));
+    let text = || -> Vec<String> {
+        terminal
+            .screen()
+            .lines
+            .iter()
+            .map(|line| line.spans.iter().map(|span| span.text.as_str()).collect())
+            .collect()
+    };
+    while events.try_recv().is_ok() {}
+    let mut samples = Vec::new();
+    let mut typed = String::new();
+    for _ in 0..bench_keys() {
+        typed.push('q');
+        let sent = Instant::now();
+        terminal.send_input(b"q".to_vec())?;
+        wait_for(&events, |event| {
+            matches!(event, ConnectionEvent::ScreenChanged { .. })
+                && text().iter().any(|line| line.contains(&typed))
+        })?;
+        samples.push(millis(sent));
+        thread::sleep(Duration::from_millis(100));
+    }
+    eprintln!(
+        "bench {label} core connect_ms={connect_ms:.1} attach_ms={attach_ms:.1} echo {}",
+        describe(&samples)
+    );
+    eprintln!(
+        "bench {label} core samples={:?}",
+        samples
+            .iter()
+            .map(|ms| (ms * 10.0).round() / 10.0)
+            .collect::<Vec<_>>()
+    );
+    connection.end_session(session.id)?;
+    connection.disconnect();
+    Ok(())
+}
+
+/// One connection through the facade, made as `variant` says: `tls` or `auto` (UDP when the server
+/// offers it), then `+sessions` to list the sessions before attaching (which makes the server
+/// reference them) and `+history` to read scrollback after attaching, as the app's pane does.
+#[allow(clippy::print_stderr)]
+fn bench_external_facade(label: &str, variant: &str, credential: &Value) -> TestResult {
+    let mut parts = variant.split('+');
+    let transport = parts.next().unwrap_or("tls");
+    let flags: Vec<&str> = parts.collect();
+    let mut credential = credential.clone();
+    credential["transport"] = json!(if transport == "tls" { "tls" } else { "auto" });
+    let (sender, events) = mpsc::channel();
+    let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
+    let started = Instant::now();
+    let info = ok(&direct.connect(credential.to_string()))?;
+    let connect_ms = millis(started);
+    let session = home_session(&direct, 80, 24)?;
+    let mut extra = String::new();
+    if flags.contains(&"sessions") {
+        let started = Instant::now();
+        call(&direct, "sessions", &Value::Null)?;
+        extra = format!("{extra} sessions_ms={:.1}", millis(started));
+    }
+    let started = Instant::now();
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 80, "rows": 24 }),
+    )?;
+    let mut rows = Rows::default();
+    wait_json(&events, |event| {
+        rows.apply(event);
+        event["t"] == "snapshot"
+    })?;
+    let attach_ms = millis(started);
+    if flags.contains(&"history") {
+        let started = Instant::now();
+        call(
+            &direct,
+            "history",
+            &json!({ "session": session, "lines": 1000 }),
+        )?;
+        extra = format!("{extra} history_ms={:.1}", millis(started));
+    }
+    call(&direct, "echoMode", &json!({ "mode": "never" }))?;
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "cat >/dev/null\r" }),
+    )?;
+    thread::sleep(Duration::from_millis(1200));
+    while let Ok(event) = events.try_recv() {
+        rows.apply(&event);
+    }
+    let mut samples = Vec::new();
+    let mut typed = String::new();
+    for _ in 0..bench_keys() {
+        typed.push('q');
+        let sent = Instant::now();
+        fire(
+            &direct,
+            "input",
+            &json!({ "session": session, "data": "q" }),
+        )?;
+        wait_json(&events, |event| {
+            rows.apply(event);
+            rows.has(&typed)
+        })?;
+        samples.push(millis(sent));
+        thread::sleep(Duration::from_millis(100));
+    }
+    let mut pings = Vec::new();
+    for _ in 0..10 {
+        pings.push(
+            call(&direct, "ping", &Value::Null)?
+                .as_f64()
+                .unwrap_or_default(),
+        );
+    }
+    let stats = call(&direct, "echoStats", &json!({ "session": session }))?;
+    eprintln!(
+        "bench {label} {variant} transport={} connect_ms={connect_ms:.1} attach_ms={attach_ms:.1}{extra} echo {} ping {} rtt_ms={}",
+        stats["transport"],
+        describe(&samples),
+        describe(&pings),
+        stats["rttMs"]
+    );
+    eprintln!(
+        "bench {label} {variant} samples={:?} note={:?}",
+        samples
+            .iter()
+            .map(|ms| (ms * 10.0).round() / 10.0)
+            .collect::<Vec<_>>(),
+        info["udpNote"]
+    );
+    call(&direct, "endSession", &json!({ "session": session }))?;
+    direct.disconnect();
+    Ok(())
+}
+
+/// Echo, ping and attach time against the running server `ATUR_BENCH_LINK_FILE` names, once per
+/// variant in `ATUR_BENCH_VARIANTS` (`core`, then facade variants such as `tls`, `auto`,
+/// `tls+sessions`); `ATUR_BENCH_LABEL` tags the output.
+/// `cargo test -p atur-mobile --test sdk bench_facade_external -- --ignored --nocapture`.
+#[test]
+#[ignore = "prints measurements; needs a running server and ATUR_BENCH_LINK_FILE"]
+#[allow(clippy::print_stderr)]
+fn bench_facade_external() -> TestResult {
+    let label = std::env::var("ATUR_BENCH_LABEL").unwrap_or_else(|_| "external".into());
+    let link = std::fs::read_to_string(
+        std::env::var_os("ATUR_BENCH_LINK_FILE").ok_or("ATUR_BENCH_LINK_FILE is not set")?,
+    )?;
+    let credential = ok(&direct_pair(link.trim().to_owned(), "Echo bench".into()))?;
+    let variants = std::env::var("ATUR_BENCH_VARIANTS")
+        .unwrap_or_else(|_| "core,tls,tls+sessions,auto,auto+sessions".into());
+    for variant in variants.split(',').map(str::trim).filter(|v| !v.is_empty()) {
+        let outcome = if variant == "core" {
+            bench_core(&label, &credential)
+        } else {
+            bench_external_facade(&label, variant, &credential)
+        };
+        if let Err(error) = outcome {
+            eprintln!("bench {label} {variant} failed: {error}");
+        }
+    }
     Ok(())
 }
 
