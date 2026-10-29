@@ -651,7 +651,7 @@ impl Direct {
         let shared = &live.shared;
         match method {
             "echoMode" => {
-                let mode: PredictMode = str_arg(&args, "mode")?.parse().map_err(|_| bad("mode"))?;
+                let mode: PredictMode = str_arg(args, "mode")?.parse().map_err(|_| bad("mode"))?;
                 *lock(&shared.mode) = mode;
                 for attached in shared.all_attached() {
                     lock_content(&attached.terminal).predict.set_mode(mode);
@@ -660,7 +660,7 @@ impl Direct {
                 Ok(Value::Null)
             }
             "echoStats" => {
-                let attached = attached_arg(shared, &args)?;
+                let attached = attached_arg(shared, args)?;
                 let rtt = connection.client().rtt();
                 let content = lock_content(&attached.terminal);
                 let stats = content.predict.stats();
@@ -681,8 +681,8 @@ impl Direct {
             }
             "filesList" => {
                 let entries = connection
-                    .files(str_arg(&args, "projectId")?)?
-                    .list(str_arg(&args, "path").unwrap_or_default())?;
+                    .files(str_arg(args, "projectId")?)?
+                    .list(str_arg(args, "path").unwrap_or_default())?;
                 Ok(Value::Array(
                     entries
                         .iter()
@@ -697,7 +697,7 @@ impl Direct {
                 ))
             }
             "gitSummary" => {
-                let summary = connection.git(str_arg(&args, "projectId")?)?.summary()?;
+                let summary = connection.git(str_arg(args, "projectId")?)?.summary()?;
                 Ok(summary.map_or(Value::Null, |summary| {
                     json!({
                         "branch": summary.branch,
