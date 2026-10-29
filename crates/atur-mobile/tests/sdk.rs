@@ -948,7 +948,7 @@ fn bench_facade_attach_and_echo() -> TestResult {
         "input",
         &json!({ "session": session, "data": "cat >/dev/null\r" }),
     )?;
-    std::thread::sleep(Duration::from_millis(300));
+    thread::sleep(Duration::from_millis(300));
     for mode in ["never", "always"] {
         call(&direct, "echoMode", &json!({ "mode": mode }))?;
         let mut samples = Vec::new();
@@ -968,7 +968,7 @@ fn bench_facade_attach_and_echo() -> TestResult {
                 rows.has(&typed)
             })?;
             samples.push(sent.elapsed().as_secs_f64() * 1000.0);
-            std::thread::sleep(Duration::from_millis(25));
+            thread::sleep(Duration::from_millis(25));
         }
         // Start the next round on a fresh line.
         fire(
@@ -981,7 +981,7 @@ fn bench_facade_attach_and_echo() -> TestResult {
             "input",
             &json!({ "session": session, "data": "cat >/dev/null\r" }),
         )?;
-        std::thread::sleep(Duration::from_millis(300));
+        thread::sleep(Duration::from_millis(300));
         rows = Rows::default();
         call(
             &direct,
