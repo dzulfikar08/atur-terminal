@@ -17,8 +17,14 @@ name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
 required-features = ["bindgen"]
 
+[[bin]]
+name = "echo-bench"
+path = "src/bin/echo-bench.rs"
+required-features = ["echo-bench"]
+
 [features]
 bindgen = ["uniffi/cli"]
+echo-bench = []
 
 [lints]
 workspace = true

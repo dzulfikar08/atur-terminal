@@ -1,5 +1,5 @@
 //! The facade's echo latency against a running server, as a program that can run on a device or
-//! an emulator: `echo_bench <pairing-link-file> [variants]` (`tls`, `auto`, optionally with
+//! an emulator: `echo-bench <pairing-link-file> [variants]` (`tls`, `auto`, optionally with
 //! `+type` and `+paste` as the app's proof does before it types). Prints `bench ...` lines.
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
@@ -253,7 +253,7 @@ fn main() -> Result<(), Failure> {
     let mut args = std::env::args().skip(1);
     let link = std::fs::read_to_string(
         args.next()
-            .ok_or("usage: echo_bench <link-file> [variants]")?,
+            .ok_or("usage: echo-bench <link-file> [variants]")?,
     )?;
     let variants = args.next().unwrap_or_else(|| "tls,auto".into());
     let credential = ok(&direct_pair(link.trim().to_owned(), "Echo bench".into()))?;
