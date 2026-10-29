@@ -41,8 +41,9 @@ jobs:
         run: |
           shopt -s nullglob
           failed=0
-          for asset in $(for p in ${{ matrix.patterns }}; do echo artifacts/$p; done); do
+          set -f; patterns=(${{ matrix.patterns }}); set +f
+          for pattern in "${patterns[@]}"; do for asset in artifacts/$pattern; do
             echo "== $asset"
             bash scripts/check-no-muxy.sh --show 12 "$asset" || failed=1
-          done
+          done; done
           exit "$failed"
