@@ -30,6 +30,7 @@ use super::{Herdr, HerdrBacking};
 enum Owner {
     Session(SessionId),
     /// The environment is readable and names no session: not one of ours.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Foreign,
     /// The environment could not be read (another host or OS, a vanished process).
     Unknown,
@@ -37,8 +38,10 @@ enum Owner {
 
 /// The variables that hold the session id: the current name, then the one builds
 /// before the rename set.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 const SESSION_VARIABLES: [&[u8]; 2] = [b"ATUR_TERM_SESSION_ID=", b"MUXY_SESSION_ID="];
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn owner_of_environment(environment: &[u8]) -> Owner {
     if environment.is_empty() {
         return Owner::Unknown;

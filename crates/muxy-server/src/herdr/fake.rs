@@ -42,6 +42,7 @@ impl Drop for Shell {
     }
 }
 
+#[allow(clippy::struct_field_names)]
 struct Pane {
     pane_id: String,
     terminal_id: String,
@@ -52,6 +53,7 @@ struct Pane {
     shell: Option<u32>,
 }
 
+#[allow(clippy::struct_field_names)]
 struct Tab {
     tab_id: String,
     workspace_id: String,
