@@ -559,7 +559,7 @@ fn servers_load_and_saves_keep_other_settings_and_hand_edits() -> Result {
             name: "builder".into(),
             identity_file: Some("~/.ssh/build key".into()),
             password_login: true,
-            udp: false,
+            udp: true,
             ..build.clone()
         },
         &path,
@@ -568,11 +568,13 @@ fn servers_load_and_saves_keep_other_settings_and_hand_edits() -> Result {
     let source = fs::read_to_string(&path)?;
     assert!(source.contains("identity_file = \"~/.ssh/build key\""));
     assert!(source.contains("password_login = true"));
+    assert!(source.contains("udp = true"));
     assert_eq!(
         source.matches("password_login").count(),
         1,
         "false is left out"
     );
+    assert_eq!(source.matches("udp").count(), 1, "false is left out");
     let loaded = Settings::load(&path)?;
     assert_eq!(loaded.servers, settings.servers);
     assert!(!loaded.window.confirm_running_process);

@@ -23,6 +23,7 @@ use super::overlays::Overlay;
 use crate::model::{AppModel, ConnectionTest, DeviceForm, RemoteServer, ServerStatus};
 
 /// The Add or Edit form for one remote server.
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct ServerForm {
     /// `None` adds a server.
     device: Option<ServerId>,
@@ -1210,7 +1211,7 @@ fn connection_fields(form: &ServerForm, model: &AppModel, cx: &mut Context<AppMo
         })
 }
 
-/// User, port, key file, and password login.
+/// User, port, key file, password login, and UDP.
 fn login(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
     let m = model.metrics;
     let theme = &model.theme;
@@ -1288,6 +1289,18 @@ fn login(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpu
                 model,
             ))
         })
+        .child(udp_option(form, model, cx))
+}
+
+/// The switch for UDP, and what it needs.
+fn udp_option(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
+    let m = model.metrics;
+    let theme = &model.theme;
+    let style = Style { theme, metrics: &m };
+    div()
+        .flex()
+        .flex_col()
+        .gap(m.scaled(14.0))
         .child(
             div()
                 .flex()

@@ -109,6 +109,10 @@ impl Proxy {
         *self.upstream.lock().unwrap() = socket;
     }
 
+    fn client_address(&self) -> Option<SocketAddr> {
+        *self.client.lock().unwrap()
+    }
+
     fn set_blackhole(&self, on: bool) {
         self.blackhole.store(on, Ordering::Relaxed);
     }
@@ -248,6 +252,29 @@ fn the_stream_resumes_after_an_outage_without_reconnecting() {
         restored.elapsed() < Duration::from_secs(2),
         "{:?}",
         restored.elapsed()
+    );
+}
+
+#[test]
+fn a_client_that_hears_nothing_binds_a_new_socket_and_the_session_goes_on() {
+    let (_status, server, client, proxy) = pair();
+    let (mut server_reader, mut server_writer) = halves(server);
+    let (mut client_reader, mut client_writer) = halves(client);
+    client_writer.write_all(b"one").unwrap();
+    assert_eq!(read_exactly(&mut *server_reader, 3), b"one");
+    let before = proxy.client_address().unwrap();
+    proxy.set_blackhole(true);
+    server_writer.write_all(b"waiting").unwrap();
+    // Long enough for the client to give its socket up and try another.
+    thread::sleep(Duration::from_millis(7_500));
+    proxy.set_blackhole(false);
+    assert_eq!(read_exactly(&mut *client_reader, 7), b"waiting");
+    client_writer.write_all(b"two").unwrap();
+    assert_eq!(read_exactly(&mut *server_reader, 3), b"two");
+    assert_ne!(
+        proxy.client_address().unwrap(),
+        before,
+        "the client kept its old socket"
     );
 }
 
