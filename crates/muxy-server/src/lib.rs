@@ -36,3 +36,6 @@ mod detection;
 
 mod remote;
 pub use remote::{Admission, RemoteAccess};
+
+mod udp;
+pub use udp::{ServeStream, UdpOffers};

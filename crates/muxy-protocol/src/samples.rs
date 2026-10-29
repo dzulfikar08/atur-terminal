@@ -140,6 +140,7 @@ fn remote_samples() -> Vec<Message> {
         RequestBody::StartPairingWithHosts(vec!["box.example.com".into(), "203.0.113.7".into()]),
         RequestBody::CancelPairing,
         RequestBody::RevokeDevice(device),
+        RequestBody::OfferUdp,
     ] {
         messages.push(Message::Request {
             id: RequestId(40),
@@ -174,6 +175,10 @@ fn remote_samples() -> Vec<Message> {
                 secret: [5; 16],
             },
             expires_at: 300,
+        }),
+        ReplyBody::UdpOffer(crate::UdpOffer {
+            port: 60001,
+            key: [9; 32],
         }),
         ReplyBody::Error(ErrorReply {
             code: ErrorCode::Unauthorized,

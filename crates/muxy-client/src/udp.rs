@@ -18,6 +18,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+pub use muxy_protocol::transport::udp::parse_ports;
 use muxy_protocol::transport::udp::{Options, Secret, UdpServer, UdpStatus};
 use muxy_protocol::transport::{self, ByteStream};
 
@@ -104,17 +105,6 @@ impl UdpSettings {
 fn seconds_from(variable: &str) -> Option<Duration> {
     let seconds: u64 = muxy_core::env::var(variable)?.trim().parse().ok()?;
     (seconds > 0).then(|| Duration::from_secs(seconds))
-}
-
-/// `LOW-HIGH`, or one port.
-pub fn parse_ports(text: &str) -> Option<RangeInclusive<u16>> {
-    let (low, high) = if let Some((low, high)) = text.trim().split_once('-') {
-        (low.trim().parse().ok()?, high.trim().parse().ok()?)
-    } else {
-        let port = text.trim().parse().ok()?;
-        (port, port)
-    };
-    (low >= 1024 && low <= high).then_some(low..=high)
 }
 
 /// What the bridge on the server computer does for UDP (`stdio --udp`).

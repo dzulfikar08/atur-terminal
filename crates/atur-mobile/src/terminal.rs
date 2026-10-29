@@ -109,6 +109,8 @@ impl Terminal {
     /// Stops receiving this terminal; the session keeps running.
     pub fn detach(&self) -> Result<(), MobileError> {
         self.terminals.remove(self.view.channel);
-        Ok(self.client.detach(self.view.channel)?)
+        let detached = self.client.detach(self.view.channel);
+        self.terminals.track(&self.client);
+        Ok(detached?)
     }
 }

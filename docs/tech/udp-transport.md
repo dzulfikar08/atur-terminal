@@ -140,6 +140,69 @@ usual reconnect starts a fresh bridge. The old one exits at its own idle limit.
 The sessions themselves never depended on the bridge: they live in
 `atur-term-server`.
 
+## Paired phones: bootstrap over TLS
+
+A phone has no `ssh` to carry the secret, but it already holds a pinned TLS
+connection that authenticated it as a paired device. That connection carries the
+offer instead (see [Mobile](./mobile.md)). The stream under the protocol is the
+same one; only the bootstrap and the way the server picks it up differ.
+
+```mermaid
+sequenceDiagram
+    participant P as Phone
+    participant S as atur-term-server
+    P->>S: TLS, Hello, Authenticate (paired device)
+    S-->>P: HelloReply, features include UDP_OFFER
+    P->>S: OfferUdp
+    S-->>P: UdpOffer {port, key}
+    P->>S: UDP: sealed hello, repeated until answered (3 s)
+    S-->>P: UDP: sealed answer
+    P->>S: UDP: Hello, Authenticate (same device credential)
+    S-->>P: UDP: HelloReply, Authenticated
+    Note over P,S: The phone drops TLS and carries on over UDP
+```
+
+- **The request.** `RequestBody::OfferUdp` (variant 44, no fields) answers
+  `ReplyBody::UdpOffer { port: u16, key: [u8; 32] }` (variant 39, fields
+  `[port, key]`, the key a CBOR byte string). Only network connections of a paired
+  device may send it; a local connection gets `BadRequest`.
+- **Older servers are never asked.** The server lists `Feature::UDP_OFFER` (2) in
+  its `HelloReply`. A phone asks only when the feature is there, so an older server
+  keeps its TLS connection without ever seeing the request (and a server that does
+  receive an unknown request answers `Unsupported`, as for every unknown request).
+  A server with UDP turned off (`ATUR_TERM_UDP=0`) lists the feature but answers
+  `Unsupported`, which the phone reports as "turned off".
+- **The port.** The server binds one UDP port from `ATUR_TERM_UDP_PORTS`
+  (`LOW-HIGH`, default 60001-61000) with a fresh 256-bit secret, per offer. The
+  offer is closed after 30 seconds if nobody contacts it, or earlier when the
+  connection that asked ends. A device may have two offers waiting, the server 16.
+- **Address.** The phone sends to the host that its TLS connection actually reached
+  (the first of the pairing code's addresses that answered), at the offered port.
+- **Authentication.** The secret only seals datagrams. When the first one opens,
+  the stream is served by the same `serve_remote` as a TLS connection: it takes one
+  of the same unauthenticated-connection slots, must say Hello and
+  `Authenticate` with the device credential within the same 10 s, and is a connection
+  of that device for everything that follows. Revoking the device or turning mobile
+  access off closes its UDP connection with its TLS ones.
+- **Fallback.** Any failure keeps TLS: no feature, `Unsupported`, no answer in 3 s
+  (a firewall that drops UDP), or a failed sign-in. The phone's `connect` answer
+  names which transport it ended on and, when it is TLS, why. On success the phone
+  closes its TLS connection before `connect` returns.
+- **Time.** A client that hears nothing for 5 minutes of awake time reports the
+  connection lost and the app's usual reconnect starts (TLS again, then UDP). The
+  server drops a phone it has not heard from for 10 minutes (`ATUR_TERM_UDP_IDLE`
+  changes it); the app closes its connection after 30 seconds in the background.
+- **Roaming** needs nothing more than the stream: a phone that moves from Wi-Fi to
+  cellular keeps its connection, which a TLS connection to the same address does not.
+
+The core measures it with `cargo test -p atur-mobile --test sdk bench_facade_lossy
+-- --ignored --nocapture` (set `ATUR_BENCH_TRANSPORT` to `tls` or `udp`). The
+`lossy` job of `.github/workflows/mobile.yml` runs it with
+`scripts/lossy-netem.sh` shaping only the bench's two ports on loopback: 400 ms
+each way with 200 ms of jitter and 5% loss (about 800 ms round trip, 10% round-trip
+loss), and a 10 s outage with iptables. It prints `lossy tls|udp echo p50_ms=…
+p90_ms=… max_ms=…` and `lossy tls|udp recovery_ms=…` into the job summary.
+
 ## Why not QUIC
 
 QUIC (quinn: TLS 1.3, streams, congestion control, connection migration) was the
@@ -234,4 +297,7 @@ retransmit timer has the same arithmetic.
 | `muxy-protocol/src/transport/udp/endpoint.rs` | Sockets, threads, roaming, the listening and connecting ends |
 | `muxy-client/src/udp.rs` | The offer line, settings, and the bridge's side of the choice |
 | `muxy-client/src/bridge.rs`, `ssh.rs` | Asking for UDP, and moving to it or not |
+| `muxy-server/src/udp.rs` | Answering `OfferUdp`: the port, the secret, serving the claimed stream |
+| `muxy-client/src/remote.rs` | `request_udp` and `connect_remote_udp` for a paired device |
+| `atur-mobile/src/connection.rs` | `connect_direct`: TLS first, then UDP, TLS kept on any failure |
 | `muxy-cli/examples/transport_lab.rs`, `scripts/transport-lab` | The lab |

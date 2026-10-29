@@ -260,6 +260,38 @@ impl PairRequest {
     }
 }
 
+/// A UDP port on the server and the secret that opens it, handed to a paired
+/// connection that asked with `OfferUdp`. The port is meant for one client: it
+/// closes unless contacted soon, and the secret is never reused.
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct UdpOffer {
+    #[n(0)]
+    pub port: u16,
+    /// A fresh 256-bit secret; every datagram is sealed with keys derived from it.
+    #[n(1)]
+    #[cbor(with = "crate::wire::cbor::bytes")]
+    pub key: [u8; 32],
+}
+
+impl fmt::Debug for UdpOffer {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("UdpOffer")
+            .field("port", &self.port)
+            .finish_non_exhaustive()
+    }
+}
+
+impl UdpOffer {
+    pub fn validate(&self) -> Result<(), ErrorCode> {
+        if self.port == 0 {
+            Err(ErrorCode::BadRequest)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub struct DeviceCredential {
     #[n(0)]

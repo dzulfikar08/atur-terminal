@@ -157,6 +157,12 @@ These read from the environment of the app or `atur-term` that connects. The
 server needs Atur Terminal with UDP support, and an older one falls back to SSH.
 [How it works](../tech/udp-transport.md)
 
+Paired phones use the same ports: `atur-term-server` itself offers a UDP port to a
+phone over its TLS connection (the phone has no ssh). That side reads
+`ATUR_TERM_UDP_PORTS` and `ATUR_TERM_UDP_IDLE` from the server's environment, keeps
+a quiet phone for 10 minutes unless `ATUR_TERM_UDP_IDLE` says otherwise, and is
+turned off with `ATUR_TERM_UDP=0`. [Details](../tech/udp-transport.md#paired-phones-bootstrap-over-tls)
+
 ## Working with remote files
 
 - Files dropped or pasted into a remote terminal, or sent from the

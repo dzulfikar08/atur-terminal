@@ -112,6 +112,14 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 body: RequestBody::RevokeDevice(_),
                 ..
             } => ("RevokeDevice", ChannelKind::Control),
+            Message::Request {
+                body: RequestBody::OfferUdp,
+                ..
+            } => ("OfferUdp", ChannelKind::Control),
+            Message::Reply {
+                body: ReplyBody::UdpOffer(_),
+                ..
+            } => ("UdpOffer", ChannelKind::Control),
             Message::Reply {
                 body: ReplyBody::Authenticated,
                 ..
@@ -550,6 +558,8 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "Folders",
             "Upload",
             "Uploaded",
+            "OfferUdp",
+            "UdpOffer",
             "CancelPairing",
             "RevokeDevice",
             "Authenticated",

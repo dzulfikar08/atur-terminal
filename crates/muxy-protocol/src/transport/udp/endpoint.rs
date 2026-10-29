@@ -510,6 +510,11 @@ impl UdpStatus {
         self.shared.lock().claimed
     }
 
+    /// The stream has ended, locally, by the peer, or from silence.
+    pub fn closed(&self) -> bool {
+        self.shared.lock().closed.is_some()
+    }
+
     /// Waits up to `timeout` for the first authentic packet.
     pub fn wait_claimed(&self, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
@@ -581,6 +586,17 @@ impl UdpStatus {
     pub fn backlog(&self) -> bool {
         self.shared.lock().connection.unsent_or_unacked()
     }
+}
+
+/// `LOW-HIGH`, or one port; ports start at 1024.
+pub fn parse_ports(text: &str) -> Option<RangeInclusive<u16>> {
+    let (low, high) = if let Some((low, high)) = text.trim().split_once('-') {
+        (low.trim().parse().ok()?, high.trim().parse().ok()?)
+    } else {
+        let port = text.trim().parse().ok()?;
+        (port, port)
+    };
+    (low >= 1024 && low <= high).then_some(low..=high)
 }
 
 /// The listening end: a socket with the secret, waiting for the client.

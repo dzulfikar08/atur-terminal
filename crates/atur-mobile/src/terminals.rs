@@ -1,11 +1,12 @@
 //! Attached terminals by channel, and what arrives for a channel before its attach returns.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use std::time::Instant;
 
-use muxy_client::{Attachment, PredictMode, Predictor, RunGrid};
+use muxy_client::{Attachment, Client, PredictMode, Predictor, RunGrid};
 use muxy_protocol::{ChannelId, InputModes, MetadataEvent, ScreenFrame, ServerPath, SessionId};
 
 /// Channels still attaching; the server allows one unacknowledged frame each.
@@ -14,6 +15,9 @@ const MAX_EARLY: usize = 16;
 #[derive(Default)]
 pub(crate) struct Terminals {
     state: Mutex<State>,
+    /// The server was told which sessions this connection uses beyond the attached
+    /// ones (to learn their titles), so it must be told again when attaches change.
+    referenced: AtomicBool,
 }
 
 #[derive(Default)]
@@ -133,6 +137,40 @@ impl Terminals {
 
     pub(crate) fn remove(&self, channel: ChannelId) {
         self.lock().views.remove(&channel);
+    }
+
+    /// The sessions with an attached terminal.
+    pub(crate) fn sessions(&self) -> Vec<SessionId> {
+        self.lock()
+            .views
+            .values()
+            .map(|view| view.session)
+            .collect()
+    }
+
+    /// The title of each attached terminal, by session.
+    pub(crate) fn titles(&self) -> HashMap<SessionId, String> {
+        self.lock()
+            .views
+            .values()
+            .map(|view| (view.session, view.lock().title.clone()))
+            .collect()
+    }
+
+    /// Notes that the server now holds references beyond the attached terminals.
+    pub(crate) fn referenced(&self) {
+        self.referenced.store(true, Ordering::Release);
+    }
+
+    /// Tells the server the attached sessions are the ones this connection uses. Only
+    /// after `referenced`: a session listed before and attached later would otherwise
+    /// count as released, and stop keeping the session alive for the other clients.
+    pub(crate) fn track(&self, client: &Client) {
+        if self.referenced.load(Ordering::Acquire) {
+            client
+                .sync_session_references_async(self.sessions())
+                .on_complete(drop);
+        }
     }
 
     pub(crate) fn ended(&self, session: SessionId) {

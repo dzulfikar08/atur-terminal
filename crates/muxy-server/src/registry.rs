@@ -53,6 +53,7 @@ pub struct Registry {
     completed: Arc<Condvar>,
     archive: Archive,
     pub(crate) remote: crate::RemoteAccess,
+    udp_offers: Option<crate::UdpOffers>,
     herdr: Option<Arc<crate::herdr::Herdr>>,
 }
 
@@ -76,6 +77,7 @@ impl Registry {
             sessions: Sessions::default(),
             completed: Arc::default(),
             remote: crate::RemoteAccess::memory(),
+            udp_offers: None,
             herdr: None,
         }
     }
@@ -292,6 +294,28 @@ impl Registry {
     ) -> Self {
         self.remote.set_listener(Box::new(listener));
         self
+    }
+
+    /// Lets paired devices ask for a UDP stream over their connection.
+    #[must_use]
+    pub fn with_udp_offers(mut self, offers: crate::UdpOffers) -> Self {
+        self.udp_offers = Some(offers);
+        self
+    }
+
+    /// Binds a UDP port for the device on `requester`; the stream it opens is served
+    /// like an accepted network connection.
+    pub(crate) fn offer_udp(
+        self: &Arc<Self>,
+        requester: &Arc<crate::connection::Outbox>,
+    ) -> Result<muxy_protocol::UdpOffer, ServerError> {
+        match &self.udp_offers {
+            Some(offers) => offers.offer(self, requester),
+            None => Err(ServerError::new(
+                ErrorCode::Unsupported,
+                "UDP is turned off on this server",
+            )),
+        }
     }
 
     /// Starts listening for paired devices if mobile access was left on.

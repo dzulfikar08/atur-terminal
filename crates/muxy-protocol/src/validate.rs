@@ -202,6 +202,7 @@ fn validate_request(body: &RequestBody) -> Result<(), ErrorCode> {
         RequestBody::WriteRemoteAccess(settings) => settings.validate(),
         RequestBody::StartPairingWithHosts(hosts) => crate::validate_pairing_hosts(hosts),
         RequestBody::Authenticate(_)
+        | RequestBody::OfferUdp
         | RequestBody::ReadRemoteAccess
         | RequestBody::StartPairing
         | RequestBody::CancelPairing
@@ -315,6 +316,7 @@ fn validate_reply(body: &ReplyBody) -> Result<(), ErrorCode> {
         ReplyBody::Paired(paired) => paired.validate(),
         ReplyBody::RemoteAccess(state) => state.validate(),
         ReplyBody::Pairing(offer) => offer.invite.validate(),
+        ReplyBody::UdpOffer(offer) => offer.validate(),
         ReplyBody::Authenticated
         | ReplyBody::ExecCancelled
         | ReplyBody::ActivityAcknowledged

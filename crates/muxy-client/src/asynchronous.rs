@@ -1,5 +1,7 @@
 use crate::{Client, ClientError, Request};
-use muxy_protocol::{CatalogPage, ErrorCode, MAX_PROJECTS, ProjectId, ReplyBody, RequestBody};
+use muxy_protocol::{
+    CatalogPage, ErrorCode, MAX_PROJECTS, ProjectId, ReplyBody, RequestBody, SessionId,
+};
 use std::time::Duration;
 
 impl Client {
@@ -11,6 +13,22 @@ impl Client {
             Duration::from_secs(30),
             |body| match body {
                 ReplyBody::Pong => Ok(()),
+                body => Err(ClientError::UnexpectedReply(Box::new(body))),
+            },
+        )
+    }
+
+    /// Like `sync_session_references`, without waiting for the answer.
+    pub fn sync_session_references_async(&self, sessions: Vec<SessionId>) -> Request<()> {
+        self.request_async(
+            RequestBody::SyncSessionReferences {
+                owner: None,
+                revision: 0,
+                sessions,
+            },
+            Duration::from_secs(30),
+            |body| match body {
+                ReplyBody::SessionReferencesSynced => Ok(()),
                 body => Err(ClientError::UnexpectedReply(Box::new(body))),
             },
         )

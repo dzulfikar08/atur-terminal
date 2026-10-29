@@ -15,7 +15,7 @@ use muxy_protocol::transport::{
     BindError, ByteStream, Listener, StreamCancellation, UnixSocketListener,
 };
 use muxy_protocol::wire::WireError;
-use muxy_server::{Registry, RemoteAccess, ServerEvent, connection};
+use muxy_server::{Registry, RemoteAccess, ServerEvent, UdpOffers, connection};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
@@ -246,7 +246,15 @@ pub(crate) fn run(args: &Args) -> io::Result<()> {
     let legacy = crate::legacy::read(directory.parent().unwrap_or_else(|| Path::new(".")))?;
     let connections = Connections::default();
     let remote = Arc::new(RemoteListener::new(connections.clone())?);
-    let registry = bootstrap_registry(args, settings, sender, &directory, legacy, &remote)?;
+    let registry = bootstrap_registry(
+        args,
+        settings,
+        sender,
+        &directory,
+        legacy,
+        &remote,
+        &connections,
+    )?;
     remote.attach(&registry);
     let retention = retention::Retention::start(Arc::clone(&registry))?;
     registry.resume_remote_access();
@@ -316,6 +324,7 @@ fn bootstrap_registry(
     directory: &Path,
     legacy: muxy_server::LegacyImport,
     remote: &Arc<RemoteListener>,
+    connections: &Connections,
 ) -> io::Result<Arc<Registry>> {
     let hooks =
         muxy_server::ShellIntegration::install(&directory.with_file_name("shell-integration"))?;
@@ -326,6 +335,18 @@ fn bootstrap_registry(
         .with_settings_persistence(move |settings| settings_file::save(&settings_path, settings))
         .with_remote_access(RemoteAccess::open(directory.with_file_name("remote.json")))
         .with_remote_listener(move |listening| listener.apply(listening));
+    let udp = connections.clone();
+    let registry = match UdpOffers::from_environment(move |stream, registry, admission| {
+        udp.spawn(stream, true, move |stream, events| {
+            connection::serve_remote(stream, registry, events, admission)
+        })
+    }) {
+        Some(offers) => registry.with_udp_offers(offers),
+        None => {
+            log::info!("UDP for paired devices is turned off");
+            registry
+        }
+    };
     let state = directory.parent().unwrap_or_else(|| Path::new("."));
     let registry = match backend::herdr(state)? {
         Some(config) => {

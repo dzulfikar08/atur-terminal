@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::net::Shutdown;
+use std::net::{Ipv4Addr, Shutdown, SocketAddr};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use muxy_protocol::transport::ByteStream;
+use muxy_protocol::transport::udp::{self, Options, Secret};
 use muxy_protocol::wire::{Decoder, Encoder, WireError};
 use muxy_protocol::{
     CONTROL, ChannelId, ClientKind, DeviceCredential, DeviceId, ErrorCode, ListenerStatus, Message,
@@ -15,7 +17,7 @@ use muxy_protocol::{
     RequestBody, RequestId, SUPPORTED, ServerPath, Size,
 };
 use muxy_server::connection::{serve, serve_remote};
-use muxy_server::{Registry, ServerEvent, ServerSettings};
+use muxy_server::{Registry, ServerEvent, ServerSettings, UdpOffers};
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -35,24 +37,49 @@ struct Client {
 
 impl Fixture {
     fn new() -> Self {
+        Self::build(false)
+    }
+
+    /// A server that offers UDP on ports of its own, as the executable does.
+    fn with_udp() -> Self {
+        Self::build(true)
+    }
+
+    fn build(udp: bool) -> Self {
         let (sender, events) = mpsc::channel();
-        let registry = Arc::new(
-            Registry::new(
-                ServerSettings {
-                    default_shell: Some(PathBuf::from("/bin/sh")),
-                    ..ServerSettings::default()
-                },
-                sender,
-            )
-            .with_remote_listener(|listening| {
-                if listening.is_some() {
-                    ListenerStatus::Listening
-                } else {
-                    ListenerStatus::Disabled
-                }
-            }),
-        );
         let subscribers = Arc::new(Mutex::new(Vec::<Sender<ServerEvent>>::new()));
+        let mut registry = Registry::new(
+            ServerSettings {
+                default_shell: Some(PathBuf::from("/bin/sh")),
+                ..ServerSettings::default()
+            },
+            sender,
+        )
+        .with_remote_listener(|listening| {
+            if listening.is_some() {
+                ListenerStatus::Listening
+            } else {
+                ListenerStatus::Disabled
+            }
+        });
+        if udp {
+            let offered = Arc::clone(&subscribers);
+            registry = registry.with_udp_offers(UdpOffers::new(
+                40000..=40999,
+                move |stream, registry, admission| {
+                    let (sender, events) = mpsc::channel();
+                    offered
+                        .lock()
+                        .map_err(|_| std::io::Error::other("subscriber lock poisoned"))?
+                        .push(sender);
+                    thread::spawn(move || {
+                        let _ = serve_remote(stream, registry, events, admission);
+                    });
+                    Ok(())
+                },
+            ));
+        }
+        let registry = Arc::new(registry);
         let sinks = Arc::clone(&subscribers);
         let running = Arc::new(AtomicBool::new(true));
         let active = Arc::clone(&running);
@@ -487,5 +514,108 @@ fn a_revoke_racing_authentication_never_leaves_the_device_connected() -> TestRes
         local.request(RequestBody::RevokeDevice(credential.device))?;
         phone.join().map_err(|_| "phone thread panicked")??;
     }
+    Ok(())
+}
+
+#[test]
+fn udp_is_offered_only_to_paired_devices_and_only_when_it_is_on() -> TestResult {
+    let fixture = Fixture::new();
+    let mut local = fixture.enabled()?;
+    let (_, mut phone) = fixture.pair(&mut local)?;
+    // The request exists, but this server has UDP off.
+    assert!(matches!(
+        phone.request(RequestBody::OfferUdp)?,
+        ReplyBody::Error(error) if error.code == ErrorCode::Unsupported
+    ));
+    let fixture = Fixture::with_udp();
+    let mut local = fixture.enabled()?;
+    // A local connection has a socket already.
+    assert!(matches!(
+        local.request(RequestBody::OfferUdp)?,
+        ReplyBody::Error(error) if error.code == ErrorCode::BadRequest
+    ));
+    Ok(())
+}
+
+#[test]
+fn a_paired_device_moves_to_udp_and_revoking_it_closes_that_connection() -> TestResult {
+    let fixture = Fixture::with_udp();
+    let mut local = fixture.enabled()?;
+    let (paired, mut phone) = fixture.pair(&mut local)?;
+    let ReplyBody::UdpOffer(offer) = phone.request(RequestBody::OfferUdp)? else {
+        return Err("expected a UDP offer".into());
+    };
+    let address = SocketAddr::from((Ipv4Addr::LOCALHOST, offer.port));
+    let stream = udp::connect(
+        &[address],
+        &Secret::from_bytes(offer.key),
+        Duration::from_secs(3),
+        Options::CLIENT,
+    )?;
+    let (reader, writer) = Box::new(stream).split()?;
+    let mut decoder = Decoder::new(reader);
+    let mut encoder = Encoder::new(writer);
+    encoder.send(
+        CONTROL,
+        &Message::Hello {
+            versions: SUPPORTED.to_vec(),
+        },
+    )?;
+    assert!(matches!(
+        decoder.next()?,
+        (CONTROL, Message::HelloReply { .. })
+    ));
+    // The secret is not the authentication: the device signs in as it does over TLS.
+    encoder.send(
+        CONTROL,
+        &Message::Request {
+            id: RequestId(1),
+            body: RequestBody::Authenticate(paired.credential),
+        },
+    )?;
+    assert!(matches!(
+        decoder.next()?,
+        (
+            CONTROL,
+            Message::Reply {
+                body: ReplyBody::Authenticated,
+                ..
+            }
+        )
+    ));
+    encoder.send(
+        CONTROL,
+        &Message::Request {
+            id: RequestId(2),
+            body: RequestBody::Ping,
+        },
+    )?;
+    loop {
+        match decoder.next()? {
+            (
+                CONTROL,
+                Message::Reply {
+                    id: RequestId(2),
+                    body,
+                },
+            ) => {
+                assert_eq!(body, ReplyBody::Pong);
+                break;
+            }
+            (CONTROL, Message::Changed { .. }) => {}
+            other => return Err(format!("unexpected message: {other:?}").into()),
+        }
+    }
+    local.request(RequestBody::RevokeDevice(paired.credential.device))?;
+    let (ended, closed) = mpsc::channel();
+    thread::spawn(move || {
+        let outcome = loop {
+            if let Err(error) = decoder.next() {
+                break error;
+            }
+        };
+        let _ = ended.send(outcome);
+    });
+    closed.recv_timeout(TIMEOUT)?;
     Ok(())
 }

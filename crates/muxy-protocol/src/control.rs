@@ -175,6 +175,11 @@ pub enum RequestBody {
     /// A piece of a file to keep on the server's computer for a session.
     #[n(43)]
     Upload(#[n(0)] crate::UploadChunk),
+    /// Asks a server for a UDP port and key to carry this connection's
+    /// protocol over a bad network. Only network connections may ask, and only
+    /// servers that list `Feature::UDP_OFFER` know it.
+    #[n(44)]
+    OfferUdp,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -288,6 +293,9 @@ pub enum ReplyBody {
     /// An upload chunk arrived; after the last one, the file's absolute path.
     #[n(38)]
     Uploaded(#[n(0)] Option<ServerPath>),
+    /// Where to reach the UDP stream that `OfferUdp` asked for.
+    #[n(39)]
+    UdpOffer(#[n(0)] crate::UdpOffer),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

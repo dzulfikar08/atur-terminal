@@ -20,10 +20,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use muxy_client::PredictMode;
-use muxy_protocol::HistoryCursor;
+use muxy_protocol::{HistoryCursor, SessionId};
 use serde_json::{Value, json};
 
-use crate::connection::{Connection, ConnectionEvent, ConnectionListener};
+use crate::connection::{Connection, ConnectionEvent, ConnectionListener, TransportMode};
 use crate::input::{self, Segment};
 use crate::keys::{self, Key, Modifiers};
 use crate::records::{AgentState, ServerCredential, SessionStatus};
@@ -158,6 +158,16 @@ fn credential_from_json(text: &str) -> Result<ServerCredential, MobileError> {
         device_id: field("deviceId").ok_or(MobileError::InvalidCredential)?,
         token: bytes("token")?,
     })
+}
+
+/// The optional `"transport"` of a connect request: `auto` (the default) or `tls`.
+fn transport_mode(text: &str) -> Result<TransportMode, Fail> {
+    let value: Value = serde_json::from_str(text).map_err(|_| MobileError::InvalidCredential)?;
+    match value.get("transport").and_then(Value::as_str) {
+        None | Some("auto") => Ok(TransportMode::Auto),
+        Some("tls") => Ok(TransportMode::Tls),
+        Some(_) => Err(bad("transport")),
+    }
 }
 
 /// Checks a scanned or pasted link without touching the network.
@@ -460,7 +470,9 @@ impl Direct {
         })
     }
 
-    /// Connects with a stored credential (the JSON `direct_pair` returned); blocks on the network.
+    /// Connects with a stored credential (the JSON `direct_pair` returned, with an optional
+    /// `"transport": "auto" | "tls"`); blocks on the network. The answer says which transport
+    /// carries the connection and, when it is not UDP, why.
     pub fn connect(&self, credential_json: String) -> String {
         envelope(self.start(&credential_json))
     }
@@ -495,6 +507,7 @@ impl Direct {
     fn start(&self, credential_json: &str) -> Answer {
         self.disconnect();
         let credential = credential_from_json(credential_json)?;
+        let mode = transport_mode(credential_json)?;
         let name = credential.server_name.clone();
         let shared = Arc::new(Shared {
             listener: Arc::clone(&self.listener),
@@ -506,7 +519,8 @@ impl Direct {
         let router = Arc::new(Router {
             shared: Arc::clone(&shared),
         });
-        let connection = Connection::connect(credential, router)?;
+        let opened = Connection::connect_direct(credential, mode, router)?;
+        let connection = opened.connection;
         let server_id = connection.server_id()?;
         let version = connection.server_version();
 
@@ -528,7 +542,13 @@ impl Direct {
             shared,
             jobs,
         }));
-        Ok(json!({ "serverId": server_id, "serverName": name, "serverVersion": version }))
+        Ok(json!({
+            "serverId": server_id,
+            "serverName": name,
+            "serverVersion": version,
+            "transport": connection.transport_name(),
+            "udpNote": opened.udp_note,
+        }))
     }
 
     fn enqueue(&self, method: &str, args_json: &str) -> Answer {
@@ -595,6 +615,7 @@ impl Direct {
                     "projectId": project,
                     "projectName": "",
                     "directory": created.directory,
+                    "title": "",
                     "status": "live",
                     "attached": false,
                     "agent": Value::Null,
@@ -667,6 +688,7 @@ impl Direct {
                 Ok(json!({
                     "mode": content.predict.mode().as_str(),
                     "rttMs": rtt.map(|rtt| rtt.as_secs_f64() * 1000.0),
+                    "transport": connection.transport_name(),
                     "keys": stats.keys,
                     "visibleConfirmed": stats.visible_confirmed,
                     "hiddenConfirmed": stats.hidden_confirmed,
@@ -849,7 +871,7 @@ fn state_name(state: AgentState) -> &'static str {
     }
 }
 
-/// Live sessions of every project, each with the agent working in it.
+/// Live sessions of every project, each with the agent working in it and the terminal's title.
 fn sessions(connection: &Connection) -> Answer {
     let agents: HashMap<u64, (String, AgentState)> = connection
         .activity()?
@@ -857,7 +879,7 @@ fn sessions(connection: &Connection) -> Answer {
         .into_iter()
         .map(|agent| (agent.session_id, (agent.provider, agent.state)))
         .collect();
-    let mut out = Vec::new();
+    let mut listed = Vec::new();
     for project in connection.projects()? {
         for session in connection.sessions(project.id.clone())? {
             let status = match session.status {
@@ -865,22 +887,39 @@ fn sessions(connection: &Connection) -> Answer {
                 SessionStatus::Starting => "starting",
                 SessionStatus::Ended | SessionStatus::Unavailable => continue,
             };
-            let agent = agents.get(&session.id).map_or(
-                Value::Null,
-                |(provider, state)| json!({ "provider": provider, "state": state_name(*state) }),
-            );
-            out.push(json!({
-                "id": session.id.to_string(),
-                "projectId": project.id,
-                "projectName": project.name,
-                "directory": session.directory,
-                "status": status,
-                "attached": session.attached,
-                "agent": agent,
-            }));
+            listed.push(((project.id.clone(), project.name.clone()), session, status));
         }
     }
-    Ok(Value::Array(out))
+    let live: Vec<SessionId> = listed
+        .iter()
+        .filter(|(_, _, status)| *status == "live")
+        .filter_map(|(_, session, _)| SessionId::new(session.id))
+        .collect();
+    let titles = connection.session_titles(&live);
+    Ok(Value::Array(
+        listed
+            .into_iter()
+            .map(|((project_id, project_name), session, status)| {
+                let agent = agents.get(&session.id).map_or(
+                    Value::Null,
+                    |(provider, state)| json!({ "provider": provider, "state": state_name(*state) }),
+                );
+                let title = SessionId::new(session.id)
+                    .and_then(|id| titles.get(&id).cloned())
+                    .unwrap_or_default();
+                json!({
+                    "id": session.id.to_string(),
+                    "projectId": project_id,
+                    "projectName": project_name,
+                    "directory": session.directory,
+                    "title": title,
+                    "status": status,
+                    "attached": session.attached,
+                    "agent": agent,
+                })
+            })
+            .collect(),
+    ))
 }
 
 fn activity(connection: &Connection) -> Answer {

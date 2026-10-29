@@ -62,6 +62,30 @@ such as a cloud server behind NAT, puts that name first with
 - A phone works with any server that shares its protocol version, so phone
   releases only need to follow breaking protocol changes.
 
+## UDP for paired phones
+
+On a bad network the TLS connection stalls with every lost packet. A paired phone
+therefore moves to the [UDP stream](./udp-transport.md#paired-phones-bootstrap-over-tls) after it
+has connected over TLS:
+
+1. The server lists `Feature::UDP_OFFER` in its `HelloReply`; the phone asks only
+   a server that does.
+2. `OfferUdp` over the authenticated connection returns a UDP port from
+   `ATUR_TERM_UDP_PORTS` (default 60001-61000) and a fresh 256-bit key.
+3. The phone sends to the host its TLS connection reached, signs in again over
+   UDP with the same device credential, and drops TLS.
+4. If anything fails (older server, `ATUR_TERM_UDP=0`, no answer in 3 s because the
+   network blocks UDP) the TLS connection stays.
+
+Everything above the connection (events, frames, predictive echo, scrollback) sees
+the same client and is unchanged. In the facade, `connect` takes an optional
+`"transport": "auto" | "tls"` in the credential JSON and answers
+`{serverId, serverName, serverVersion, transport: "udp" | "tls", udpNote}`, where
+`udpNote` says why UDP was not used and is empty when it was; `echoStats` also
+reports `transport`. Revoking a device or turning mobile access off ends its UDP
+connection as it ends a TLS one. On a firewall, UDP 60001-61000 (or the range you
+set) must be open to the phone, which Tailscale does by itself.
+
 The full integration guide, with the API, setup, and error handling, is in
 [`crates/atur-mobile/README.md`](../../crates/atur-mobile/README.md).
 
@@ -75,6 +99,10 @@ It exists so the Kotlin and Swift glue stays a few lines long and identical on b
   `DirectListener` receives pushed events. Answers are `{"ok": ...}` or `{"error": {"code", "reason"}}`.
 - Attached screens are rendered to ANSI rows (`ansi.rs`) and only changed rows are sent, as `snapshot` and
   `diff` events, which is the vocabulary the Atur app already draws.
+- `sessions` answers each live session with the terminal's own `title` (empty when it set none). The
+  server pushes titles only for sessions a connection references, so listing references the unattached
+  live sessions for a moment (one round trip plus the server's push), caches what arrives, and lets go
+  again; later attaches and detaches keep the server's references equal to the attached terminals.
 - Typing arrives as the byte strings a terminal emulator produces; `input.rs` turns them into text and key
   presses so the server encodes arrows and function keys with the program's own modes.
 - The predictive echo (`muxy-client`'s `Predictor`) runs in the core: it sees every key sent and every
@@ -86,4 +114,5 @@ It exists so the Kotlin and Swift glue stays a few lines long and identical on b
 
 `.github/workflows/mobile.yml` checks the crate and builds the Android libraries and the iOS XCFramework on
 hosted runners; `cargo test -p atur-mobile --test sdk bench_facade -- --ignored --nocapture` prints attach
-and echo timings against an in-process server.
+and echo timings against an in-process server, and its `lossy` job runs `bench_facade_lossy` over TLS and
+over UDP on a loopback link shaped to 800 ms round trip and 10% loss with a 10 s outage.

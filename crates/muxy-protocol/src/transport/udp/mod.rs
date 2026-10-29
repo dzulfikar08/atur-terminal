@@ -15,4 +15,4 @@ mod endpoint;
 
 pub use connection::Stats;
 pub use crypto::Secret;
-pub use endpoint::{Options, UdpServer, UdpStatus, UdpStream, connect};
+pub use endpoint::{Options, UdpServer, UdpStatus, UdpStream, connect, parse_ports};

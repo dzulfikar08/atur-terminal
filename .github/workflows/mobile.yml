@@ -1,7 +1,8 @@
 name: mobile
 
-# The phone core (crates/atur-mobile): checks and tests on Linux, then the Android libraries and the
-# iOS XCFramework the Atur app links. GitHub-hosted runners only.
+# The phone core (crates/atur-mobile): checks and tests on Linux, the same facade over a lossy link
+# (TLS against UDP), then the Android libraries and the iOS XCFramework the Atur app links.
+# GitHub-hosted runners only.
 on:
   push:
     branches: [atur-terminal, feat/mobile-rn]
@@ -10,13 +11,18 @@ on:
       - "crates/muxy-client/**"
       - "crates/muxy-protocol/**"
       - "crates/muxy-core/**"
+      - "crates/muxy-server/**"
       - "scripts/build-mobile-sdk.sh"
+      - "scripts/lossy-netem.sh"
       - ".github/workflows/mobile.yml"
       - "Cargo.lock"
   pull_request:
     paths:
       - "crates/atur-mobile/**"
+      - "crates/muxy-server/**"
+      - "crates/muxy-protocol/**"
       - "scripts/build-mobile-sdk.sh"
+      - "scripts/lossy-netem.sh"
       - ".github/workflows/mobile.yml"
   workflow_dispatch:
 
@@ -64,6 +70,71 @@ jobs:
         with:
           name: facade-bench
           path: bench.txt
+
+  lossy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config iproute2 iptables
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/atur-terminal' || github.ref == 'refs/heads/feat/mobile-rn' }}
+      - name: Point the build at the pinned Zig through the baseline-CPU wrapper
+        run: |
+          echo "ATUR_TERM_ZIG=$(command -v zig)" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/scripts/zig" >> "$GITHUB_PATH"
+      - name: Build the facade tests before the network is shaped
+        run: cargo test --locked -p atur-mobile --test sdk --no-run
+      - name: Check that the runner can shape loopback traffic
+        run: |
+          sudo modprobe sch_netem || true
+          sudo modprobe sch_prio || true
+          sudo modprobe cls_u32 || true
+          if ! sudo tc qdisc add dev lo root netem delay 1ms; then
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)" || true
+            sudo modprobe sch_netem sch_prio cls_u32
+            sudo tc qdisc add dev lo root netem delay 1ms
+          fi
+          sudo tc qdisc del dev lo root
+      - name: Echo and outage recovery on a link with 800 ms round trip and 10% loss, TLS then UDP
+        env:
+          # The bench asks scripts/lossy-netem.sh to shape exactly these two ports, once connected.
+          ATUR_BENCH_NETEM: ${{ github.workspace }}/scripts/lossy-netem.sh
+          ATUR_BENCH_TLS_PORT: "60200"
+          ATUR_TERM_UDP_PORTS: "60100"
+        run: |
+          set -euo pipefail
+          for transport in tls udp; do
+            ATUR_BENCH_TRANSPORT="$transport" cargo test --locked -p atur-mobile --test sdk \
+              bench_facade_lossy -- --ignored --nocapture 2>&1 | tee "lossy-$transport.txt"
+          done
+          {
+            echo '### Facade on a shaped loopback link: 400 ms one way, 200 ms jitter, 5% loss each way, 10 s outage'
+            echo '```'
+            grep -h '^lossy' lossy-tls.txt lossy-udp.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the shaping
+        if: always()
+        env:
+          ATUR_BENCH_TLS_PORT: "60200"
+          ATUR_TERM_UDP_PORTS: "60100"
+        run: |
+          scripts/lossy-netem.sh outage-off || true
+          scripts/lossy-netem.sh off || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: facade-lossy
+          path: lossy-*.txt
 
   android:
     runs-on: ubuntu-24.04

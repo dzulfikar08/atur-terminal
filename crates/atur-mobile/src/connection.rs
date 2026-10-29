@@ -1,11 +1,14 @@
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
+use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::sync::mpsc::Receiver;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread;
+use std::time::{Duration, Instant};
 
-use muxy_client::{Client, ClientError, ClientEvent, RemoteEndpoint};
+use muxy_client::{Client, ClientError, ClientEvent, RemoteEndpoint, Transport, UdpSettings};
 use muxy_protocol::{
     DeviceCredential, ErrorCode, OperationId, ProjectDescriptor, ProjectId, ProjectSession,
     SessionId, Size,
@@ -60,11 +63,81 @@ pub enum ConnectionEvent {
     Disconnected,
 }
 
+/// Which transport `Connection::connect_direct` may use.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TransportMode {
+    /// TLS first, then UDP when the server offers it and answers.
+    Auto,
+    /// TLS only.
+    Tls,
+}
+
+/// A connection made by `Connection::connect_direct`, and why UDP is not carrying it, if so.
+pub(crate) struct Opened {
+    pub(crate) connection: Arc<Connection>,
+    /// Empty when UDP carries the connection.
+    pub(crate) udp_note: String,
+}
+
+/// How long `sessions` waits for the server to push the terminals' titles.
+const TITLE_WAIT: Duration = Duration::from_secs(2);
+
+/// The terminal titles the server pushed, newest per session. The server pushes
+/// them only for sessions this connection references.
+#[derive(Default)]
+struct Titles {
+    state: Mutex<TitleState>,
+    changed: Condvar,
+}
+
+#[derive(Default)]
+struct TitleState {
+    titles: HashMap<SessionId, String>,
+    /// Sessions whose title arrived since `begin`.
+    fresh: HashSet<SessionId>,
+}
+
+impl Titles {
+    fn lock(&self) -> std::sync::MutexGuard<'_, TitleState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn begin(&self) {
+        self.lock().fresh.clear();
+    }
+
+    fn record(&self, session: SessionId, title: String) {
+        let mut state = self.lock();
+        state.titles.insert(session, title);
+        state.fresh.insert(session);
+        drop(state);
+        self.changed.notify_all();
+    }
+
+    /// Waits until every session in `wanted` has a title newer than `begin`, or `timeout`.
+    fn wait(&self, wanted: &[SessionId], timeout: Duration) {
+        let deadline = Instant::now() + timeout;
+        let mut state = self.lock();
+        while !wanted.iter().all(|session| state.fresh.contains(session)) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+}
+
 /// A live connection to one server, paired or reached over SSH.
 #[derive(uniffi::Object)]
 pub struct Connection {
     client: Client,
     terminals: Arc<Terminals>,
+    titles: Arc<Titles>,
     /// Frames are held only for channels newer than every attached one, which
     /// is true only while attaches run one at a time.
     attaching: Mutex<()>,
@@ -93,26 +166,7 @@ impl Connection {
         credential: ServerCredential,
         listener: Arc<dyn ConnectionListener>,
     ) -> Result<Arc<Self>, MobileError> {
-        let endpoint = RemoteEndpoint {
-            hosts: credential.hosts,
-            port: credential.port,
-            fingerprint: credential
-                .fingerprint
-                .as_slice()
-                .try_into()
-                .map_err(|_| MobileError::InvalidCredential)?,
-        };
-        let device = DeviceCredential {
-            device: credential
-                .device_id
-                .parse()
-                .map_err(|_| MobileError::InvalidCredential)?,
-            token: credential
-                .token
-                .as_slice()
-                .try_into()
-                .map_err(|_| MobileError::InvalidCredential)?,
-        };
+        let (endpoint, device) = remote(credential)?;
         Self::start(Client::connect_remote(&endpoint, device)?, listener)
     }
 
@@ -216,6 +270,7 @@ impl Connection {
         )?;
         let channel = attachment.channel;
         let (view, acknowledge) = self.terminals.install(session, attachment);
+        self.track();
         if let Some(seq) = acknowledge {
             self.client.ack(channel, seq)?;
         }
@@ -258,6 +313,70 @@ impl Connection {
         &self.client
     }
 
+    /// Which transport carries the connection: `udp`, or `tls` for anything else.
+    pub(crate) fn transport_name(&self) -> &'static str {
+        match self.client.transport() {
+            Transport::Udp => "udp",
+            Transport::Stream | Transport::UdpFailed(_) => "tls",
+        }
+    }
+
+    /// Connects over TLS and, with `TransportMode::Auto`, moves to UDP when the
+    /// server offers it and answers. Any UDP failure keeps the TLS connection.
+    pub(crate) fn connect_direct(
+        credential: ServerCredential,
+        mode: TransportMode,
+        listener: Arc<dyn ConnectionListener>,
+    ) -> Result<Opened, MobileError> {
+        let (endpoint, device) = remote(credential)?;
+        let (tls, host) = Client::connect_remote_at(&endpoint, device)?;
+        let (client, udp_note) = match mode {
+            TransportMode::Tls => (tls, "turned off".to_owned()),
+            TransportMode::Auto => upgrade(tls, &host, device),
+        };
+        Ok(Opened {
+            connection: Self::start(client, listener)?,
+            udp_note,
+        })
+    }
+
+    /// The title of each session that is live now, as the server's terminal sets
+    /// it; an empty string when it set none. Asks the server to push the titles of
+    /// sessions this connection has not attached, which takes a round trip or two.
+    pub(crate) fn session_titles(&self, live: &[SessionId]) -> HashMap<SessionId, String> {
+        let mut titles = self.terminals.titles();
+        let attached = self.terminals.sessions();
+        let wanted: Vec<SessionId> = live
+            .iter()
+            .copied()
+            .filter(|session| !attached.contains(session))
+            .collect();
+        if !wanted.is_empty() {
+            self.titles.begin();
+            self.terminals.referenced();
+            let mut references = attached;
+            references.extend(&wanted);
+            if self.client.sync_session_references(references).is_ok() {
+                self.titles.wait(&wanted, TITLE_WAIT);
+            }
+            self.track();
+            let known = self.titles.lock();
+            for session in wanted {
+                if let Some(title) = known.titles.get(&session) {
+                    titles.insert(session, title.clone());
+                }
+            }
+        }
+        titles
+    }
+
+    /// Keeps the server's idea of which sessions this connection uses equal to
+    /// the attached ones, once titles asked for more. Without it a session
+    /// listed earlier would count as released and not as used when attached.
+    pub(crate) fn track(&self) {
+        self.terminals.track(&self.client);
+    }
+
     fn start(
         client: Client,
         listener: Arc<dyn ConnectionListener>,
@@ -266,18 +385,72 @@ impl Connection {
         // Keeps `Client::rtt` fresh for the local echo and the app's latency readout.
         let _ = client.start_rtt_probe();
         let terminals = Arc::<Terminals>::default();
-        let pump = (client.clone(), Arc::clone(&terminals));
+        let titles = Arc::<Titles>::default();
+        let pump = (client.clone(), Arc::clone(&terminals), Arc::clone(&titles));
         thread::Builder::new()
             .name("atur-mobile-events".into())
-            .spawn(move || deliver(&pump.0, &events, &pump.1, listener.as_ref()))
+            .spawn(move || deliver(&pump.0, &events, &pump.1, &pump.2, listener.as_ref()))
             .map_err(|error| MobileError::Unreachable {
                 reason: error.to_string(),
             })?;
         Ok(Arc::new(Self {
             client,
             terminals,
+            titles,
             attaching: Mutex::new(()),
         }))
+    }
+}
+
+fn remote(credential: ServerCredential) -> Result<(RemoteEndpoint, DeviceCredential), MobileError> {
+    let endpoint = RemoteEndpoint {
+        hosts: credential.hosts,
+        port: credential.port,
+        fingerprint: credential
+            .fingerprint
+            .as_slice()
+            .try_into()
+            .map_err(|_| MobileError::InvalidCredential)?,
+    };
+    let device = DeviceCredential {
+        device: credential
+            .device_id
+            .parse()
+            .map_err(|_| MobileError::InvalidCredential)?,
+        token: credential
+            .token
+            .as_slice()
+            .try_into()
+            .map_err(|_| MobileError::InvalidCredential)?,
+    };
+    Ok((endpoint, device))
+}
+
+/// Replaces a TLS connection with a UDP one to the same server, when the server
+/// can offer one and answers it. Otherwise the TLS connection stays, with the
+/// reason UDP was not used.
+fn upgrade(tls: Client, host: &str, device: DeviceCredential) -> (Client, String) {
+    if !tls.supports_udp() {
+        return (tls, "older server".into());
+    }
+    let offer = match tls.request_udp() {
+        Ok(offer) => offer,
+        Err(ClientError::Server(error)) if error.code == ErrorCode::Unsupported => {
+            return (tls, "turned off".into());
+        }
+        Err(error) => return (tls, format!("no offer: {error}")),
+    };
+    let settings = UdpSettings::default();
+    match Client::connect_remote_udp(host, &offer, device, &settings) {
+        Ok(udp) => {
+            tls.disconnect();
+            (udp, String::new())
+        }
+        Err(ClientError::Io(error)) if error.kind() == io::ErrorKind::TimedOut => (
+            tls,
+            format!("no answer in {} s", settings.connect_timeout.as_secs()),
+        ),
+        Err(error) => (tls, error.to_string()),
     }
 }
 
@@ -338,6 +511,7 @@ fn deliver(
     client: &Client,
     events: &Receiver<ClientEvent>,
     terminals: &Terminals,
+    titles: &Titles,
     listener: &dyn ConnectionListener,
 ) {
     for event in events {
@@ -360,6 +534,7 @@ fn deliver(
             }
             ClientEvent::SessionEnded { session, .. } => {
                 terminals.ended(session);
+                terminals.track(client);
                 Some(ConnectionEvent::SessionEnded {
                     session_id: session.get(),
                 })
@@ -383,8 +558,11 @@ fn deliver(
                 listener.on_event(ConnectionEvent::Disconnected);
                 return;
             }
-            ClientEvent::SessionMetadata { .. }
-            | ClientEvent::ClipboardWrite { .. }
+            ClientEvent::SessionMetadata { session, metadata } => {
+                titles.record(session, metadata.title);
+                None
+            }
+            ClientEvent::ClipboardWrite { .. }
             | ClientEvent::Progress { .. }
             | ClientEvent::RemoteAccessChanged { .. } => None,
         };

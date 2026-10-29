@@ -170,6 +170,9 @@ impl Requests {
         let outbox = &self.outbox;
         match body {
             RequestBody::Ping => Ok(Some(ReplyBody::Pong)),
+            RequestBody::OfferUdp => {
+                Ok(Some(ReplyBody::UdpOffer(self.registry.offer_udp(outbox)?)))
+            }
             RequestBody::Exec(request) => {
                 self.commands
                     .start(request, id, Arc::clone(&self.registry), Arc::clone(outbox))?;
@@ -395,6 +398,12 @@ fn ordered_request(
             return Err(ServerError::new(
                 ErrorCode::BadRequest,
                 "the connection is already authenticated",
+            ));
+        }
+        RequestBody::OfferUdp => {
+            return Err(ServerError::new(
+                ErrorCode::BadRequest,
+                "UDP offers are answered by the connection",
             ));
         }
         RequestBody::ReadRemoteAccess => {

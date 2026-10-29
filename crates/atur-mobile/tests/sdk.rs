@@ -6,7 +6,7 @@ use std::process::Command;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use atur_mobile::{
     Connection, ConnectionEvent, ConnectionListener, Direct, DirectListener, GitChangeKind,
@@ -21,7 +21,7 @@ use muxy_protocol::{
     RemoteAccessSettings, ServerPath,
 };
 use muxy_server::connection::{serve, serve_remote};
-use muxy_server::{Registry, ServerEvent, ServerSettings};
+use muxy_server::{Registry, ServerEvent, ServerSettings, UdpOffers};
 use serde_json::{Value, json};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -46,7 +46,17 @@ fn subscribe(subscribers: &Subscribers) -> Receiver<ServerEvent> {
 }
 
 impl Server {
+    /// Serves UDP offers on `ATUR_TERM_UDP_PORTS`, like the executable.
     fn new() -> Self {
+        Self::build(true)
+    }
+
+    /// Answers `OfferUdp` as a server that turned UDP off does.
+    fn without_udp() -> Self {
+        Self::build(false)
+    }
+
+    fn build(udp: bool) -> Self {
         let (sender, events) = mpsc::channel::<ServerEvent>();
         let subscribers = Subscribers::default();
         let sinks = Arc::clone(&subscribers);
@@ -62,35 +72,48 @@ impl Server {
         let owner = Arc::clone(&slot);
         let remote_subscribers = Arc::clone(&subscribers);
         let running = Mutex::new(None::<Arc<TlsListener>>);
-        let registry = Arc::new(
-            Registry::new(
-                ServerSettings {
-                    default_shell: Some(PathBuf::from("/bin/sh")),
-                    ..ServerSettings::default()
-                },
-                sender,
-            )
-            .with_remote_listener(move |listening| {
-                let mut running = running.lock().unwrap_or_else(PoisonError::into_inner);
-                if let Some(previous) = running.take() {
-                    previous.close();
-                }
-                let Some((port, identity)) = listening else {
-                    return ListenerStatus::Disabled;
-                };
-                match TlsListener::bind(SocketAddr::from(([127, 0, 0, 1], port)), &identity) {
-                    Ok(listener) => {
-                        let listener = Arc::new(listener);
-                        *running = Some(Arc::clone(&listener));
-                        let registry = owner.get().cloned().unwrap_or_default();
-                        let subscribers = Arc::clone(&remote_subscribers);
-                        thread::spawn(move || accept(&listener, &registry, &subscribers));
-                        ListenerStatus::Listening
-                    }
-                    Err(error) => ListenerStatus::Failed(error.to_string()),
-                }
-            }),
+        let udp_subscribers = Arc::clone(&subscribers);
+        let mut registry = Registry::new(
+            ServerSettings {
+                default_shell: Some(PathBuf::from("/bin/sh")),
+                ..ServerSettings::default()
+            },
+            sender,
         );
+        let offers = udp
+            .then(|| {
+                UdpOffers::from_environment(move |stream, registry, admission| {
+                    let events = subscribe(&udp_subscribers);
+                    thread::spawn(move || {
+                        let _ = serve_remote(stream, registry, events, admission);
+                    });
+                    Ok(())
+                })
+            })
+            .flatten();
+        if let Some(offers) = offers {
+            registry = registry.with_udp_offers(offers);
+        }
+        let registry = Arc::new(registry.with_remote_listener(move |listening| {
+            let mut running = running.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(previous) = running.take() {
+                previous.close();
+            }
+            let Some((port, identity)) = listening else {
+                return ListenerStatus::Disabled;
+            };
+            match TlsListener::bind(SocketAddr::from(([127, 0, 0, 1], port)), &identity) {
+                Ok(listener) => {
+                    let listener = Arc::new(listener);
+                    *running = Some(Arc::clone(&listener));
+                    let registry = owner.get().cloned().unwrap_or_default();
+                    let subscribers = Arc::clone(&remote_subscribers);
+                    thread::spawn(move || accept(&listener, &registry, &subscribers));
+                    ListenerStatus::Listening
+                }
+                Err(error) => ListenerStatus::Failed(error.to_string()),
+            }
+        }));
         let _ = slot.set(Arc::downgrade(&registry));
         Self {
             registry,
@@ -239,6 +262,21 @@ fn listen(local: &Client) -> TestResult<u16> {
         }
     }
     Err(format!("mobile access never listened: {status:?}").into())
+}
+
+/// Turns on mobile access at `port`, which a network shaper was told about.
+fn listen_at(local: &Client, port: u16) -> TestResult {
+    let status = local
+        .write_remote_access(RemoteAccessSettings {
+            enabled: true,
+            port,
+        })?
+        .status;
+    if status == ListenerStatus::Listening {
+        Ok(())
+    } else {
+        Err(format!("mobile access never listened on {port}: {status:?}").into())
+    }
 }
 
 fn paired() -> TestResult<(Server, Client, ServerCredential)> {
@@ -714,21 +752,39 @@ impl DirectListener for Collector {
 
 /// A paired phone's credential as the module stores it, and a connected facade.
 fn direct_phone() -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>)> {
-    let server = Server::new();
+    let (server, local, direct, events, _) = connect_phone(Server::new(), None, None)?;
+    Ok((server, local, direct, events))
+}
+
+/// Pairs a phone with `server` (over `port` when given) and connects its facade, asking for
+/// `transport` when given. Also returns the connect answer.
+fn connect_phone(
+    server: Server,
+    transport: Option<&str>,
+    port: Option<u16>,
+) -> TestResult<(Server, Client, Arc<Direct>, Receiver<Value>, Value)> {
     let local = server.local()?;
-    listen(&local)?;
+    match port {
+        Some(port) => listen_at(&local, port)?,
+        None => {
+            listen(&local)?;
+        }
+    }
     let mut offer = local.start_pairing()?;
     offer.invite.hosts = vec!["127.0.0.1".into()];
     let link = offer.invite.to_link();
     let target = ok(&direct_parse_link(link.clone()))?;
     assert_eq!(target["hosts"][0], "127.0.0.1");
-    let credential = ok(&direct_pair(link, "Test phone".into()))?;
+    let mut credential = ok(&direct_pair(link, "Test phone".into()))?;
     assert_eq!(credential["fingerprint"].as_str().map(str::len), Some(64));
+    if let Some(transport) = transport {
+        credential["transport"] = json!(transport);
+    }
     let (sender, events) = mpsc::channel();
     let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
     let info = ok(&direct.connect(credential.to_string()))?;
     assert!(info["serverId"].as_str().is_some_and(|id| !id.is_empty()));
-    Ok((server, local, direct, events))
+    Ok((server, local, direct, events, info))
 }
 
 fn ok(answer: &str) -> TestResult<Value> {
@@ -902,6 +958,136 @@ fn the_facade_pairs_attaches_types_and_streams_rows() -> TestResult {
 }
 
 #[test]
+fn the_facade_moves_to_udp_and_works_the_same() -> TestResult {
+    let (_server, _local, direct, events, info) = connect_phone(Server::new(), None, None)?;
+    assert_eq!(info["transport"], "udp", "{info}");
+    assert_eq!(info["udpNote"], "");
+    let session = home_session(&direct, 40, 6)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    let mut rows = Rows::default();
+    wait_json(&events, |event| event["t"] == "hello")?;
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "printf '\\nudp-%d\\n' $((40+2))\r" }),
+    )?;
+    wait_json(&events, |event| {
+        rows.apply(event);
+        rows.has("udp-42")
+    })
+    .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+    let stats = call(&direct, "echoStats", &json!({ "session": session }))?;
+    assert_eq!(stats["transport"], "udp");
+    assert_eq!(stats["mode"], "auto");
+    assert!(call(&direct, "ping", &Value::Null)?.is_f64());
+    let history = call(
+        &direct,
+        "history",
+        &json!({ "session": session, "lines": 100 }),
+    )?;
+    assert_eq!(history["visible"], 6);
+    call(&direct, "detach", &json!({ "session": session }))?;
+    call(&direct, "endSession", &json!({ "session": session }))?;
+    direct.disconnect();
+    wait_json(&events, |event| event["t"] == "disconnected")?;
+    Ok(())
+}
+
+#[test]
+fn the_facade_stays_on_tls_when_asked_or_when_udp_is_off() -> TestResult {
+    let (_server, _local, direct, _events, info) = connect_phone(Server::new(), Some("tls"), None)?;
+    assert_eq!(info["transport"], "tls", "{info}");
+    assert!(
+        info["udpNote"]
+            .as_str()
+            .is_some_and(|note| !note.is_empty()),
+        "{info}"
+    );
+    let session = home_session(&direct, 40, 6)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    let stats = call(&direct, "echoStats", &json!({ "session": session }))?;
+    assert_eq!(stats["transport"], "tls");
+    direct.disconnect();
+
+    let (_server, _local, direct, _events, info) =
+        connect_phone(Server::without_udp(), None, None)?;
+    assert_eq!(info["transport"], "tls", "{info}");
+    assert!(
+        info["udpNote"]
+            .as_str()
+            .is_some_and(|note| !note.is_empty()),
+        "{info}"
+    );
+    direct.disconnect();
+    Ok(())
+}
+
+#[test]
+fn sessions_carry_the_terminals_title_and_attaching_still_counts() -> TestResult {
+    let (_server, _local, direct, events, _) = connect_phone(Server::new(), Some("tls"), None)?;
+    let session = home_session(&direct, 40, 6)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "printf '\\033]0;phone-title\\007'\r" }),
+    )?;
+    wait_json(&events, |event| {
+        event["t"] == "title" && event["title"] == "phone-title"
+    })?;
+    let entry = |listed: &Value| -> Option<Value> {
+        listed
+            .as_array()?
+            .iter()
+            .find(|entry| entry["id"] == session.as_str())
+            .cloned()
+    };
+    let attached = entry(&call(&direct, "sessions", &Value::Null)?).ok_or("session not listed")?;
+    assert_eq!(attached["title"], "phone-title");
+    assert_eq!(attached["attached"], true);
+
+    // Detached, the title arrives as a pushed session event instead of from the terminal.
+    call(&direct, "detach", &json!({ "session": session }))?;
+    let detached = entry(&call(&direct, "sessions", &Value::Null)?).ok_or("session not listed")?;
+    assert_eq!(detached["title"], "phone-title");
+    assert_eq!(detached["attached"], false);
+
+    // Listing asked the server about this session and let go again; attaching must still count.
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let again = entry(&call(&direct, "sessions", &Value::Null)?).ok_or("session not listed")?;
+        if again["attached"] == true {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the attached session never counted: {again}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+    call(&direct, "endSession", &json!({ "session": session }))?;
+    direct.disconnect();
+    Ok(())
+}
+
+#[test]
 fn the_facade_reports_errors_as_codes() -> TestResult {
     let (sender, _events) = mpsc::channel();
     let direct = Direct::new(Arc::new(Collector(Mutex::new(sender))));
@@ -1011,6 +1197,174 @@ fn bench_facade_attach_and_echo() -> TestResult {
     }
     let ping = call(&direct, "ping", &Value::Null)?;
     eprintln!("bench ping_ms={:.2}", ping.as_f64().unwrap_or_default());
+    direct.disconnect();
+    Ok(())
+}
+
+/// Runs `ATUR_BENCH_NETEM <step>` when the variable names the shaping script
+/// (`scripts/lossy-netem.sh`); returns whether it ran.
+fn netem(step: &str) -> TestResult<bool> {
+    let Some(script) = std::env::var_os("ATUR_BENCH_NETEM") else {
+        return Ok(false);
+    };
+    let status = Command::new(script).arg(step).status()?;
+    if status.success() {
+        Ok(true)
+    } else {
+        Err(format!("the shaping script failed at `{step}`: {status}").into())
+    }
+}
+
+fn now_nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos())
+}
+
+/// Waits for an event like `wait_json`, for as long as a badly shaped link needs.
+fn wait_json_within(
+    events: &Receiver<Value>,
+    limit: Duration,
+    mut done: impl FnMut(&Value) -> bool,
+) -> TestResult<Value> {
+    let deadline = Instant::now() + limit;
+    loop {
+        let event = events.recv_timeout(deadline.saturating_duration_since(Instant::now()))?;
+        if done(&event) {
+            return Ok(event);
+        }
+    }
+}
+
+/// The newest `tick-<nanoseconds>` the rows show.
+fn newest_tick(rows: &Rows) -> Option<u128> {
+    rows.0
+        .iter()
+        .filter_map(|row| row.trim().strip_prefix("tick-")?.trim().parse().ok())
+        .max()
+}
+
+/// Echo latency and recovery from a 10 s outage through the facade, over the transport named by
+/// `ATUR_BENCH_TRANSPORT` (`tls`, or `udp`, the default). Nothing here shapes the network: with
+/// `ATUR_BENCH_NETEM` naming `scripts/lossy-netem.sh` it asks that script to (after connecting,
+/// so pairing is not shaped), and `ATUR_BENCH_TLS_PORT` fixes the TLS port the script filters on.
+/// `cargo test -p atur-mobile --test sdk bench_facade_lossy -- --ignored --nocapture`.
+#[test]
+#[ignore = "prints measurements; the lossy workflow job shapes the network"]
+#[allow(
+    clippy::too_many_lines,
+    clippy::print_stderr,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn bench_facade_lossy() -> TestResult {
+    const KEYS: usize = 30;
+    const LIMIT: Duration = Duration::from_secs(120);
+    let transport = std::env::var("ATUR_BENCH_TRANSPORT").unwrap_or_else(|_| "udp".into());
+    let port = std::env::var("ATUR_BENCH_TLS_PORT")
+        .ok()
+        .map(|port| port.parse::<u16>())
+        .transpose()?;
+    let asked = if transport == "tls" { "tls" } else { "auto" };
+    let (_server, _local, direct, events, info) = connect_phone(Server::new(), Some(asked), port)?;
+    if info["transport"] != transport.as_str() {
+        return Err(format!("wanted {transport}, got {info}").into());
+    }
+    eprintln!(
+        "lossy {transport} connected transport={} note={:?}",
+        info["transport"], info["udpNote"]
+    );
+    let session = home_session(&direct, 100, 10)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 100, "rows": 10 }),
+    )?;
+    let mut rows = Rows::default();
+    wait_json(&events, |event| {
+        rows.apply(event);
+        event["t"] == "snapshot"
+    })?;
+    call(&direct, "echoMode", &json!({ "mode": "never" }))?;
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "cat >/dev/null\r" }),
+    )?;
+    thread::sleep(Duration::from_millis(1200));
+    let shaped = netem("on")?;
+
+    let mut samples = Vec::new();
+    let mut typed = String::new();
+    for _ in 0..KEYS {
+        typed.push('q');
+        let sent = Instant::now();
+        fire(
+            &direct,
+            "input",
+            &json!({ "session": session, "data": "q" }),
+        )?;
+        wait_json_within(&events, LIMIT, |event| {
+            rows.apply(event);
+            rows.has(&typed)
+        })
+        .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+        samples.push(sent.elapsed().as_secs_f64() * 1000.0);
+        thread::sleep(Duration::from_millis(250));
+    }
+    samples.sort_by(f64::total_cmp);
+    let at = |fraction: f64| samples[((samples.len() as f64 * fraction) as usize).min(KEYS - 1)];
+    eprintln!(
+        "lossy {transport} echo n={KEYS} p50_ms={:.0} p90_ms={:.0} max_ms={:.0}",
+        at(0.5),
+        at(0.9),
+        samples[KEYS - 1]
+    );
+
+    // A program that prints the time ten times a second shows when the screen is live again.
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "\u{4}" }),
+    )?;
+    fire(
+        &direct,
+        "input",
+        &json!({
+            "session": session,
+            "data": "while :; do echo tick-$(date +%s%N); sleep 0.1; done\r"
+        }),
+    )?;
+    wait_json_within(&events, LIMIT, |event| {
+        rows.apply(event);
+        newest_tick(&rows).is_some()
+    })?;
+    if netem("outage-on")? {
+        thread::sleep(Duration::from_secs(10));
+        let back = now_nanos();
+        let restored = Instant::now();
+        netem("outage-off")?;
+        wait_json_within(&events, LIMIT, |event| {
+            rows.apply(event);
+            newest_tick(&rows).is_some_and(|tick| tick >= back)
+        })
+        .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+        eprintln!(
+            "lossy {transport} recovery_ms={:.0}",
+            restored.elapsed().as_secs_f64() * 1000.0
+        );
+    } else {
+        eprintln!("lossy {transport} recovery_ms=skipped (no ATUR_BENCH_NETEM)");
+    }
+    if shaped {
+        netem("off")?;
+    }
+    fire(
+        &direct,
+        "input",
+        &json!({ "session": session, "data": "\u{3}" }),
+    )?;
     direct.disconnect();
     Ok(())
 }
