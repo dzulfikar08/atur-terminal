@@ -12,7 +12,7 @@ mod options;
 pub use bindings::{TerminalAction, TerminalBindings};
 pub use fonts::{FontMap, FontOptions};
 pub use native::TerminalEdit;
-pub use options::{PaddingColor, TerminalColor, TerminalOptions};
+pub use options::{LocalEcho, PaddingColor, TerminalColor, TerminalOptions};
 
 #[cfg(not(target_os = "macos"))]
 const DEFAULT_CONFIG: &str = "font-family = monospace\nfont-size = 13\nadjust-cell-height = 0\n";

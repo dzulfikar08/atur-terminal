@@ -4,6 +4,7 @@ mod keys;
 mod menu;
 mod mouse;
 
+use std::fmt::Write as _;
 use std::io;
 use std::path::Path;
 use std::sync::atomic::Ordering;
@@ -89,15 +90,16 @@ fn write_echo_stats(worker: &Worker) {
     let mut lines = String::new();
     for view in shared.views.values() {
         let stats = view.predict.stats();
-        lines.push_str(&format!(
-            "{{\"mode\":\"{}\",\"keys\":{},\"visible_confirmed\":{},\"hidden_confirmed\":{},\"visible_wrong\":{},\"hidden_wrong\":{}}}\n",
+        let _ = writeln!(
+            lines,
+            "{{\"mode\":\"{}\",\"keys\":{},\"visible_confirmed\":{},\"hidden_confirmed\":{},\"visible_wrong\":{},\"hidden_wrong\":{}}}",
             view.predict.mode().as_str(),
             stats.keys,
             stats.visible_confirmed,
             stats.hidden_confirmed,
             stats.visible_wrong,
             stats.hidden_wrong,
-        ));
+        );
     }
     let _ = std::fs::write(path, lines);
 }

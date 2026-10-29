@@ -740,6 +740,15 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Input"),
     },
     Setting {
+        id: "local-echo",
+        label: tr_key!("Show typing before the server echoes it"),
+        description: tr_key!(
+            "Predict typed text so it appears at once over slow connections. Auto turns it on when the connection is slow."
+        ),
+        category: Category::Terminal,
+        section: tr_key!("Input"),
+    },
+    Setting {
         id: "macos-option-as-alt",
         label: tr_key!("Option as Alt"),
         description: tr_key!(

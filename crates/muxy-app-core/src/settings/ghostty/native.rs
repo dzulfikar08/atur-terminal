@@ -269,6 +269,7 @@ impl TerminalSettings {
             | "window-padding-x"
             | "window-padding-y"
             | "window-padding-color"
+            | "local-echo"
             | "background"
             | "foreground"
             | "cursor-color"

@@ -1,13 +1,13 @@
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gpui::{
     Bounds, Context, EventEmitter, FocusHandle, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Render, Styled, Task, Window, div, prelude::FluentBuilder, px,
 };
 use muxy_app_core::ServerId;
-use muxy_client::{Attachment, RunGrid};
+use muxy_client::{Attachment, PredictMode, Predictor, RunGrid};
 use muxy_protocol::{
     ChannelId, ExitReason, ForegroundProcess, HistoryPage, InputModes, MetadataEvent, MouseAction,
     MouseEvent, SavedScreen, ScreenFrame, ScrollDirection, ServerPath, Size,
@@ -124,11 +124,23 @@ pub(crate) struct TerminalPane {
     directory: ServerPath,
     pub(crate) bell_flashing: bool,
     bell_expiry: Option<Task<()>>,
+    /// Guessed typing, shown before the server echoes it.
+    pub(crate) predict: Predictor,
+    echo_timer: Option<Task<()>>,
     _keybindings: gpui::Subscription,
     pub(crate) configured_font_size: f32,
 }
 
 impl EventEmitter<PaneEvent> for TerminalPane {}
+
+fn echo_mode(terminal: &muxy_app_core::settings::TerminalSettings) -> PredictMode {
+    use muxy_app_core::settings::LocalEcho;
+    match terminal.options.local_echo {
+        LocalEcho::Auto => PredictMode::Auto,
+        LocalEcho::Always => PredictMode::Always,
+        LocalEcho::Never => PredictMode::Never,
+    }
+}
 
 impl TerminalPane {
     pub(super) fn background_alpha(&self) -> f32 {
@@ -220,6 +232,8 @@ impl TerminalPane {
             directory: ServerPath(Vec::new()),
             bell_flashing: false,
             bell_expiry: None,
+            predict: Predictor::new(echo_mode(&terminal)),
+            echo_timer: None,
         }
     }
 
@@ -329,6 +343,30 @@ impl TerminalPane {
             && !scrolls_on_output()
     }
 
+    /// Settles guesses that were never echoed and arranges the next redraw or check the
+    /// guesses need (underlining the ones still waiting), whether or not a frame comes.
+    fn tick_echo(&mut self, cx: &mut Context<Self>) {
+        let mode = echo_mode(&self.terminal);
+        if self.predict.mode() != mode {
+            self.predict.set_mode(mode);
+        }
+        let now = Instant::now();
+        if let Some(grid) = &self.grid {
+            self.predict.tick(grid, now);
+        }
+        self.echo_timer = self.predict.next_deadline(now).map(|at| {
+            cx.spawn(async move |pane, cx| {
+                cx.background_executor()
+                    .timer(at.saturating_duration_since(now).max(Duration::from_millis(1)))
+                    .await;
+                let _ = pane.update(cx, |pane, cx| {
+                    pane.tick_echo(cx);
+                    cx.notify();
+                });
+            })
+        });
+    }
+
     pub(crate) fn apply(&mut self, frame: &ScreenFrame, cx: &mut Context<Self>) {
         let _span = crate::profiler::span(crate::profiler::Metric::FrameApply);
         crate::profiler::count(crate::profiler::Metric::FrameRows, frame.rows.len());
@@ -342,6 +380,7 @@ impl TerminalPane {
             }
             let output_changed = !frame.rows.is_empty() || grid.cursor != frame.cursor;
             grid.apply(frame);
+            self.predict.frame(grid, frame.reset, Instant::now());
             if output_changed && self.terminal.options.scroll_on_output {
                 self.scroll.bottom();
             }
@@ -353,6 +392,7 @@ impl TerminalPane {
                 }
             }
             self.validate_selection();
+            self.tick_echo(cx);
             cx.notify();
         }
     }
@@ -647,6 +687,7 @@ impl TerminalPane {
                     }
                     self.wheel_remainder = 0.0;
                     self.input_modes = modes;
+                    self.predict.set_alternate_screen(modes.alternate_scroll);
                     if !first && !was_reporting && self.reports_wheel() {
                         self.clear_selection();
                         self.scroll.bottom();
@@ -723,6 +764,7 @@ impl TerminalPane {
             && let Some(grid) = &mut self.grid
         {
             grid.resize(size);
+            self.predict.reset();
         }
         self.validate_selection();
         cx.emit(PaneEvent::Viewport(size));
@@ -776,6 +818,7 @@ impl TerminalPane {
         self.link_hover = super::links::Hover::default();
         self.input_modes = InputModes::default();
         self.input_modes_reported = false;
+        self.predict.reset();
         self.held_buttons.clear();
         self.last_mouse = None;
         self.wheel_remainder = 0.0;
@@ -1418,6 +1461,10 @@ impl TerminalPane {
         if !bytes.is_empty()
             && let Some(channel) = self.prepare_input(cx)
         {
+            if let Some(grid) = &self.grid {
+                self.predict.keys(bytes, grid, Instant::now());
+            }
+            self.tick_echo(cx);
             for chunk in bytes.chunks(muxy_protocol::MAX_INPUT) {
                 cx.emit(PaneEvent::Input(channel, chunk.to_vec()));
             }
@@ -1428,6 +1475,7 @@ impl TerminalPane {
         if !bytes.is_empty()
             && let Some(channel) = self.prepare_input(cx)
         {
+            self.predict.interrupt(Instant::now());
             // Each bounded chunk is a complete paste, so disconnects cannot leave an open fence.
             for chunk in input::paste_chunks(bytes) {
                 cx.emit(PaneEvent::TerminalInput(
@@ -1441,6 +1489,10 @@ impl TerminalPane {
     fn send_key(&mut self, event: muxy_protocol::KeyEvent, cx: &mut Context<Self>) {
         if let Some(channel) = self.prepare_input(cx) {
             self.keyboard.press(&event);
+            if let Some(grid) = &self.grid {
+                self.predict.key_event(&event, grid, Instant::now());
+            }
+            self.tick_echo(cx);
             cx.emit(PaneEvent::TerminalInput(
                 channel,
                 muxy_protocol::TerminalInput::Key(event),

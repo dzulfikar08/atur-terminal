@@ -166,6 +166,7 @@ struct Blocked {
     settled: Option<Instant>,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug)]
 pub struct Predictor {
     mode: PredictMode,
@@ -263,9 +264,7 @@ impl Predictor {
     /// The server echoed a key `latency` after it was sent: the link and the program together.
     /// Needs no ping, so clients without a round trip estimate still adapt.
     fn observe(&mut self, latency: Duration) {
-        let echo = self
-            .echo
-            .map_or(latency, |echo| (echo * 3 + latency) / 4);
+        let echo = self.echo.map_or(latency, |echo| (echo * 3 + latency) / 4);
         self.echo = Some(echo);
         if echo > RTT_ON {
             self.echo_high = true;
@@ -348,7 +347,13 @@ impl Predictor {
 
     /// The runs of row `row` (`runs`, `cols` wide) with the guesses drawn in, for renderers that
     /// draw whole rows; `None` when nothing is guessed on that row.
-    pub fn overlay_runs(&self, row: u16, runs: &[Run], cols: u16, now: Instant) -> Option<Vec<Run>> {
+    pub fn overlay_runs(
+        &self,
+        row: u16,
+        runs: &[Run],
+        cols: u16,
+        now: Instant,
+    ) -> Option<Vec<Run>> {
         let cells = self.cells(now);
         if !cells.iter().any(|cell| cell.row == row) {
             return None;
@@ -421,9 +426,21 @@ impl Predictor {
             consider(frame + QUIET);
         }
         if let Some(blocked) = self.blocked {
-            consider(blocked.settled.map_or(blocked.since + UNBLOCK_AFTER, |at| at + settle));
+            consider(
+                blocked
+                    .settled
+                    .map_or(blocked.since + UNBLOCK_AFTER, |at| at + settle),
+            );
         }
         next
+    }
+
+    /// Input the guesses cannot follow (a paste, a mouse click): nothing is guessed again until
+    /// the server has caught up with it.
+    pub fn interrupt(&mut self, now: Instant) {
+        if self.mode != PredictMode::Never {
+            self.control(now);
+        }
     }
 
     /// Records that the server has answered a request sent right after the input stamped
@@ -484,10 +501,11 @@ impl Predictor {
     fn unblock(&mut self, now: Instant) -> bool {
         let settle = self.settle();
         let ready = self.blocked.is_some_and(|blocked| {
-            blocked.settled.map_or(
-                now >= blocked.since + UNBLOCK_AFTER,
-                |settled| now >= settled + settle,
-            )
+            blocked
+                .settled
+                .map_or(now >= blocked.since + UNBLOCK_AFTER, |settled| {
+                    now >= settled + settle
+                })
         });
         if ready && self.cells.is_empty() {
             self.blocked = None;
@@ -502,7 +520,10 @@ impl Predictor {
             return;
         }
         let keys = parse(bytes);
-        let typed = keys.iter().filter(|key| matches!(key, Key::Char(_))).count();
+        let typed = keys
+            .iter()
+            .filter(|key| matches!(key, Key::Char(_)))
+            .count();
         if typed > MAX_TYPED {
             self.control(now);
             return;
@@ -517,7 +538,6 @@ impl Predictor {
                 Key::Right => self.right(grid, &mut rows, now),
                 Key::Other => false,
             };
-            dbg_log(&format!("key predicted={predicted} cursor={:?} cells={} epoch={}/{} blocked={}", self.cursor.as_ref().map(|c| c.at), self.cells.len(), self.epoch, self.confirmed_epoch, self.blocked.is_some()));
             if predicted {
                 self.stats.keys += 1;
                 if self.log.is_empty() {
@@ -601,7 +621,6 @@ impl Predictor {
         }
         self.last_frame = Some(now);
         self.unblock(now);
-        dbg_log(&format!("frame cursor={:?} pending cells={} guess={:?}", (grid.cursor.row, grid.cursor.col), self.cells.len(), self.cursor.as_ref().map(|c| c.at)));
         if self.pending() {
             self.evaluate(grid, now, false);
         }
@@ -620,7 +639,9 @@ impl Predictor {
         let cursor = grid.cursor;
         self.cells.retain(|&(row, col), cell| {
             let glyphs = rows.entry(row).or_insert_with(|| expand(grid, row));
-            let text = glyphs.get(usize::from(col)).map_or(" ", |glyph| glyph.text.as_str());
+            let text = glyphs
+                .get(usize::from(col))
+                .map_or(" ", |glyph| glyph.text.as_str());
             if text == cell.text {
                 if !cell.ambiguous() {
                     credit = credit.max(Some(cell.epoch));
@@ -640,9 +661,6 @@ impl Predictor {
                 // suggestion text may still be settling, unless it has written past this cell.
                 unexplained = true;
                 let passed = cursor.visible && cursor.row == row && cursor.col > col;
-                if passed {
-                    dbg_log(&format!("cell wrong at ({row},{col}) predicted {:?} seen {:?} got {:?} cursor {:?}", cell.text, cell.seen, text, (cursor.row, cursor.col)));
-                }
                 wrong |= passed;
             }
             true
@@ -665,7 +683,6 @@ impl Predictor {
                 }
             } else {
                 let bad = !guess.seen.contains(&at);
-                if bad { dbg_log(&format!("cursor wrong: at {:?} guess {:?} seen {:?} cells {}", at, guess.at, guess.seen, self.cells.len())); }
                 wrong |= bad;
             }
         }
@@ -712,7 +729,11 @@ impl Predictor {
         let all = u64::try_from(self.cells.len()).unwrap_or(u64::MAX);
         let cursor_only = u64::from(self.cells.is_empty() && self.cursor.is_some());
         let cursor_seen = cursor_only
-            * u64::from(self.cursor.as_ref().is_some_and(|guess| guess.epoch <= trusted));
+            * u64::from(
+                self.cursor
+                    .as_ref()
+                    .is_some_and(|guess| guess.epoch <= trusted),
+            );
         self.stats.visible_wrong += seen + cursor_seen;
         self.stats.hidden_wrong += all - seen + cursor_only - cursor_seen;
         self.abandon();
@@ -748,7 +769,10 @@ impl Predictor {
         if at.0 >= grid.size.rows || at.1 >= grid.size.cols {
             return None;
         }
-        if !self.line_start.is_some_and(|start| start.0 == at.0 && start.1 <= at.1) {
+        if !self
+            .line_start
+            .is_some_and(|start| start.0 == at.0 && start.1 <= at.1)
+        {
             self.line_start = Some(at);
         }
         self.cursor = Some(CursorGuess {
@@ -984,13 +1008,22 @@ fn escape_len(bytes: &[u8]) -> usize {
         None => 1,
         Some(b'[') => {
             let mut index = 2;
-            while bytes.get(index).is_some_and(|byte| (0x30..=0x3f).contains(byte)) {
+            while bytes
+                .get(index)
+                .is_some_and(|byte| (0x30..=0x3f).contains(byte))
+            {
                 index += 1;
             }
-            while bytes.get(index).is_some_and(|byte| (0x20..=0x2f).contains(byte)) {
+            while bytes
+                .get(index)
+                .is_some_and(|byte| (0x20..=0x2f).contains(byte))
+            {
                 index += 1;
             }
-            if bytes.get(index).is_some_and(|byte| (0x40..=0x7e).contains(byte)) {
+            if bytes
+                .get(index)
+                .is_some_and(|byte| (0x40..=0x7e).contains(byte))
+            {
                 index += 1;
             }
             index
@@ -1010,7 +1043,12 @@ fn grid_glyph(grid: &RunGrid, rows: &mut HashMap<u16, Vec<Glyph>>, (row, col): P
 
 /// One glyph per column of `row`; trailing blanks the server trims come back as blanks.
 fn expand(grid: &RunGrid, row: u16) -> Vec<Glyph> {
-    expand_runs(grid.rows.get(usize::from(row)).map_or(&[][..], Vec::as_slice), grid.size.cols)
+    expand_runs(
+        grid.rows
+            .get(usize::from(row))
+            .map_or(&[][..], Vec::as_slice),
+        grid.size.cols,
+    )
 }
 
 fn expand_runs(runs: &[Run], cols: u16) -> Vec<Glyph> {
@@ -1077,12 +1115,3 @@ fn collapse(glyphs: &[Glyph]) -> Vec<Run> {
 
 #[cfg(test)]
 mod tests;
-
-fn dbg_log(line: &str) {
-    use std::io::Write;
-    if let Some(path) = std::env::var_os("ATUR_TERM_ECHO_DEBUG")
-        && let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path)
-    {
-        let _ = writeln!(file, "{line}");
-    }
-}

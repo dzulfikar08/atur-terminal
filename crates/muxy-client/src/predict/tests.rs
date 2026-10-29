@@ -1,6 +1,8 @@
 use std::collections::{BTreeSet, VecDeque};
 
-use muxy_protocol::{Cursor, CursorShape, KeyAction, KeyEvent, KeyModifiers, Modes, Run, Size, Underline};
+use muxy_protocol::{
+    Cursor, CursorShape, KeyAction, KeyEvent, KeyModifiers, Modes, Run, Size, Underline,
+};
 
 use super::*;
 
@@ -93,9 +95,10 @@ impl Session {
 
     /// What the user sees on row 0: the grid with predicted cells drawn over it.
     fn shown(&self) -> String {
-        let mut line: Vec<char> = format!("{:<width$}", self.screen.line(), width = usize::from(COLS))
-            .chars()
-            .collect();
+        let mut line: Vec<char> =
+            format!("{:<width$}", self.screen.line(), width = usize::from(COLS))
+                .chars()
+                .collect();
         for cell in self.predictor.cells(self.now) {
             if cell.row == 0 {
                 line[usize::from(cell.col)] = cell.text.chars().next().unwrap_or('?');
@@ -177,19 +180,31 @@ fn wrong_echo_rolls_back_and_distrusts_the_next_guess() {
     assert_eq!(session.shown(), "$ ax");
     session.wait(100);
     session.serve("$ ay", 4);
-    assert_eq!(session.shown(), "$ ax", "one contradicting frame is not yet held against it");
+    assert_eq!(
+        session.shown(),
+        "$ ax",
+        "one contradicting frame is not yet held against it"
+    );
     session.wait(100);
     assert!(session.predictor.tick(&session.screen.grid, session.now));
     assert_eq!(session.shown(), "$ ay", "once the server is quiet it wins");
     assert!(!session.predictor.pending());
     assert_eq!(session.predictor.stats().visible_wrong, 1);
     session.type_bytes(b"z");
-    assert_eq!(session.shown(), "$ ay", "the new epoch is unproven, so its guess is hidden");
+    assert_eq!(
+        session.shown(),
+        "$ ay",
+        "the new epoch is unproven, so its guess is hidden"
+    );
     session.wait(100);
     session.serve("$ ayz", 5);
     session.resync();
     session.type_bytes(b"w");
-    assert_eq!(session.shown(), "$ ayzw", "z was confirmed in the new epoch, so w shows");
+    assert_eq!(
+        session.shown(),
+        "$ ayzw",
+        "z was confirmed in the new epoch, so w shows"
+    );
     session.wait(100);
     session.serve("$ ayzw", 6);
     session.type_bytes(b"v");
@@ -216,10 +231,15 @@ fn frames_right_after_each_other_are_not_a_place_to_start_guessing() {
     let mut session = Session::new(PredictMode::Always, "$ ");
     session.trust();
     session.wait(100);
-    session.predictor.frame(&session.screen.grid, false, session.now);
+    session
+        .predictor
+        .frame(&session.screen.grid, false, session.now);
     session.wait(5);
     session.type_bytes(b"b");
-    assert!(!session.predictor.pending(), "the cursor may be mid-repaint");
+    assert!(
+        !session.predictor.pending(),
+        "the cursor may be mid-repaint"
+    );
 }
 
 #[test]
@@ -237,8 +257,15 @@ fn after_a_wrong_guess_keys_still_in_flight_are_counted_again() {
     assert!(!session.predictor.pending());
     session.type_bytes(b"r");
     // x was echoed (the cursor moved once from where it was typed); p and q were not.
-    assert_eq!(session.predictor.cells.len(), 3, "p, q and r are guessed again");
-    assert_eq!(session.predictor.cursor.as_ref().map(|guess| guess.at), Some((0, 7)));
+    assert_eq!(
+        session.predictor.cells.len(),
+        3,
+        "p, q and r are guessed again"
+    );
+    assert_eq!(
+        session.predictor.cursor.as_ref().map(|guess| guess.at),
+        Some((0, 7))
+    );
 }
 
 #[test]
@@ -252,7 +279,10 @@ fn keys_the_frame_already_shows_are_not_counted_twice() {
     session.type_bytes(b"r");
     // x and p moved the cursor, so only q and r are guessed.
     assert_eq!(session.predictor.cells.len(), 2);
-    assert_eq!(session.predictor.cursor.as_ref().map(|guess| guess.at), Some((0, 7)));
+    assert_eq!(
+        session.predictor.cursor.as_ref().map(|guess| guess.at),
+        Some((0, 7))
+    );
 }
 
 #[test]
@@ -262,7 +292,11 @@ fn password_prompt_never_shows_typed_text() {
     let sent = session.now;
     session.type_bytes(b"hunter2");
     assert!(session.predictor.pending(), "guessed silently");
-    assert_eq!(session.shown(), "Password:", "nothing echoed, nothing shown");
+    assert_eq!(
+        session.shown(),
+        "Password:",
+        "nothing echoed, nothing shown"
+    );
     assert_eq!(session.cursor(), None);
     session.wait(300);
     session.predictor.barrier(sent, session.now);
@@ -270,10 +304,17 @@ fn password_prompt_never_shows_typed_text() {
     assert!(session.predictor.tick(&session.screen.grid, session.now));
     assert!(!session.predictor.pending());
     let stats = session.predictor.stats();
-    assert_eq!(stats.visible_wrong, 0, "no password character was ever drawn");
+    assert_eq!(
+        stats.visible_wrong, 0,
+        "no password character was ever drawn"
+    );
     assert!(stats.hidden_wrong > 0);
     session.type_bytes(b"x");
-    assert_eq!(session.shown(), "Password:", "and the next try is still hidden");
+    assert_eq!(
+        session.shown(),
+        "Password:",
+        "and the next try is still hidden"
+    );
 }
 
 #[test]
@@ -315,7 +356,10 @@ fn nothing_is_anchored_until_the_server_caught_up_with_enter() {
     session.screen.set(1, "$ ", 2);
     session.screen.grid.cursor.row = 1;
     session.type_bytes(b"k");
-    assert!(session.predictor.pending(), "anchored on the new line after resync");
+    assert!(
+        session.predictor.pending(),
+        "anchored on the new line after resync"
+    );
 }
 
 #[test]
@@ -344,7 +388,11 @@ fn backspace_goes_back_over_typed_spaces_but_not_into_the_prompt() {
     assert_eq!(session.shown(), "$", "a, the space and b are all erased");
     assert_eq!(session.cursor(), Some((0, 2)));
     session.type_bytes(b"\x7f");
-    assert_eq!(session.cursor(), None, "no guess about what the shell does at the prompt");
+    assert_eq!(
+        session.cursor(),
+        None,
+        "no guess about what the shell does at the prompt"
+    );
     assert_eq!(session.shown(), "$", "and the prompt itself is untouched");
 }
 
@@ -369,7 +417,11 @@ fn backspace_inside_the_text_is_not_guessed() {
     session.type_bytes(b"\x1b[D\x1b[D");
     assert_eq!(session.cursor(), Some((0, 3)));
     session.type_bytes(b"\x7f");
-    assert_eq!(session.shown(), "$ abc", "the program would move the rest left; not guessed");
+    assert_eq!(
+        session.shown(),
+        "$ abc",
+        "the program would move the rest left; not guessed"
+    );
     assert_eq!(session.cursor(), None);
 }
 
@@ -382,7 +434,11 @@ fn typing_inside_text_guesses_only_the_typed_cell() {
     session.serve("$ ab", 4);
     session.type_bytes(b"\x1b[D");
     session.type_bytes(b"x");
-    assert_eq!(session.shown(), "$ ax", "the b under the cursor is covered until the echo");
+    assert_eq!(
+        session.shown(),
+        "$ ax",
+        "the b under the cursor is covered until the echo"
+    );
     // The shell inserted: x, then b moved right.
     session.wait(100);
     session.serve("$ axb", 4);
@@ -465,7 +521,11 @@ fn auto_mode_waits_for_a_slow_link_and_has_hysteresis() {
     session.type_bytes(b"c");
     assert_eq!(session.shown(), "$ abc");
     session.predictor.set_rtt(Some(Duration::from_millis(25)));
-    assert_eq!(session.shown(), "$ abc", "between the thresholds the state is kept");
+    assert_eq!(
+        session.shown(),
+        "$ abc",
+        "between the thresholds the state is kept"
+    );
     session.predictor.set_rtt(Some(Duration::from_millis(5)));
     assert_eq!(session.shown(), "$ ab");
 }
@@ -515,8 +575,17 @@ fn an_outage_keeps_predictions_on_screen_until_the_server_answers() {
     session.type_bytes(b"bc");
     session.wait(10_000);
     assert_eq!(session.shown(), "$ abc");
-    assert!(session.predictor.cells(session.now).iter().all(|cell| cell.underline));
-    assert!(!session.predictor.tick(&session.screen.grid, session.now), "no ping answered, so nothing expires");
+    assert!(
+        session
+            .predictor
+            .cells(session.now)
+            .iter()
+            .all(|cell| cell.underline)
+    );
+    assert!(
+        !session.predictor.tick(&session.screen.grid, session.now),
+        "no ping answered, so nothing expires"
+    );
     session.serve("$ abc", 5);
     assert!(!session.predictor.pending());
 }
@@ -529,7 +598,10 @@ fn a_ping_answer_expires_guesses_nobody_echoed() {
     session.type_bytes(b"b");
     session.wait(500);
     session.predictor.barrier(sent, session.now);
-    assert!(!session.predictor.tick(&session.screen.grid, session.now), "still within the grace");
+    assert!(
+        !session.predictor.tick(&session.screen.grid, session.now),
+        "still within the grace"
+    );
     session.wait(1_200);
     assert!(session.predictor.tick(&session.screen.grid, session.now));
     assert!(!session.predictor.pending());
@@ -558,7 +630,11 @@ fn toggling_the_alternate_screen_drops_guesses_and_trust() {
     session.predictor.set_alternate_screen(true);
     assert!(!session.predictor.pending());
     session.type_bytes(b"j");
-    assert_eq!(session.shown(), "$ a", "vim normal mode: a key is checked before it shows");
+    assert_eq!(
+        session.shown(),
+        "$ a",
+        "vim normal mode: a key is checked before it shows"
+    );
     session.wait(100);
     session.serve("$ a", 3);
     assert_eq!(session.predictor.stats().visible_wrong, 0);
@@ -569,7 +645,9 @@ fn a_reset_frame_drops_everything() {
     let mut session = Session::new(PredictMode::Always, "$ ");
     session.trust();
     session.type_bytes(b"b");
-    session.predictor.frame(&session.screen.grid, true, session.now);
+    session
+        .predictor
+        .frame(&session.screen.grid, true, session.now);
     assert!(!session.predictor.pending());
 }
 
@@ -610,8 +688,16 @@ fn overlay_runs_draw_guesses_into_a_row_and_underline_old_ones() {
         .predictor
         .overlay_runs(0, &runs, COLS, session.now)
         .expect("guesses on row 0");
-    assert!(row.iter().any(|run| run.style.underline == Underline::Single && run.text == "bc"));
-    assert!(session.predictor.overlay_runs(1, &[], COLS, session.now).is_none());
+    assert!(
+        row.iter()
+            .any(|run| run.style.underline == Underline::Single && run.text == "bc")
+    );
+    assert!(
+        session
+            .predictor
+            .overlay_runs(1, &[], COLS, session.now)
+            .is_none()
+    );
     let width: u16 = row.iter().map(|run| run.width).sum();
     assert_eq!(width, COLS);
 }
@@ -630,21 +716,38 @@ fn press(key: &str, text: &str, modifiers: u8) -> KeyEvent {
 fn structured_key_events_predict_like_bytes() {
     let mut session = Session::new(PredictMode::Always, "$ ");
     session.trust();
-    session.predictor.key_event(&press("b", "b", 0), &session.screen.grid, session.now);
-    session.predictor.key_event(&press("c", "c", 1), &session.screen.grid, session.now);
+    session
+        .predictor
+        .key_event(&press("b", "b", 0), &session.screen.grid, session.now);
+    session
+        .predictor
+        .key_event(&press("c", "c", 1), &session.screen.grid, session.now);
     assert_eq!(session.shown(), "$ abc");
-    session.predictor.key_event(&press("backspace", "", 0), &session.screen.grid, session.now);
+    session.predictor.key_event(
+        &press("backspace", "", 0),
+        &session.screen.grid,
+        session.now,
+    );
     assert_eq!(session.shown(), "$ ab");
     let release = KeyEvent {
         action: KeyAction::Release,
         ..press("backspace", "", 0)
     };
-    session.predictor.key_event(&release, &session.screen.grid, session.now);
+    session
+        .predictor
+        .key_event(&release, &session.screen.grid, session.now);
     assert_eq!(session.shown(), "$ ab", "a release is not a key");
-    session.predictor.key_event(&press("c", "c", 4), &session.screen.grid, session.now);
+    session
+        .predictor
+        .key_event(&press("c", "c", 4), &session.screen.grid, session.now);
     assert_eq!(session.cursor(), None, "Ctrl-C is not guessed");
-    session.predictor.key_event(&press("enter", "\r", 0), &session.screen.grid, session.now);
-    assert!(!session.predictor.cells(session.now).is_empty(), "pending guesses stay on screen");
+    session
+        .predictor
+        .key_event(&press("enter", "\r", 0), &session.screen.grid, session.now);
+    assert!(
+        !session.predictor.cells(session.now).is_empty(),
+        "pending guesses stay on screen"
+    );
 }
 
 #[test]
@@ -665,7 +768,10 @@ fn auto_learns_the_link_from_echo_times_without_any_ping() {
         session.serve(&line, cursor);
     }
     session.type_bytes(b"z");
-    assert!(!session.shown().ends_with('z'), "fast echoes switched it off again");
+    assert!(
+        !session.shown().ends_with('z'),
+        "fast echoes switched it off again"
+    );
 }
 
 #[test]
