@@ -13,7 +13,7 @@ def main():
     root = Path(__file__).resolve().parent.parent
     binary = root / "target/debug/atur-term"
     server = binary.with_name("atur-term-server")
-    with tempfile.TemporaryDirectory(prefix="atur-terminal-tui-desktop-", dir="/tmp") as temporary:
+    with tempfile.TemporaryDirectory(prefix="muxy-tui-desktop-", dir="/tmp") as temporary:
         profile = Path(temporary)
         home = profile / "home"
         home.mkdir()
