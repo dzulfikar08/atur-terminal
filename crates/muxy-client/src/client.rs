@@ -471,7 +471,11 @@ impl Client {
                         .last_rtt_sample()
                         .is_none_or(|sampled| sampled.elapsed() >= RTT_PROBE_INTERVAL);
                     if stale {
-                        let client = Self { shared, timeout };
+                        let client = Self {
+                            shared,
+                            timeout,
+                            transport: Transport::Stream,
+                        };
                         client.ping_async().on_complete(|_| ());
                     } else {
                         drop(shared);
