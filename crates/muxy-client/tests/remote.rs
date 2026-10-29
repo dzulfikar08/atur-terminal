@@ -225,6 +225,8 @@ fn report(case: &str, route: &Route, total: Duration) {
     );
 }
 
+// 127.0.0.2 is loopback on Linux only.
+#[cfg(target_os = "linux")]
 #[test]
 fn the_faster_address_wins_even_when_it_is_listed_second() -> TestResult {
     let server = Server::new();
@@ -243,6 +245,8 @@ fn the_faster_address_wins_even_when_it_is_listed_second() -> TestResult {
     Ok(())
 }
 
+// 127.0.0.2 is loopback on Linux only.
+#[cfg(target_os = "linux")]
 #[test]
 fn the_delayed_address_wins_when_it_is_the_only_one_that_answers() -> TestResult {
     let server = Server::bound(Ipv4Addr::new(127, 0, 0, 2));
