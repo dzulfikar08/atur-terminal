@@ -318,7 +318,7 @@ fn assets_come_from_the_extension_folder_and_nowhere_else() {
                   for(const [name,url] of Object.entries({\
                   inside:'data/a%20b.txt',unicode:'data/caf%C3%A9.txt',above:'../secret.txt',\
                   encoded:'%2e%2e/secret.txt',link:'link.txt',folder:'data',\
-                  other:'muxy-ext://other.owner/index.html',file:'file:///etc/hostname'}))\
+                  other:'atur-ext://other.owner/index.html',file:'file:///etc/hostname'}))\
                   results[name]=await read(url);tell('assets',results);})();";
     let mut fixture = Fixture::new(&[
         ("index.html", &page(&format!("<script>{script}</script>"))),
@@ -366,12 +366,12 @@ fn a_page_stays_on_its_own_pages() {
     assert!(
         fixture
             .told("still")
-            .contains("muxy-ext://test.owner/index.html")
+            .contains("atur-ext://test.owner/index.html")
     );
     assert!(
         fixture
             .told("second")
-            .contains("muxy-ext://test.owner/second.html")
+            .contains("atur-ext://test.owner/second.html")
     );
     assert_eq!(fixture.view.generation(), 2);
 }
