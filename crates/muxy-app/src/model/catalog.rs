@@ -228,6 +228,7 @@ impl AppModel {
 }
 
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub(super) struct Synchronization {
     pub(super) pending: bool,
     pub(super) dirty: u64,

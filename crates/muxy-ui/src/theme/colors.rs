@@ -105,6 +105,7 @@ pub fn contrasting_foreground(color: Rgba) -> Rgba {
 mod tests {
     use super::*;
     use crate::assets::Assets;
+    use crate::theme::CellColor;
     use std::error::Error;
 
     const NAMES: [&str; 2] = ["Atur", "Atur Light"];
