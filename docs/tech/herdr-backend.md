@@ -66,7 +66,8 @@ process or bytes go to herdr; everything else is the existing server code.
 | `SetTerminalColors`, `ReadServerSettings`, `WriteServerSettings`, `SyncSessionReferences` | atur-term-server, unchanged |
 | `Git`, `Files`, `Exec`, `CancelExec` and their watch events | atur-term-server code, unchanged |
 | `ReadActivity`, `AcknowledgeActivity`, `ClaimActivity`, activity events | atur-term-server; provider and state come from herdr's `agent` / `agent_status` (see below) |
-| Metadata events: title, directory, foreground process, bell, clipboard, input modes, links, prompts, cursor blinking | title: `pane.list`; directory and foreground process: `/proc` (the shell pid from `pane.process_info` once, then the shell's `tpgid`; same host); the rest from the mirror terminal (limits below) |
+| Metadata events: title, directory, foreground process, bell, clipboard, input modes, links, cursor blinking | title: `pane.list`; directory and foreground process: `/proc` (the shell pid from `pane.process_info` once, then the shell's `tpgid`; same host); the rest from the mirror terminal (limits below) |
+| Prompt marks (`AttachSnapshot` / `HistoryPage` `prompts`, `ScreenPrompts`) | found by the owner from what clients submit, see "Prompt marks" |
 
 ## Frame source: re-parse herdr's ANSI, not semantic frames
 
@@ -97,6 +98,38 @@ herdr server's own cost is what makes the herdr variant dearer overall; see the 
 What the ANSI stream lacks, because herdr renders it from its grid: OSC titles, OSC 133 prompt marks,
 OSC 52, bells, DECCKM/bracketed-paste state, scrollback beyond the screen. Those are filled from the API
 (title, scrollback) or are limits (below).
+
+## Prompt marks
+
+Prompt marks (OSC 133 `A`) are what "jump to the previous/next prompt" and the phone's prompt buttons
+use. A local PTY carries them (the shell integration prints them; omp 18.14 prints one around every
+message it shows). herdr does not: measured on 0.9.5 with omp running in a pane, 165 frames of
+`terminal session control` and every `pane.read` source (`visible`, `recent`, `recent-unwrapped`,
+`detection`, plain, ANSI and `--raw`) hold no `]133;`, and neither `pane.list` nor the API schema
+names prompts. herdr owns the PTY, so the owner cannot parse the marks either.
+
+So for a backing that drops the marks (`Backing::drops_prompt_marks`, true for herdr) the session owner
+finds the rows itself (`session/prompt_marks.rs`):
+
+1. It follows what clients type: printable text, Backspace and kill keys, bracketed pastes. An Enter
+   outside a paste is a submission of the text typed since the previous one.
+2. A submission counts only while a watched stream is open and the agent herdr reports is not
+   `working` or `blocked` (then Enter answers a dialog or queues a message). An agent's Enter without
+   text is ignored; a plain shell's Enter without text takes the cursor's row (a recalled command).
+3. When the mirror terminal first changes after the Enter, 120 ms later (and again every 150 ms for
+   up to 2 s) the owner searches its screen rows for the start of the first typed line: the lowest row
+   above the cursor that contains the first 24 characters, else the first 10 (a wrapped line), else the
+   lowest row elsewhere but at the cursor. For an agent the mark moves to the blank padding row
+   above the message (omp draws one), which puts the message's top at the top of the screen on a jump.
+4. The mark is an absolute row of the whole content: a fresh `pane.list` `scroll.max_offset_from_bottom`
+   plus the screen row. History pages and the live `ScreenPrompts` map the stored rows back to page and
+   screen coordinates, so clients see them exactly as they see native marks.
+
+Limits: only messages submitted through this server are marked (not typing in herdr's own UI); marks
+are kept in memory, so a restart of `atur-term-server` forgets them; a width change reflows the
+content and drops them; a message that wraps within its first ten characters, or that the agent does
+not echo on screen, is not found; marks above what herdr's scrollback cap (`scrollback_limit_bytes`)
+dropped no longer line up.
 
 ## Streaming only watched sessions
 
@@ -176,8 +209,8 @@ default number, so tabs that carry a legacy label keep it until the user renames
 
 * herdr on another host than `atur-term-server`: the socket is local and the metadata comes from local `/proc`.
   (`atur-term --host` is supported: both run on the remote host.)
-* OSC 133 prompt marks, OSC 52 clipboard writes, bell and OSC-set titles of full-screen children are not in herdr's ANSI
-  frames: prompt jumping is unavailable; titles come from herdr's value.
+* OSC 52 clipboard writes, bell and OSC-set titles of full-screen children are not in herdr's ANSI
+  frames: titles come from herdr's value. OSC 133 prompt marks are found another way, see "Prompt marks".
 * Application input modes that herdr does not put into the frames (application cursor keys, kitty keyboard
   protocol, focus events) are not known to the mirror terminal, so arrow keys and similar may be encoded for
   the default mode. Bracketed paste is handled.

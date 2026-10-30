@@ -2,6 +2,7 @@ pub(crate) mod backing;
 mod checkpoint;
 mod metadata;
 mod owner;
+mod prompt_marks;
 
 use std::fmt;
 use std::sync::mpsc::{SendError, Sender};

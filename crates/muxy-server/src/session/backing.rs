@@ -91,6 +91,18 @@ pub(crate) trait Backing: Send {
         None
     }
 
+    /// `history_rows` read afresh instead of from a short-lived copy, for placing a
+    /// mark on a row that must not be off by the output of the last moments.
+    fn history_rows_now(&self) -> Option<usize> {
+        self.history_rows()
+    }
+
+    /// Whether the byte stream lacks the OSC 133 prompt marks a program prints, so
+    /// the owner has to find the rows of the user's messages itself.
+    fn drops_prompt_marks(&self) -> bool {
+        false
+    }
+
     /// Rows `range` of that scrollback, oldest first.
     fn history(&self, range: Range<usize>, cols: u16) -> Result<Vec<Row>, Fault> {
         let _ = (range, cols);

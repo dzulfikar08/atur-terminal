@@ -5,8 +5,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use muxy_protocol::{
-    AttachSnapshot, ChannelId, ErrorCode, ExitReason, HistoryCursor, HistoryPage, InputModes,
-    MetadataEvent, SavedScreen, ScreenFrame, SearchPage, SessionInfo, Size, TerminalColors,
+    AgentState, AttachSnapshot, ChannelId, ErrorCode, ExitReason, HistoryCursor, HistoryPage,
+    InputModes, MetadataEvent, SavedScreen, ScreenFrame, SearchPage, SessionInfo, Size,
+    TerminalColors,
 };
 use muxy_terminal::Terminal;
 use muxy_terminal::pty::{ExitStatus, PtyEvent};
@@ -17,6 +18,7 @@ use crate::search::Search;
 use crate::session::backing::{Backing, Fault};
 use crate::session::checkpoint::Checkpoint;
 use crate::session::metadata::Metadata;
+use crate::session::prompt_marks::PromptMarks;
 use crate::session::{
     AttachmentEvent, AttachmentId, AttachmentSink, SessionCommand, SessionHandle,
 };
@@ -204,6 +206,7 @@ pub(crate) fn start(
             };
             let _ = ready_sender.send(Ok(()));
             let checkpoints = !pty.persists_content();
+            let detect_prompts = pty.drops_prompt_marks();
             let owner = Owner {
                 metadata: Metadata::new(session.directory.clone()),
                 progress: session_progress,
@@ -239,6 +242,8 @@ pub(crate) fn start(
                 links: Vec::new(),
                 graphics: muxy_protocol::Graphics::default(),
                 prompts: Vec::new(),
+                detect_prompts,
+                marks: PromptMarks::default(),
                 frame_state: None,
                 next_tick: None,
                 last_tick: None,
@@ -334,12 +339,14 @@ impl Owner {
                 }
                 Wake::Event(OwnerEvent::WriteFailed(error)) => return Err(error.into()),
                 Wake::Event(OwnerEvent::Command(SessionCommand::Input(bytes))) => {
+                    self.observe_input(&bytes);
                     self.input.send(bytes.into())?;
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::TerminalInput(input))) => {
                     self.terminal_input(input)?;
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::WriteInput { bytes, reply })) => {
+                    self.observe_input(&bytes);
                     self.input.send(InputWrite {
                         bytes,
                         reply: Some(reply),
@@ -599,6 +606,9 @@ impl Owner {
     fn feed(&mut self, bytes: &[u8]) -> Result<(), Fault> {
         self.detection_dirty = true;
         self.terminal.feed(bytes);
+        if self.detect_prompts {
+            self.marks.screen_changed(Instant::now());
+        }
         if self.terminal.synchronized_output()? {
             self.synchronized_since.get_or_insert_with(Instant::now);
         } else {
@@ -638,6 +648,7 @@ impl Owner {
             TerminalInput::ClearScreen => return self.clear_screen(),
         };
         if !bytes.is_empty() {
+            self.observe_input(&bytes);
             self.input.send(bytes.into())?;
         }
         Ok(())
@@ -645,6 +656,7 @@ impl Owner {
 
     fn clear_screen(&mut self) -> Result<(), Fault> {
         if self.terminal.clear_screen()? {
+            self.marks.clear();
             self.resize_pending = true;
             self.output_pending = true;
             self.detection_dirty = true;
@@ -657,9 +669,86 @@ impl Owner {
         Ok(())
     }
 
+    /// Follows what the user types into a backing that drops prompt marks, and
+    /// starts looking for the message an Enter submits.
+    fn observe_input(&mut self, bytes: &[u8]) {
+        if !self.detect_prompts {
+            return;
+        }
+        let Some(typed) = self.marks.type_in(bytes) else {
+            return;
+        };
+        // A closed stream leaves the mirror stale: nothing on it can be found.
+        if !matches!(self.stream, Stream::Always | Stream::Open(_)) {
+            return;
+        }
+        let agent = self.pty.agent();
+        // While an agent works or waits, Enter answers a dialog or queues a message.
+        if matches!(agent, Some((_, AgentState::Working | AgentState::Blocked))) {
+            return;
+        }
+        let text = if typed.trim().is_empty() {
+            // A shell's recalled command is on the cursor's row. An agent's Enter
+            // without text confirms something.
+            if agent.is_some() {
+                return;
+            }
+            self.cursor_line()
+        } else {
+            typed
+        };
+        self.marks.expect(&text, agent.is_some(), Instant::now());
+    }
+
+    fn cursor_line(&mut self) -> String {
+        let (Ok(screen), Ok(cursor)) = (self.terminal.screen(), self.terminal.cursor()) else {
+            return String::new();
+        };
+        screen
+            .get(usize::from(cursor.row))
+            .map(|row| row.runs.iter().map(|run| run.text.as_str()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Marks the row of a submitted message once the screen shows it.
+    fn resolve_prompt_marks(&mut self) {
+        if !self.detect_prompts || !self.marks.due(Instant::now()) {
+            return;
+        }
+        let (Ok(screen), Ok(cursor)) = (self.terminal.screen(), self.terminal.cursor()) else {
+            self.marks.abandon();
+            return;
+        };
+        let Some(base) = self.pty.history_rows_now() else {
+            self.marks.abandon();
+            return;
+        };
+        if self
+            .marks
+            .resolve(Instant::now(), &screen, cursor.row, base)
+        {
+            self.output_pending = true;
+        }
+    }
+
+    /// The screen rows where a prompt starts: those the terminal saw marked and,
+    /// for a backing that drops the marks, the messages found by watching input.
+    fn screen_prompts(&mut self, history: usize) -> Result<Vec<u16>, muxy_terminal::TerminalError> {
+        let mut rows = self.terminal.screen_prompts()?;
+        if self.detect_prompts {
+            rows.extend(self.marks.screen_rows(history, self.size.rows));
+            rows.sort_unstable();
+            rows.dedup();
+        }
+        Ok(rows)
+    }
+
     fn resize(&mut self, size: Size) -> Result<(), Fault> {
         self.pty.resize(size)?;
         self.terminal.resize(size)?;
+        if size.cols != self.size.cols {
+            self.marks.clear();
+        }
         self.size = size;
         self.resize_pending = true;
         self.arm_checkpoint(false);
@@ -683,7 +772,8 @@ impl Owner {
         if self.attachments.is_empty() {
             self.terminal.take_changed_rows()?;
             self.links = self.terminal.screen_links();
-            self.prompts = self.terminal.screen_prompts()?;
+            let (_, history) = self.history_state()?;
+            self.prompts = self.screen_prompts(history)?;
             self.frame_state = Some((self.terminal.cursor()?, self.terminal.modes()?));
         } else {
             self.broadcast_frame(None)?;
@@ -757,11 +847,12 @@ impl Owner {
         let (range, next) = history_range(self.info.id, generation, before, max_rows, total)?;
         self.compress_pending = true;
         let (history, mut prompts) = if self.pty.history_rows().is_some() {
+            let marks = self.marks.history_rows(&range);
             let rows = self
                 .pty
                 .history(range, self.size.cols)
                 .map_err(terminal_error)?;
-            (rows, Vec::new())
+            (rows, marks)
         } else {
             self.terminal
                 .history_with_prompts(range)
@@ -770,7 +861,7 @@ impl Owner {
         let screen = if before.0 == 0 {
             prompts.extend(
                 self.terminal
-                    .screen_prompts()
+                    .screen_prompts(total)
                     .map_err(terminal_error)?
                     .into_iter()
                     .filter_map(|row| u16::try_from(history.len() + usize::from(row)).ok()),
@@ -987,12 +1078,17 @@ impl Owner {
                 self.activity.clear_agent(self.info.id);
             }
         }
-        self.next_metadata = Instant::now()
+        self.resolve_prompt_marks();
+        let mut next = Instant::now()
             + if self.metadata.agent.is_some() {
                 METADATA_POLL
             } else {
                 Duration::from_secs(1)
             };
+        if let Some(check) = self.marks.next_check() {
+            next = next.min(check);
+        }
+        self.next_metadata = next;
     }
 
     fn broadcast_frame(&mut self, resized: Option<AttachmentId>) -> Result<(), Fault> {
@@ -1000,6 +1096,7 @@ impl Owner {
             return Ok(());
         }
         let (generation, total_rows) = self.history_state()?;
+        let history_rows = total_rows;
         let total_rows = total_rows as u64;
         if total_rows != self.history_total || generation != self.history_generation {
             self.history_total = total_rows;
@@ -1025,7 +1122,7 @@ impl Owner {
             modes: self.terminal.modes()?,
         };
         let links = self.terminal.screen_links();
-        let prompts = self.terminal.screen_prompts()?;
+        let prompts = self.screen_prompts(history_rows)?;
         let prompts_changed = self.prompts != prompts;
         self.prompts = prompts;
         let links_changed = self.links != links;
@@ -1149,7 +1246,14 @@ mod tests {
             size: size.into(),
         })?;
         pty.wait()?;
+        owner_with(Box::new(pty))
+    }
+
+    fn owner_with(pty: Box<dyn Backing>) -> Result<Owner, Fault> {
+        let size = Size { cols: 20, rows: 3 };
+        let cwd = std::env::temp_dir();
         let directory = ServerPath(cwd.as_os_str().as_bytes().to_vec());
+        let detect_prompts = pty.drops_prompt_marks();
         Ok(Owner {
             graphics: muxy_protocol::Graphics::default(),
             info: SessionInfo {
@@ -1157,7 +1261,7 @@ mod tests {
                 id: SessionId::from(NonZeroU64::MIN),
                 directory: directory.clone(),
             },
-            pty: Box::new(pty),
+            pty,
             terminal: Terminal::new(size, 1024)?,
             metadata: Metadata::new(directory.clone()),
             progress: crate::session::SharedProgress::default(),
@@ -1191,6 +1295,8 @@ mod tests {
             cursor_blinking: true,
             links: Vec::new(),
             prompts: Vec::new(),
+            detect_prompts,
+            marks: PromptMarks::default(),
             frame_state: None,
             next_tick: None,
             last_tick: None,
@@ -1293,6 +1399,183 @@ mod tests {
                 .iter()
                 .any(|event| matches!(event, AttachmentEvent::Frame(frame) if frame.seq == 1))
         );
+        Ok(())
+    }
+
+    /// A backing like herdr's: it keeps the scrollback, drops OSC 133 marks, and
+    /// says what its agent is doing.
+    struct Scrollback {
+        history: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        agent: std::sync::Arc<std::sync::Mutex<Option<AgentState>>>,
+    }
+
+    impl Backing for Scrollback {
+        fn start_reader(&self, _sink: Sender<OwnerEvent>) -> Result<(), ServerError> {
+            Ok(())
+        }
+
+        fn take_writer(&mut self) -> Result<Box<dyn Write + Send>, ServerError> {
+            Ok(Box::new(io::sink()))
+        }
+
+        fn resize(&mut self, _size: Size) -> Result<(), Fault> {
+            Ok(())
+        }
+
+        fn set_cell_size(&mut self, _cell: muxy_terminal::CellSize) -> Result<(), Fault> {
+            Ok(())
+        }
+
+        fn try_wait(&mut self) -> Option<ExitStatus> {
+            None
+        }
+
+        fn wait(&mut self) -> Result<ExitStatus, Fault> {
+            Ok(ExitStatus {
+                code: None,
+                signal: None,
+            })
+        }
+
+        fn kill(&mut self) -> Result<(), Fault> {
+            Ok(())
+        }
+
+        fn child_pid(&self) -> u32 {
+            0
+        }
+
+        fn foreground_pid(&self) -> Option<u32> {
+            None
+        }
+
+        fn history_rows(&self) -> Option<usize> {
+            Some(self.history.load(std::sync::atomic::Ordering::Relaxed))
+        }
+
+        fn history(
+            &self,
+            range: std::ops::Range<usize>,
+            _cols: u16,
+        ) -> Result<Vec<muxy_terminal::Row>, Fault> {
+            Ok(range
+                .map(|_| muxy_terminal::Row {
+                    index: 0,
+                    runs: Vec::new(),
+                })
+                .collect())
+        }
+
+        fn drops_prompt_marks(&self) -> bool {
+            true
+        }
+
+        fn agent(&self) -> Option<(muxy_protocol::AgentProvider, AgentState)> {
+            let state = *self
+                .agent
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            state.map(|state| (muxy_protocol::AgentProvider::OhMyPi, state))
+        }
+    }
+
+    type Agent = std::sync::Arc<std::sync::Mutex<Option<AgentState>>>;
+    type History = std::sync::Arc<std::sync::atomic::AtomicUsize>;
+
+    /// An owner over a herdr-like backing with `history` rows of scrollback and a
+    /// watched session.
+    fn herdr_owner(history: usize) -> Result<(Owner, History, Agent), Fault> {
+        let history = History::new(std::sync::atomic::AtomicUsize::new(history));
+        let agent = Agent::default();
+        let mut owner = owner_with(Box::new(Scrollback {
+            history: History::clone(&history),
+            agent: Agent::clone(&agent),
+        }))?;
+        owner.stream = Stream::Open(None);
+        Ok((owner, history, agent))
+    }
+
+    fn settle() {
+        thread::sleep(Duration::from_millis(150));
+    }
+
+    #[test]
+    fn a_message_submitted_through_a_backing_that_drops_marks_is_marked_where_it_shows()
+    -> Result<(), Fault> {
+        use std::sync::atomic::Ordering;
+        let (mut owner, history, _) = herdr_owner(40)?;
+        let (sink, events) = mpsc::channel();
+        owner.attach(AttachmentId(1), ChannelId(1), owner.size, sink.into())?;
+        events.try_iter().for_each(drop);
+        owner.feed(b"answer\r\n\r\n> hello there")?;
+        owner.observe_input(b"hello there\r");
+        assert!(owner.marks.next_check().is_some());
+        // herdr redraws: the message is on the first row and the editor is empty.
+        owner.feed(b"\x1b[2J\x1b[Hhello there\r\n\r\n> ")?;
+        history.store(42, Ordering::Relaxed);
+        settle();
+        owner.resolve_prompt_marks();
+        assert!(owner.marks.next_check().is_none());
+        assert!(owner.output_pending);
+        // The mark is row 42 of the whole content: the first screen row.
+        let page = owner.history_page(HistoryCursor(0), 5)?;
+        assert_eq!(page.prompts, [5]);
+        owner.broadcast_frame(None)?;
+        assert!(events.try_iter().any(|event| matches!(
+            event,
+            AttachmentEvent::Metadata(MetadataEvent::ScreenPrompts { rows, .. }) if rows == [0]
+        )));
+        // Output pushes it into scrollback: it is now a history row.
+        history.store(44, Ordering::Relaxed);
+        let page = owner.history_page(HistoryCursor(0), 5)?;
+        assert_eq!(page.prompts, [3]);
+        let older = owner.history_page(page.next.ok_or("older rows")?, 5)?;
+        assert!(older.prompts.is_empty());
+        // A new width reflows the content, so the marks are dropped.
+        owner.resize(Size { cols: 30, rows: 3 })?;
+        assert!(owner.history_page(HistoryCursor(0), 5)?.prompts.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn an_agent_message_is_marked_on_its_padding_row_but_not_while_the_agent_works()
+    -> Result<(), Fault> {
+        use std::sync::atomic::Ordering;
+        let (mut owner, history, agent) = herdr_owner(10)?;
+        *agent
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(AgentState::Working);
+        owner.observe_input(b"steer this way\r");
+        assert!(owner.marks.next_check().is_none());
+        // Enter without text answers a dialog.
+        *agent
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(AgentState::Idle);
+        owner.observe_input(b"\r");
+        assert!(owner.marks.next_check().is_none());
+
+        owner.observe_input(b"fix the login redirect\r");
+        owner.feed(b"\x1b[2J\x1b[H\r\nfix the login redirect\r\n> ")?;
+        history.store(12, Ordering::Relaxed);
+        settle();
+        owner.resolve_prompt_marks();
+        let page = owner.history_page(HistoryCursor(0), 5)?;
+        // Absolute row 12 is the blank row above the message, the screen's first.
+        assert_eq!(page.prompts, [5]);
+        Ok(())
+    }
+
+    #[test]
+    fn input_to_an_unwatched_session_or_a_local_pty_is_not_followed() -> Result<(), Fault> {
+        let (mut unwatched, _, _) = herdr_owner(10)?;
+        unwatched.stream = Stream::Closed;
+        unwatched.observe_input(b"hello there\r");
+        assert!(unwatched.marks.next_check().is_none());
+
+        let mut local = owner()?;
+        local.observe_input(b"hello there\r");
+        assert!(local.marks.next_check().is_none());
+        assert!(!local.detect_prompts);
         Ok(())
     }
 

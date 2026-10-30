@@ -526,6 +526,15 @@ impl Backing for HerdrBacking {
         Some(self.state().map_or(0, |pane| pane.history_rows))
     }
 
+    fn history_rows_now(&self) -> Option<usize> {
+        let panes = Panes::fetch(&self.herdr.api)?;
+        self.target.locate(&panes).map(|pane| pane.history_rows)
+    }
+
+    fn drops_prompt_marks(&self) -> bool {
+        true
+    }
+
     fn history(&self, range: std::ops::Range<usize>, cols: u16) -> Result<Vec<Row>, Fault> {
         let pane = self.state().ok_or("herdr no longer lists the terminal")?;
         scrollback::read(&self.herdr.api, &pane, cols, range)
