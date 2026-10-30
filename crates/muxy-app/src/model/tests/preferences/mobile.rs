@@ -340,7 +340,7 @@ fn another_servers_phones_are_managed_through_its_own_worker(cx: &mut TestAppCon
     });
     // Moving to this computer's phones withdraws the code from the other server.
     view.update(cx, |model, cx| {
-        model.select_mobile_server(ServerId::local(), cx)
+        model.select_mobile_server(ServerId::local(), cx);
     });
     assert!(
         work(&remote_work)
