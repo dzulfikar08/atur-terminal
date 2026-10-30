@@ -98,6 +98,7 @@ impl Message {
         samples.extend(git_samples());
         samples.extend(git_review_samples());
         samples.extend(files_samples());
+        samples.extend(file_chunk_samples());
         samples.extend(snapshot.into_iter().flat_map(history_samples));
         samples.extend(input_samples().into_iter().chain(terminal_input_samples()));
         samples.extend(acknowledged_input_samples());
@@ -888,6 +889,11 @@ fn files_samples() -> Vec<Message> {
                 },
             }),
         },
+    ]
+}
+
+fn file_chunk_samples() -> Vec<Message> {
+    vec![
         Message::Request {
             id: RequestId(4),
             body: RequestBody::Files(crate::FilesRequest {
