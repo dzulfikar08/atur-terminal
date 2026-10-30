@@ -130,6 +130,9 @@ struct Owner {
     links: Vec<muxy_protocol::LinkRow>,
     graphics: muxy_protocol::Graphics,
     prompts: Vec<u16>,
+    /// Whether the backing drops OSC 133 marks, so `marks` finds the prompts instead.
+    detect_prompts: bool,
+    marks: PromptMarks,
     frame_state: Option<(muxy_protocol::Cursor, muxy_protocol::Modes)>,
     next_tick: Option<Instant>,
     last_tick: Option<Instant>,
@@ -860,8 +863,7 @@ impl Owner {
         };
         let screen = if before.0 == 0 {
             prompts.extend(
-                self.terminal
-                    .screen_prompts(total)
+                self.screen_prompts(total)
                     .map_err(terminal_error)?
                     .into_iter()
                     .filter_map(|row| u16::try_from(history.len() + usize::from(row)).ok()),
