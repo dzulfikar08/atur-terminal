@@ -212,12 +212,16 @@ pub(crate) fn start(
             let detect_prompts = pty.drops_prompt_marks();
             let mut marks = PromptMarks::default();
             if detect_prompts {
-                let total = pty
-                    .history_rows_now()
-                    .map_or(0, |history| history.saturating_add(usize::from(size.rows)));
-                marks.restore(
-                    pty.saved_prompt_marks(session.id),
-                    u64::try_from(total).unwrap_or(u64::MAX),
+                // Without a count of the rows herdr holds, nothing can be told to be gone.
+                let total = pty.history_rows_now().map_or(u64::MAX, |history| {
+                    u64::try_from(history.saturating_add(usize::from(size.rows)))
+                        .unwrap_or(u64::MAX)
+                });
+                marks.restore(pty.saved_prompt_marks(session.id), total);
+                log::info!(
+                    "session {}: {} prompt marks restored (content rows: {total})",
+                    session.id.get(),
+                    marks.len()
                 );
             }
             let owner = Owner {
@@ -793,6 +797,12 @@ impl Owner {
         self.pty.resize(size)?;
         self.terminal.resize(size)?;
         if size.cols != self.size.cols {
+            log::info!(
+                "session {}: width {} -> {}, prompt marks dropped",
+                self.info.id.get(),
+                self.size.cols,
+                size.cols
+            );
             self.marks.clear();
             self.persist_marks();
         }
