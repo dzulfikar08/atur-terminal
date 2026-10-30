@@ -122,7 +122,9 @@ jobs:
           cache-on-failure: true
           key: screen-e2e
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' || github.ref == 'refs/heads/feat/screen-mirror' }}
+      # The Zig wrapper builds for a baseline CPU: the binaries run on another runner.
       - run: >-
+          ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
           cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe
       - run: |
           mkdir bin
