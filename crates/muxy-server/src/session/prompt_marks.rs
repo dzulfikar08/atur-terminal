@@ -296,6 +296,10 @@ impl PromptMarks {
         }
     }
 
+    pub(super) fn len(&self) -> usize {
+        self.rows.len()
+    }
+
     /// The text of each screen row, for matching.
     pub(super) fn texts(screen: &[Row]) -> Vec<String> {
         screen.iter().map(row_text).collect()
