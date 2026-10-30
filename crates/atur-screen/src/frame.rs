@@ -16,20 +16,27 @@ pub struct Frame {
 pub enum Pixels {
     /// Packed B, G, R, A bytes, A always 255; row stride is `width * 4`.
     Bgra(Arc<[u8]>),
-    /// A CoreVideo buffer in `kCVPixelFormatType_420YpCbCr8BiPlanarFullRange`
-    /// (the only format GPUI's surface renderer accepts) straight from VideoToolbox.
+    /// A `CoreVideo` buffer in `kCVPixelFormatType_420YpCbCr8BiPlanarFullRange`
+    /// (the only format `GPUI`'s surface renderer accepts) straight from `VideoToolbox`.
     #[cfg(target_os = "macos")]
     Surface(Surface),
 }
 
-/// A CoreVideo pixel buffer that can cross threads.
+/// A `CoreVideo` pixel buffer that can cross threads.
 ///
-/// CoreVideo buffers are reference counted with atomic operations and are
+/// `CoreVideo` buffers are reference counted with atomic operations and are
 /// only read once decoded, but the binding does not declare them `Send`, so
 /// a frame could not move from the decoder's thread to the window's.
 #[cfg(target_os = "macos")]
 #[derive(Clone)]
 pub struct Surface(core_video::pixel_buffer::CVPixelBuffer);
+
+#[cfg(target_os = "macos")]
+impl fmt::Debug for Surface {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Surface")
+    }
+}
 
 #[cfg(target_os = "macos")]
 impl Surface {
@@ -42,9 +49,9 @@ impl Surface {
     }
 }
 
-// SAFETY: a CVPixelBuffer is a CoreFoundation object, whose retain and release
+// SAFETY: a `CVPixelBuffer` is a `CoreFoundation` object, whose retain and release
 // are atomic, and decoded buffers are never written again after the decoder
-// hands them over. Apple documents CVPixelBuffer as usable from any thread.
+// hands them over. Apple documents `CVPixelBuffer` as usable from any thread.
 #[cfg(target_os = "macos")]
 #[allow(unsafe_code, reason = "see the safety note above")]
 unsafe impl Send for Surface {}

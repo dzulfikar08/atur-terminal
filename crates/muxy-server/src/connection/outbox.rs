@@ -847,7 +847,7 @@ mod tests {
         for _ in 0..SCREEN_WINDOW / chunk {
             assert!(outbox.push_screen(channel, vec![7; chunk]));
         }
-        let (done, finished) = std::sync::mpsc::channel();
+        let (done, finished) = mpsc::channel();
         let pusher = Arc::clone(&outbox);
         let blocked = thread::spawn(move || {
             let accepted = pusher.push_screen(channel, vec![8; chunk]);

@@ -527,8 +527,10 @@ fn last_rect_ends_an_unbounded_update() {
     );
 }
 
+type Calls = Arc<Mutex<Vec<(Vec<u8>, bool)>>>;
+
 struct FakeDecoder {
-    calls: Arc<Mutex<Vec<(Vec<u8>, bool)>>>,
+    calls: Calls,
 }
 
 impl H264Decoder for FakeDecoder {

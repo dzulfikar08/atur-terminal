@@ -160,7 +160,7 @@ impl Process {
 
         let shared = Arc::clone(&process.shared);
         process.spawn_thread("ffmpeg-writer", move || {
-            write_loop(stdin, &receiver, &shared)
+            write_loop(stdin, &receiver, &shared);
         })?;
         let shared = Arc::clone(&process.shared);
         let sink = Arc::clone(sink);

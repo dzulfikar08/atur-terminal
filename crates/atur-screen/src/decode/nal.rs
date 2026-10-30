@@ -296,7 +296,10 @@ mod tests {
             &types[..5],
             &[NAL_SPS, NAL_PPS, 6, NAL_IDR_SLICE, NAL_SLICE]
         );
-        let key_frames = types.iter().filter(|&&kind| kind == NAL_IDR_SLICE).count();
+        let key_frames: usize = types
+            .iter()
+            .map(|&kind| usize::from(kind == NAL_IDR_SLICE))
+            .sum();
         assert_eq!(key_frames, 2);
         let slices = types
             .iter()

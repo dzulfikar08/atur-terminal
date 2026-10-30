@@ -60,8 +60,6 @@ pub(crate) enum Endpoint {
 pub(crate) trait Capture: Send + Sync + 'static {
     /// Starts it when it is not running and says where it listens.
     fn start(&self) -> Result<Endpoint, ServerError>;
-    /// Whether it is still running.
-    fn alive(&self) -> bool;
     /// Stops it and removes what it left behind.
     fn stop(&self);
     /// A viewer saw the stream end before any data came: the way it was

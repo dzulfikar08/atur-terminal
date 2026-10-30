@@ -60,8 +60,7 @@ impl Wayvnc {
     pub(super) fn from_environment() -> Self {
         Self {
             program: std::env::var_os("ATUR_TERM_WAYVNC").map(PathBuf::from),
-            gpu_allowed: !std::env::var_os("ATUR_TERM_SCREEN_GPU")
-                .is_some_and(|value| value == "0"),
+            gpu_allowed: std::env::var_os("ATUR_TERM_SCREEN_GPU").is_none_or(|value| value != "0"),
             state: Mutex::new(State::default()),
         }
     }
@@ -124,13 +123,6 @@ impl Capture for Wayvnc {
             }
         }
         Err(ServerError::new(ErrorCode::SpawnFailed, last))
-    }
-
-    fn alive(&self) -> bool {
-        self.state()
-            .running
-            .as_mut()
-            .is_some_and(|running| matches!(running.child.try_wait(), Ok(None)))
     }
 
     fn stop(&self) {

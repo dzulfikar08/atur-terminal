@@ -4,10 +4,10 @@
 //! * [`Screen::start`] spawns a reader thread that only blocks in `recv` and hands chunks over
 //!   a small bounded channel, a processor thread that owns the protocol state machine, and a
 //!   timer thread for coalesced pointer moves and rate-limited wake-ups.
-//! * `rfb` is a sans-IO state machine (security None, ServerInit, Raw, CopyRect, ZRLE,
-//!   H.264, DesktopSize, ExtendedDesktopSize, ContinuousUpdates, Fence, extended clipboard):
+//! * `rfb` is a sans-IO state machine (security None, `ServerInit`, Raw, `CopyRect`, ZRLE,
+//!   H.264, `DesktopSize`, `ExtendedDesktopSize`, `ContinuousUpdates`, Fence, extended clipboard):
 //!   bytes in any split go in, framebuffer changes, events and reply bytes come out.
-//! * `decode` holds the H.264 decoders (VideoToolbox, or an `ffmpeg` process); the session
+//! * `decode` holds the H.264 decoders (`VideoToolbox`, or an `ffmpeg` process); the session
 //!   advertises H.264 only when a decoder exists, ZRLE works without one.
 //! * The framebuffer is a persistent BGRA buffer; every finished update is copied into one
 //!   [`Frame`] in a single-slot mailbox, so video is never queued and a slow UI only

@@ -45,6 +45,7 @@ impl Connection {
                 git_watch: Arc::new(Mutex::new(None)),
                 files_workers: WorkerPool::new("connection-files", 1, 16)?,
                 files_readers: WorkerPool::new("files-read-test", 4, 32)?,
+                screen_workers: WorkerPool::new("screen-test", 1, 4)?,
                 files_watch: Arc::new(Mutex::new(crate::files::watch::Subscriptions::default())),
                 search_cache: Arc::new(Mutex::new(SearchCache::default())),
                 last_channel: Arc::new(AtomicU32::new(0)),

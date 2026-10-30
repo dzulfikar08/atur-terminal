@@ -50,6 +50,10 @@ pub fn new_h264(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
 }
 
 #[cfg(target_os = "macos")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "Other platforms have no decoder to return"
+)]
 fn platform_decoder(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
     Some(Box::new(videotoolbox::VideoToolboxDecoder::new(sink)))
 }

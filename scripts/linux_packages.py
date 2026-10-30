@@ -77,6 +77,7 @@ def package_deb(version, arch, payload, output):
             "Section: utils\nPriority: optional\nMaintainer: Joyo Digitama <dzulfikar.at@joyodigitama.com>\n"
             f"Installed-Size: {(size + 1023) // 1024}\nDepends: {', '.join(dependencies)}\n"
             "Recommends: mesa-vulkan-drivers, xdg-desktop-portal-gnome | xdg-desktop-portal-kde | xdg-desktop-portal-gtk\n"
+            "Suggests: ffmpeg, wayvnc\n"
             "Homepage: https://github.com/dzulfikar08/atur-terminal\n"
             f"Description: {name}, a terminal multiplexer\n"
             " Persistent terminals, projects, split panes and remote sessions.\n"

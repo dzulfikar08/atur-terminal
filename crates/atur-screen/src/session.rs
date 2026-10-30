@@ -679,17 +679,13 @@ enum Inbox {
 
 fn read_loop(shared: &Arc<Shared>, sender: &SyncSender<Inbox>) {
     while !shared.is_closed() {
-        match shared.transport.recv() {
-            Some(chunk) => {
-                if sender.send(Inbox::Data(chunk)).is_err() {
-                    return;
-                }
-            }
-            None => {
-                // The processor may already be gone.
-                let _ = sender.send(Inbox::End);
-                return;
-            }
+        let Some(chunk) = shared.transport.recv() else {
+            // The processor may already be gone.
+            let _ = sender.send(Inbox::End);
+            return;
+        };
+        if sender.send(Inbox::Data(chunk)).is_err() {
+            return;
         }
     }
 }

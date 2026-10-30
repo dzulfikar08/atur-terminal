@@ -94,10 +94,6 @@ impl Capture for Shared {
         Ok(Endpoint::Unix(echo.path.clone()))
     }
 
-    fn alive(&self) -> bool {
-        self.0.running.load(Ordering::Acquire)
-    }
-
     fn stop(&self) {
         if self.0.running.swap(false, Ordering::AcqRel) {
             self.0.stops.fetch_add(1, Ordering::AcqRel);

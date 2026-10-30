@@ -254,7 +254,7 @@ unsafe impl Send for Session {}
 impl Session {
     /// Creates a session for the given SPS and PPS NAL units (header byte included, no start codes).
     fn new(parameter_sets: &[Vec<u8>]) -> Result<Self, DecodeError> {
-        let pointers: Vec<*const u8> = parameter_sets.iter().map(|set| set.as_ptr()).collect();
+        let pointers: Vec<*const u8> = parameter_sets.iter().map(Vec::as_ptr).collect();
         let sizes: Vec<usize> = parameter_sets.iter().map(Vec::len).collect();
         let mut format_out: *const c_void = ptr::null();
         // SAFETY: `pointers` and `sizes` describe `parameter_sets.len()` valid
@@ -266,7 +266,7 @@ impl Session {
                 pointers.as_ptr(),
                 sizes.as_ptr(),
                 4,
-                &mut format_out,
+                &raw mut format_out,
             )
         };
         if status != 0 || format_out.is_null() {
@@ -295,8 +295,8 @@ impl Session {
                 format.as_concrete_TypeRef(),
                 specification.as_concrete_TypeRef(),
                 attributes.as_concrete_TypeRef(),
-                &record,
-                &mut raw,
+                &raw const record,
+                &raw mut raw,
             )
         };
         if status != 0 || raw.is_null() {
@@ -336,7 +336,7 @@ impl Session {
                 sample.as_concrete_TypeRef(),
                 0,
                 ptr::null_mut(),
-                &mut info_flags,
+                &raw mut info_flags,
             )
         };
         // Wait even after an error so no callback is still running when we return.
@@ -414,7 +414,7 @@ fn block_buffer(data: &[u8]) -> Result<CFType, DecodeError> {
             0,
             data.len(),
             BLOCK_BUFFER_ASSURE_MEMORY_NOW,
-            &mut block_out,
+            &raw mut block_out,
         )
     };
     if status != 0 || block_out.is_null() {
@@ -470,10 +470,10 @@ fn sample_buffer(
             format.as_concrete_TypeRef(),
             1,
             1,
-            &timing,
+            &raw const timing,
             1,
             sizes.as_ptr(),
-            &mut sample_out,
+            &raw mut sample_out,
         )
     };
     if status != 0 || sample_out.is_null() {
@@ -558,9 +558,9 @@ impl H264Decoder for VideoToolboxDecoder {
                     .map(|unit| unit.to_vec()),
             );
         }
-        let has_sps = nals.iter().any(|unit| nal::nal_type(unit) == Some(NAL_SPS));
-        let has_pps = nals.iter().any(|unit| nal::nal_type(unit) == Some(NAL_PPS));
-        if has_sps && has_pps && self.parameter_sets.as_ref() != Some(&sets) {
+        let carries_sequence = nals.iter().any(|unit| nal::nal_type(unit) == Some(NAL_SPS));
+        let carries_picture = nals.iter().any(|unit| nal::nal_type(unit) == Some(NAL_PPS));
+        if carries_sequence && carries_picture && self.parameter_sets.as_ref() != Some(&sets) {
             self.parameter_sets = Some(sets);
             self.session = None;
             self.need_key_frame = true;
