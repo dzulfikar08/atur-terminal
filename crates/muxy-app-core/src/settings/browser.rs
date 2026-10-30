@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result};
-use crate::browser::{BLANK, SearchEngine, resolve_address, resolve_input};
+use crate::browser::{BLANK, BrowserEngine, SearchEngine, resolve_address, resolve_input};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -14,6 +14,11 @@ pub struct BrowserSettings {
     pub search_engine: SearchEngine,
     /// The page new tabs open to; empty means the start page.
     pub home_page: String,
+    /// What `atur-term browser` drives: the built-in browser or an external
+    /// Chromium-based one such as Helium.
+    pub engine: BrowserEngine,
+    /// The executable of the external engine; empty means find it.
+    pub engine_path: String,
 }
 
 impl Default for BrowserSettings {
@@ -24,6 +29,8 @@ impl Default for BrowserSettings {
             default_profile: String::new(),
             search_engine: SearchEngine::Google,
             home_page: String::new(),
+            engine: BrowserEngine::Builtin,
+            engine_path: String::new(),
         }
     }
 }

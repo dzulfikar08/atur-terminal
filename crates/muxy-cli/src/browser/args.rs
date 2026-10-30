@@ -4,6 +4,7 @@ use std::io;
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
+use muxy_app_core::browser::BrowserEngine;
 use muxy_app_core::browser::automation::{self, DEFAULT_NAVIGATION_WAIT, DEFAULT_WAIT};
 use serde_json::{Map, Value};
 
@@ -22,6 +23,22 @@ pub(crate) struct Invocation {
     /// How much longer than a quick reply the app may take: what a wait
     /// waits for, or capturing a screenshot.
     pub(crate) extra_time: Duration,
+    /// Which browser to drive, and how.
+    pub(crate) options: Options,
+}
+
+/// The options that apply to every action: which browser to drive.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Options {
+    /// `--engine`: the browser to drive; otherwise the environment or the
+    /// setting decides.
+    pub(crate) engine: Option<BrowserEngine>,
+    /// `--any-tab`: drive any tab of an external browser, not only those
+    /// agents opened.
+    pub(crate) any_tab: bool,
+    /// `--restart-browser`: restart a running external browser that has no
+    /// debugging port, without asking.
+    pub(crate) restart: bool,
 }
 
 /// How the app's reply is printed.
@@ -47,6 +64,7 @@ impl Invocation {
             args: Map::new(),
             output: Output::Json,
             extra_time: Duration::ZERO,
+            options: Options::default(),
         }
     }
     fn arg(mut self, key: &str, value: impl Into<Value>) -> Self {
@@ -88,7 +106,52 @@ pub(crate) fn parse(arguments: &[OsString]) -> io::Result<Command> {
     if words.is_empty() || wants_help {
         return Ok(Command::Usage(help::BROWSER));
     }
-    invocation(&words).map(|invocation| Command::Browser(Box::new(invocation)))
+    let (options, words) = take_options(&words)?;
+    invocation(&words).map(|invocation| {
+        Command::Browser(Box::new(Invocation {
+            options,
+            ..invocation
+        }))
+    })
+}
+
+/// Splits the options that apply to every action from the words, wherever
+/// they are before `--`.
+fn take_options<'a>(words: &[&'a str]) -> io::Result<(Options, Vec<&'a str>)> {
+    let mut options = Options::default();
+    let mut rest = Vec::new();
+    let mut words = words.iter().copied();
+    while let Some(word) = words.next() {
+        if word == "--" {
+            rest.push(word);
+            rest.extend(words);
+            break;
+        }
+        let engine = if word == "--engine" {
+            Some(
+                words
+                    .next()
+                    .ok_or_else(|| invalid("missing value for --engine"))?,
+            )
+        } else {
+            word.strip_prefix("--engine=")
+        };
+        if let Some(name) = engine {
+            let engine = BrowserEngine::parse(name).ok_or_else(|| {
+                invalid("unknown browser engine; use builtin, helium, chromium or chrome")
+            })?;
+            if options.engine.replace(engine).is_some() {
+                return Err(invalid("duplicate option --engine"));
+            }
+        } else if word == "--any-tab" {
+            options.any_tab = true;
+        } else if matches!(word, "--restart-browser" | "--restart-helium") {
+            options.restart = true;
+        } else {
+            rest.push(word);
+        }
+    }
+    Ok((options, rest))
 }
 
 /// The app verb that each action sends.
@@ -869,5 +932,51 @@ mod tests {
         ] {
             assert!(command(&words).is_err(), "{words:?}");
         }
+    }
+    #[test]
+    fn engine_options_go_anywhere_before_the_dashes() -> io::Result<()> {
+        let helium = invocation(&["--engine", "helium", "open", "a.test"])?;
+        assert_eq!(
+            helium.options,
+            Options {
+                engine: Some(BrowserEngine::Helium),
+                ..Options::default()
+            }
+        );
+        let chrome = invocation(&["click", "--engine=chrome", "T", "#a", "--any-tab"])?;
+        assert_eq!(
+            chrome.options,
+            Options {
+                engine: Some(BrowserEngine::Chrome),
+                any_tab: true,
+                restart: false
+            }
+        );
+        assert_eq!(
+            request(&["click", "--engine=chrome", "T", "#a"])?,
+            request(&["click", "T", "#a"])?
+        );
+        assert!(invocation(&["list", "--restart-browser"])?.options.restart);
+        assert!(invocation(&["list", "--restart-helium"])?.options.restart);
+        assert_eq!(invocation(&["list"])?.options, Options::default());
+        assert_eq!(
+            request(&["fill", "T", "#a", "--", "--engine"])?,
+            (
+                "browser.fill",
+                json!({"tabId": "T", "selector": "#a", "text": "--engine"})
+            )
+        );
+        for words in [
+            vec!["list", "--engine"],
+            vec!["list", "--engine", "firefox"],
+            vec!["list", "--engine=helium", "--engine", "chrome"],
+        ] {
+            assert!(command(&words).is_err(), "{words:?}");
+        }
+        assert_eq!(
+            command(&["--engine", "helium", "--help"])?,
+            Command::Usage(help::BROWSER)
+        );
+        Ok(())
     }
 }

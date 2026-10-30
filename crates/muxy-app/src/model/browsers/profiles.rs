@@ -152,7 +152,8 @@ impl AppModel {
             }
             BrowserChange::Enabled(_)
             | BrowserChange::TerminalLinks(_)
-            | BrowserChange::SearchEngine(_) => return Ok(false),
+            | BrowserChange::SearchEngine(_)
+            | BrowserChange::Engine(_) => return Ok(false),
         };
         self.refresh_browser_profiles();
         result.map(|()| true)

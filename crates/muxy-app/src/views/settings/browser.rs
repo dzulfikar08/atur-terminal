@@ -3,7 +3,7 @@
 
 use gpui::prelude::FluentBuilder;
 use gpui::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div, px};
-use muxy_app_core::browser::SearchEngine;
+use muxy_app_core::browser::{BrowserEngine, SearchEngine};
 use muxy_ui::controls::{self, Choice};
 use muxy_ui::l10n::tr_key;
 use muxy_ui::tr;
@@ -23,6 +23,7 @@ pub(crate) enum BrowserChange {
     Enabled(bool),
     TerminalLinks(bool),
     SearchEngine(SearchEngine),
+    Engine(BrowserEngine),
     DefaultProfile(String),
     AddProfile(String),
     RenameProfile(String, String),
@@ -107,6 +108,40 @@ pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<A
             "browser-home-page",
             tr_key!("Home page"),
             view.field("browser-home-page"),
+        ));
+    }
+    if view.matches(Category::Browser, tr_key!("Browser for agents")) {
+        let choices: Vec<_> = BrowserEngine::ALL
+            .iter()
+            .map(|engine| Choice::new(engine.id(), engine.name()))
+            .collect();
+        rows.push(view.row_with(
+            "browser-engine",
+            tr_key!("Browser for agents"),
+            controls::segmented(
+                view.style(),
+                "browser-engine",
+                &choices,
+                settings.engine.id(),
+                cx.listener(|_, selected: &gpui::SharedString, _, cx| {
+                    if let Some(engine) = BrowserEngine::ALL
+                        .into_iter()
+                        .find(|engine| engine.id() == selected.as_ref())
+                    {
+                        cx.emit(SettingsEvent::Change(Change::Browser(
+                            BrowserChange::Engine(engine),
+                        )));
+                    }
+                }),
+            ),
+            true,
+        ));
+    }
+    if view.matches(Category::Browser, tr_key!("Browser path")) {
+        rows.push(view.row(
+            "browser-engine-path",
+            tr_key!("Browser path"),
+            view.field("browser-engine-path"),
         ));
     }
     if view.matches(Category::Browser, tr_key!("Profiles")) {

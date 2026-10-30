@@ -46,6 +46,22 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Browsing"),
     },
     Setting {
+        id: "browser-engine",
+        label: tr_key!("Browser for agents"),
+        description: tr_key!(
+            "Which browser `atur-term browser` drives. Helium, Chromium and Chrome are driven through their remote debugging port on this computer, using your normal profile, so sites stay logged in. Overridden by --engine or ATUR_TERM_BROWSER_ENGINE."
+        ),
+        category: Category::Browser,
+        section: tr_key!("Agents"),
+    },
+    Setting {
+        id: "browser-engine-path",
+        label: tr_key!("Browser path"),
+        description: tr_key!("Leave empty to find the browser automatically."),
+        category: Category::Browser,
+        section: tr_key!("Agents"),
+    },
+    Setting {
         id: "browser-profiles",
         label: tr_key!("Profiles"),
         description: tr_key!(

@@ -8,9 +8,6 @@ use serde_json::{Map, Value};
 
 pub type Args = Map<String, Value>;
 
-/// Whether some JavaScript parses as the body of an async function.
-pub type Parses = fn(&str) -> bool;
-
 pub const DEFAULT_WAIT: Duration = Duration::from_millis(5000);
 pub const DEFAULT_NAVIGATION_WAIT: Duration = Duration::from_millis(10_000);
 pub const MAX_WAIT: Duration = Duration::from_millis(60_000);
@@ -42,7 +39,13 @@ pub fn timeout(args: &Args, default: Duration) -> Duration {
 
 /// The script for a verb that runs in the page, or `None` when the app
 /// handles `verb` itself.
-pub fn script(verb: &str, args: &Args, parses: Parses) -> Result<Option<String>, String> {
+/// `parses` tells whether some JavaScript parses as the body of an async
+/// function.
+pub fn script(
+    verb: &str,
+    args: &Args,
+    parses: impl FnMut(&str) -> bool,
+) -> Result<Option<String>, String> {
     let element = |body: &str| -> Result<String, String> {
         Ok(format!(
             "{HELPERS}const el = document.querySelector({});\nif (!el) return false;\n{body}\nreturn true;",
@@ -127,7 +130,11 @@ pub fn script(verb: &str, args: &Args, parses: Parses) -> Result<Option<String>,
 
 /// A check for `wait` and `waitFor` that returns whether the condition
 /// holds. Errors count as not yet.
-pub fn condition(verb: &str, args: &Args, parses: Parses) -> Result<String, String> {
+pub fn condition(
+    verb: &str,
+    args: &Args,
+    parses: impl FnMut(&str) -> bool,
+) -> Result<String, String> {
     let check = match verb {
         "waitFor" => format!(
             "return document.querySelector({}) !== null;",
@@ -164,7 +171,7 @@ pub fn condition(verb: &str, args: &Args, parses: Parses) -> Result<String, Stri
 
 /// A script given on the command line: a single expression whose value is
 /// the result, or a statement list that returns.
-fn function_body(script: &str, parses: Parses) -> String {
+fn function_body(script: &str, mut parses: impl FnMut(&str) -> bool) -> String {
     let statements = script.trim();
     let expression = format!("return (\n{}\n);", statements.trim_end_matches(';'));
     if parses(&expression) {

@@ -1,0 +1,61 @@
+name: helium-browser
+
+# Checks `atur-term browser --engine helium|chromium|chrome`, which drives a
+# Chromium-based browser over its remote debugging port. Headless Chrome stands
+# in for Helium: the CLI starts it on a throwaway profile and drives a local
+# test page with every verb. Lint and unit tests of the command mapping run
+# first.
+on:
+  push:
+    branches: [feat/helium-browser, atur-terminal]
+    paths:
+      - 'crates/muxy-cli/src/browser/**'
+      - 'crates/muxy-app-core/src/browser/**'
+      - 'scripts/e2e-helium-browser.py'
+      - '.github/workflows/helium-browser.yml'
+  pull_request:
+    paths:
+      - 'crates/muxy-cli/src/browser/**'
+      - 'crates/muxy-app-core/src/browser/**'
+      - 'scripts/e2e-helium-browser.py'
+      - '.github/workflows/helium-browser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  LIBGHOSTTY_VT_SYS_OPTIMIZE: ReleaseFast
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config zsh fish binutils vim-tiny less ffmpeg
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+          components: clippy
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Point the build at Zig
+        run: |
+          echo "ATUR_TERM_ZIG=$(command -v zig)" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/scripts/zig" >> "$GITHUB_PATH"
+      - run: cargo clippy --locked -p muxy-cli -p muxy-app-core --all-targets -- -D warnings
+      - name: Unit tests (command mapping, frames, launch, state)
+        run: cargo test --locked -p muxy-cli -p muxy-app-core browser
+      - run: cargo build --locked -p muxy-cli
+      - name: Browser used as the stand-in
+        run: |
+          command -v google-chrome google-chrome-stable chromium chromium-browser || true
+          google-chrome --version
+      - name: End to end against headless Chrome
+        run: python3 scripts/e2e-helium-browser.py target/debug/atur-term chrome
