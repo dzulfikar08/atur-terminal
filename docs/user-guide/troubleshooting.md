@@ -85,7 +85,7 @@ and uses SSH, so the connection works but without the benefit.
 
 ## A phone can't connect
 
-- Check **Settings → Mobile → Status** says it is listening.
+- Check **Settings → Phones → Status** says it is listening.
 - On macOS, allow `atur-term-server` if the firewall asks.
 - On iOS, allow the Atur Terminal app to use the local network.
 - The phone must reach the computer: same network, a VPN, or an address added

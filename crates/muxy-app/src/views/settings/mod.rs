@@ -50,6 +50,27 @@ pub(crate) fn register_commands(
         tr_key!("Open Settings"),
         super::workspace::OpenSettings,
     ));
+    registry.register(pair_command(
+        muxy_app_core::ServerId::local(),
+        muxy_ui::tr!("Pair a Phone…"),
+    ));
+    for server in model.remote_servers() {
+        registry.register(pair_command(
+            server.entry.id,
+            muxy_ui::tr!("Pair a Phone on %@…", &server.entry.name),
+        ));
+    }
+}
+
+/// A palette command that shows a pairing code for `server` in Settings.
+pub(crate) fn pair_command(
+    server: muxy_app_core::ServerId,
+    title: gpui::SharedString,
+) -> muxy_ui::command_palette::Command<super::command_palette::Handler> {
+    let handler: super::command_palette::Handler =
+        std::rc::Rc::new(move |model, _, cx| model.pair_phone_on(server, cx));
+    muxy_ui::command_palette::Command::new(format!("pair-phone-{server}"), title, handler)
+        .keywords("pair phone mobile qr code tailscale link")
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -99,7 +120,7 @@ impl Category {
             Self::Commands => tr_key!("Commands"),
             Self::Browser => tr_key!("Browser"),
             Self::Server => tr_key!("Server"),
-            Self::Mobile => tr_key!("Mobile"),
+            Self::Mobile => tr_key!("Phones"),
             Self::Extensions => tr_key!("Extensions"),
             Self::Backup => tr_key!("Backup & Restore"),
         }
@@ -149,12 +170,16 @@ pub(crate) enum SettingsEvent {
     PreviewTerminal(&'static str, String),
     ResetTerminal,
     Picker(PickerKind, PickerAnchor),
-    ServerControl { restart: bool },
+    ServerControl {
+        restart: bool,
+    },
     ReadServer,
     ReadMobile,
     PairPhone,
     CancelPairing,
     RevokeDevice(muxy_protocol::DeviceId),
+    /// Phone access of another server.
+    MobileServer(muxy_app_core::ServerId),
     Connect,
     OpenConfiguration(&'static str),
     DismissProblem,
@@ -171,10 +196,16 @@ pub(crate) struct Snapshot {
     pub(crate) server_busy: bool,
     pub(crate) server_update: Option<String>,
     pub(crate) pending_server_fields: HashSet<String>,
+    /// Phone access of the server chosen on the Phones page.
     pub(crate) mobile: Option<muxy_protocol::RemoteAccessState>,
     pub(crate) mobile_pairing: Option<mobile::Pairing>,
     pub(crate) mobile_busy: bool,
     pub(crate) mobile_error: Option<String>,
+    pub(crate) mobile_connected: bool,
+    pub(crate) mobile_server: muxy_app_core::ServerId,
+    pub(crate) mobile_label: String,
+    /// Every server, as `(server, name)`.
+    pub(crate) mobile_servers: Vec<(muxy_app_core::ServerId, String)>,
     pub(crate) ai_installed: Vec<&'static str>,
     /// Enabled extensions that provide a sidebar, as `(extension, label)`.
     pub(crate) sidebars: Vec<(String, String)>,
@@ -223,6 +254,8 @@ pub(crate) struct SettingsView {
     compact: bool,
     picker_anchors: HashMap<PickerKind, PickerAnchor>,
     subscriptions: Vec<Subscription>,
+    /// Redraws the pairing countdown while a code waits.
+    pairing_clock: Option<gpui::Task<()>>,
     #[cfg(test)]
     pub(crate) render_count: usize,
     #[cfg(test)]
@@ -320,6 +353,7 @@ impl SettingsView {
             .map(|kind| (kind, PickerAnchor::default()))
             .collect(),
             subscriptions: vec![search_subscription, recorder],
+            pairing_clock: None,
             #[cfg(test)]
             render_count: 0,
             #[cfg(test)]
@@ -420,7 +454,35 @@ impl SettingsView {
             input.update(cx, |input, cx| input.set_style(style, cx));
         }
         self.sync_fields(cx);
+        self.sync_pairing_clock(cx);
         cx.notify();
+    }
+
+    /// Ticks once a second while a pairing code waits, and not otherwise.
+    fn sync_pairing_clock(&mut self, cx: &mut Context<Self>) {
+        let waiting = self
+            .snapshot
+            .mobile_pairing
+            .as_ref()
+            .is_some_and(|pairing| pairing.phase == mobile::Phase::Waiting);
+        if !waiting {
+            self.pairing_clock = None;
+        } else if self.pairing_clock.is_none() {
+            self.pairing_clock = Some(cx.spawn(async move |view, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs(1))
+                        .await;
+                    let ticked = view.update(cx, |view, cx| {
+                        view.results.dirty = true;
+                        cx.notify();
+                    });
+                    if ticked.is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
     }
 
     fn sync_fields(&self, cx: &mut Context<Self>) {
@@ -586,6 +648,16 @@ impl SettingsView {
 
     pub(crate) fn show_browser(&mut self, cx: &mut Context<Self>) {
         self.category = Category::Browser;
+        self.section = None;
+        self.query.clear();
+        self.results.reset();
+        self.search.update(cx, |input, cx| input.set_text("", cx));
+        cx.notify();
+    }
+
+    /// Shows the Phones page, where phone access and pairing are managed.
+    pub(crate) fn show_mobile(&mut self, cx: &mut Context<Self>) {
+        self.category = Category::Mobile;
         self.section = None;
         self.query.clear();
         self.results.reset();

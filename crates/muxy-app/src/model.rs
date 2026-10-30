@@ -132,7 +132,8 @@ pub(crate) struct AppModel {
     pub(crate) settings: muxy_app_core::settings::Settings,
     terminal: muxy_app_core::settings::TerminalSettings,
     server_preferences: preferences::ServerPreferences,
-    mobile: mobile::MobileAccess,
+    /// The server whose phone access Settings shows.
+    mobile_server: ServerId,
     /// The last Test Connection in Settings, with the destination it tried.
     server_probe: Option<(String, ConnectionTest)>,
     server_probe_generation: u64,
@@ -517,7 +518,7 @@ impl AppModel {
             settings: boot.settings,
             terminal: boot.terminal,
             server_preferences: preferences::ServerPreferences::default(),
-            mobile: mobile::MobileAccess::default(),
+            mobile_server: ServerId::local(),
             server_probe: None,
             server_probe_generation: 0,
             server_anchor: Rc::default(),
@@ -2072,7 +2073,9 @@ impl AppModel {
         self.refresh_catalog(server, cx);
         if server.is_local() && self.settings_window.is_some() {
             self.read_server_settings(cx);
-            self.read_remote_access(cx);
+        }
+        if self.settings_window.is_some() && server == self.mobile_target() {
+            self.read_remote_access(server, cx);
         }
         cx.notify();
     }
@@ -2128,8 +2131,8 @@ impl AppModel {
             }
             Update::ServerChecked(result) if local => self.receive_server_update(result, cx),
             Update::ServerSettings(result) if local => self.receive_server_settings(result, cx),
-            Update::RemoteAccess(result) if local => self.receive_remote_access(result, cx),
-            Update::Pairing(result) if local => self.receive_pairing(result, cx),
+            Update::RemoteAccess(result) => self.receive_remote_access(server, result, cx),
+            Update::Pairing(result) => self.receive_pairing(server, result, cx),
             Update::ServerStopped { restart, result } => {
                 self.receive_server_stopped(server, restart, result, cx);
             }
@@ -2252,8 +2255,6 @@ impl AppModel {
             | Update::Flushed
             | Update::ServerChecked(_)
             | Update::ServerSettings(_)
-            | Update::RemoteAccess(_)
-            | Update::Pairing(_)
             | Update::PreparedForInstall(_)
             | Update::EndedAll(_) => {}
             Update::CloseSessionPanes(session) => self.close_ended_session(server, session, cx),
@@ -2573,7 +2574,7 @@ impl AppModel {
                 self.refresh_catalog(server, cx);
                 self.refresh_session_picker(cx);
             }
-            ClientEvent::RemoteAccessChanged { .. } if local => self.remote_access_changed(cx),
+            ClientEvent::RemoteAccessChanged { .. } => self.remote_access_changed(server, cx),
             ClientEvent::Frame { channel, frame } => {
                 if let Some(pane) = self.attached_view(server, channel, cx) {
                     let seq = frame.seq;
@@ -2592,7 +2593,7 @@ impl AppModel {
                 }
             }
             ClientEvent::ServerRestarting if local => self.expect_server_restart(),
-            ClientEvent::RemoteAccessChanged { .. } | ClientEvent::ServerRestarting => {}
+            ClientEvent::ServerRestarting => {}
             ClientEvent::Disconnected if local => self.receive_disconnect(cx),
             ClientEvent::Disconnected => {
                 self.disconnect(server, cx);

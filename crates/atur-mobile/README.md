@@ -317,7 +317,7 @@ val projects = withContext(sdk) { connection.projects() }
 ## Pairing
 
 In the desktop app, the user turns on **Allow mobile devices** in Settings →
-Mobile and clicks **Show Pairing Code**. On a computer without the desktop
+Phones (or chooses **Pair a Phone…** in the command palette, for any server) and clicks **Show Pairing Code**. On a computer without the desktop
 app, `atur-term mobile pair` prints the code in the terminal. Either way, the QR
 code holds a link:
 
@@ -964,7 +964,7 @@ try {
 - Phones can't turn mobile access on or off, pair or revoke devices, stop the
   server, change server settings, or run extension commands. Those stay on the
   computer.
-- Revoking a phone in Settings → Mobile closes its connection and invalidates
+- Revoking a phone in Settings → Phones closes its connection and invalidates
   its token at once.
 - Over SSH, the app acts as the SSH user, so the limits above for paired
   phones don't apply. Never weaken your SSH layer's host-key checks.
@@ -974,7 +974,7 @@ try {
 ## Testing against a server
 
 Run a server on a Mac from the same Atur Terminal commit as the SDK. In the desktop
-app, use Settings → Mobile; **Copy Link** copies the pairing link for pasting
+app, use Settings → Phones; **Copy Link** copies the pairing link for pasting
 into a simulator. Without the desktop app, use the CLI:
 
 ```sh

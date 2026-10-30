@@ -405,6 +405,7 @@
 "Conflict" = "Conflict";
 "Conflicts" = "Conflicts";
 "Connect" = "Connect";
+"Connect to %@ to manage phone access." = "Connect to %@ to manage phone access.";
 "Connect to server" = "Connect to server";
 "Connect to the server before changing mobile access" = "Connect to the server before changing mobile access";
 "Connect to the server before editing its settings" = "Connect to the server before editing its settings";
@@ -413,7 +414,6 @@
 "Connect to the server first" = "Connect to the server first";
 "Connect to the server so Atur Terminal can check whether terminal sessions can be preserved." = "Connect to the server so Atur Terminal can check whether terminal sessions can be preserved.";
 "Connect to the server to create." = "Connect to the server to create.";
-"Connect to the server to manage mobile access." = "Connect to the server to manage mobile access.";
 "Connected" = "Connected";
 "Connecting…" = "Connecting…";
 "Connection" = "Connection";
@@ -576,6 +576,7 @@
 "Distribute unused cell space equally around the terminal grid." = "Distribute unused cell space equally around the terminal grid.";
 "Dock Panel" = "Dock Panel";
 "Don't ask again" = "Don't ask again";
+"Done" = "Done";
 "Downloading and verifying the latest release. You can keep working." = "Downloading and verifying the latest release. You can keep working.";
 "Downloading app update…" = "Downloading app update…";
 "Draft" = "Draft";
@@ -583,6 +584,7 @@
 "Draft · Open" = "Draft · Open";
 "Drag to reposition, scroll to zoom" = "Drag to reposition, scroll to zoom";
 "Draw terminal text with a heavier stroke." = "Draw terminal text with a heavier stroke.";
+"Each computer's server has phones of its own." = "Each computer's server has phones of its own.";
 "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar." = "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar.";
 "Edit" = "Edit";
 "Edit Project Prompt…" = "Edit Project Prompt…";
@@ -790,7 +792,7 @@
 "Last seen %lld min ago" = "Last seen %lld min ago";
 "Last seen just now" = "Last seen just now";
 "Left" = "Left";
-"Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access." = "Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access.";
+"Let paired phones reach the server over the local network or a VPN. A paired phone gets full terminal access." = "Let paired phones reach the server over the local network or a VPN. A paired phone gets full terminal access.";
 "Let the desktop show through the terminal background." = "Let the desktop show through the terminal background.";
 "Light theme" = "Light theme";
 "Line spacing" = "Line spacing";
@@ -818,6 +820,8 @@
 "Loading terminals…" = "Loading terminals…";
 "Loading…" = "Loading…";
 "Local" = "Local";
+"Local name" = "Local name";
+"Local network" = "Local network";
 "Location" = "Location";
 "Log in with a password" = "Log in with a password";
 "Logs" = "Logs";
@@ -856,7 +860,6 @@
 "Missing update directory" = "Missing update directory";
 "Missing update size" = "Missing update size";
 "Missing update version" = "Missing update version";
-"Mobile" = "Mobile";
 "Mobile access error" = "Mobile access error";
 "Mobile settings may contain only enabled and port" = "Mobile settings may contain only enabled and port";
 "Modifications Copyright (c) 2026 Joyo Digitama." = "Modifications Copyright (c) 2026 Joyo Digitama.";
@@ -991,7 +994,11 @@
 "PRIMARY" = "PRIMARY";
 "PROCESSING" = "PROCESSING";
 "Padding color" = "Padding color";
+"Pair Another Phone" = "Pair Another Phone";
+"Pair a Phone on %@…" = "Pair a Phone on %@…";
+"Pair a Phone…" = "Pair a Phone…";
 "Pair a phone" = "Pair a phone";
+"Paired as %@" = "Paired as %@";
 "Paired devices" = "Paired devices";
 "Pairing" = "Pairing";
 "Parent Directory" = "Parent Directory";
@@ -1013,6 +1020,7 @@
 "Permanently delete branch “%@”? Unmerged commits may become unreachable." = "Permanently delete branch “%@”? Unmerged commits may become unreachable.";
 "Permission rules" = "Permission rules";
 "Pewter" = "Pewter";
+"Phones" = "Phones";
 "Phones that can connect. Revoking one disconnects it immediately." = "Phones that can connect. Revoking one disconnects it immediately.";
 "Pin Tab" = "Pin Tab";
 "Pixels" = "Pixels";
@@ -1176,7 +1184,7 @@
 "SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect." = "SSH starts the connection, then UDP ports 60001-61000 carry it. Open them in the server's firewall, or use Tailscale. SSH is used when UDP does not connect.";
 "Save" = "Save";
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file.";
-"Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes." = "Scan with the Atur Terminal mobile app. The code works once and expires in 5 minutes.";
+"Scan it with the Atur Terminal mobile app, or open this link on the phone:" = "Scan it with the Atur Terminal mobile app, or open this link on the phone:";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
 "Scroll to Bottom" = "Scroll to Bottom";
@@ -1256,6 +1264,7 @@
 "Show All Projects" = "Show All Projects";
 "Show Atur Terminal Tip" = "Show Atur Terminal Tip";
 "Show Atur Terminal tips at the bottom of the built-in sidebar." = "Show Atur Terminal tips at the bottom of the built-in sidebar.";
+"Show New Code" = "Show New Code";
 "Show Pairing Code" = "Show Pairing Code";
 "Show Worktrees" = "Show Worktrees";
 "Show a one-time code to scan with the Atur Terminal mobile app." = "Show a one-time code to scan with the Atur Terminal mobile app.";
@@ -1321,6 +1330,7 @@
 "Tab closed; server cleanup is pending: %@" = "Tab closed; server cleanup is pending: %@";
 "Tab type: %@" = "Tab type: %@";
 "Tabs, workspaces, and servers from your earlier install were not imported. %@" = "Tabs, workspaces, and servers from your earlier install were not imported. %@";
+"Tailscale" = "Tailscale";
 "Teardown hooks could not be loaded: %@\nContinuing will remove without hooks." = "Teardown hooks could not be loaded: %@\nContinuing will remove without hooks.";
 "Template" = "Template";
 "Templates must include {branch}. Relative paths start from the project folder." = "Templates must include {branch}. Relative paths start from the project folder.";
@@ -1348,6 +1358,7 @@
 "The branch changed. Try again." = "The branch changed. Try again.";
 "The built-in browser is off. Browser tabs and browser commands are disabled, and terminal links open in your system browser." = "The built-in browser is off. Browser tabs and browser commands are disabled, and terminal links open in your system browser.";
 "The bundled client and server do not match the release" = "The bundled client and server do not match the release";
+"The code expired or was cancelled." = "The code expired or was cancelled.";
 "The command path changed during installation; try again." = "The command path changed during installation; try again.";
 "The default profile can't be deleted" = "The default profile can't be deleted";
 "The desktop refused a notification: %@" = "The desktop refused a notification: %@";
@@ -1374,6 +1385,7 @@
 "The offline transcript was too large." = "The offline transcript was too large.";
 "The page new browser tabs open to. Leave it empty for the start page." = "The page new browser tabs open to. Leave it empty for the start page.";
 "The pairing code is too long to show." = "The pairing code is too long to show.";
+"The phone looks for the server at:" = "The phone looks for the server at:";
 "The project directory isn't available on this Mac" = "The project directory isn't available on this Mac";
 "The project's tabs changed. Choose the layout again to confirm replacement." = "The project's tabs changed. Choose the layout again to confirm replacement.";
 "The selected 1.x configuration contains no supported settings or projects." = "The selected 1.x configuration contains no supported settings or projects.";
@@ -1425,7 +1437,7 @@
 "This remote server is no longer listed" = "This remote server is no longer listed";
 "This signs out and removes all cookies, cache, history, and logins for this profile, including imported ones." = "This signs out and removes all cookies, cache, history, and logins for this profile, including imported ones.";
 "This update requires a server restart" = "This update requires a server restart";
-"To pair a phone, turn on Settings → Mobile → Allow mobile devices and click Show Pairing Code, or run atur-term mobile enable and then atur-term mobile pair." = "To pair a phone, turn on Settings → Mobile → Allow mobile devices and click Show Pairing Code, or run atur-term mobile enable and then atur-term mobile pair.";
+"To pair a phone, open the command palette and choose Pair a Phone…, or go to Settings → Phones. It works for remote servers too." = "To pair a phone, open the command palette and choose Pair a Phone…, or go to Settings → Phones. It works for remote servers too.";
 "Toggle Agents Panel" = "Toggle Agents Panel";
 "Toggle Composer" = "Toggle Composer";
 "Toggle Full Screen" = "Toggle Full Screen";
@@ -1534,10 +1546,11 @@
 "Wait for the current mobile access change to finish" = "Wait for the current mobile access change to finish";
 "Wait for the running Git action to finish." = "Wait for the running Git action to finish.";
 "Wait for the server settings operation to finish before quitting" = "Wait for the server settings operation to finish before quitting";
+"Waiting for the phone… the code works once and expires in %@" = "Waiting for the phone… the code works once and expires in %@";
 "Web Inspector" = "Web Inspector";
 "Web content process terminated" = "Web content process terminated";
 "When closing tabs or panes" = "When closing tabs or panes";
-"Whether phones can reach this device right now." = "Whether phones can reach this device right now.";
+"Whether phones can reach the server right now." = "Whether phones can reach the server right now.";
 "White" = "White";
 "Whole word" = "Whole word";
 "Width" = "Width";

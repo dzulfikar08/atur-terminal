@@ -13,11 +13,24 @@ A phone connects in one of two ways:
 
 ## Pair a phone
 
-From the desktop app:
+From the desktop app, open the command palette and choose **Pair a Phone…**.
+It opens **Settings → Phones**, turns on **Allow mobile devices** if it is off,
+and shows a pairing code:
 
-1. Open **Settings → Mobile** and turn on **Allow mobile devices**.
-2. Under **Pair a phone**, choose **Show Pairing Code**.
-3. Scan the code with the Atur Terminal app.
+- a QR code to scan with the Atur Terminal app, and the `atur://pair` link under
+  it with **Copy Link**;
+- the addresses the phone will try, such as your local network address,
+  Tailscale, and the computer's `.local` name;
+- a countdown to the end of the five minutes, and **Waiting for the phone…**
+  until a phone uses the code, then **Paired as** and the phone's name.
+
+You can also open **Settings → Phones** yourself and choose **Show Pairing
+Code**, or use **Pair a Phone…** in a server's status popover.
+
+Each server has phones of its own. For a computer you reach over SSH, choose
+**Pair a Phone on <name>…** in the command palette, or its **Pair a Phone…**
+under **Remote Servers…**. The code points at that computer's addresses, so the
+phone connects to it directly and no longer needs this computer.
 
 From a shell, on any computer with `atur-term`:
 
@@ -30,14 +43,14 @@ atur-term mobile pair
 - The code lists your computer's addresses. If phones reach it by another name,
   such as a cloud server's public name, put it first:
   `atur-term mobile pair --address devbox.example.com`.
-- Phones connect on port `7419` by default. Change it in **Settings → Mobile**
+- Phones connect on port `7419` by default. Change it in **Settings → Phones**
   or with `atur-term mobile enable --port <port>`.
 
 ## Manage phones
 
 | Task | Desktop | CLI |
 | --- | --- | --- |
-| See status and phones | **Settings → Mobile** | `atur-term mobile` |
+| See status and phones | **Settings → Phones** | `atur-term mobile` |
 | Revoke a phone | **Revoke** next to it | `atur-term mobile revoke <id>` |
 | Turn access off | **Allow mobile devices** off | `atur-term mobile disable` |
 

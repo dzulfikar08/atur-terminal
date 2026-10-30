@@ -442,6 +442,14 @@ fn server_command(server: &RemoteServer, model: gpui::WeakEntity<AppModel>) -> C
             )
             .keywords("Edit"),
         );
+        actions.register(
+            Command::new(
+                "pair-phone",
+                tr!("Pair a Phone…"),
+                handler(|model, id, _, cx| model.pair_phone_on(id, cx)),
+            )
+            .keywords("Pair a Phone mobile qr code"),
+        );
         if server.missing && crate::model::released_version().is_some() {
             actions.register(
                 Command::new(

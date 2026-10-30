@@ -855,10 +855,17 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Server control"),
     },
     Setting {
+        id: "mobile-server",
+        label: tr_key!("Server"),
+        description: tr_key!("Each computer's server has phones of its own."),
+        category: Category::Mobile,
+        section: tr_key!("Access"),
+    },
+    Setting {
         id: "mobile-access",
         label: tr_key!("Allow mobile devices"),
         description: tr_key!(
-            "Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access."
+            "Let paired phones reach the server over the local network or a VPN. A paired phone gets full terminal access."
         ),
         category: Category::Mobile,
         section: tr_key!("Access"),
@@ -873,7 +880,7 @@ pub(super) const SETTINGS: &[Setting] = &[
     Setting {
         id: "mobile-status",
         label: tr_key!("Status"),
-        description: tr_key!("Whether phones can reach this device right now."),
+        description: tr_key!("Whether phones can reach the server right now."),
         category: Category::Mobile,
         section: tr_key!("Access"),
     },

@@ -114,8 +114,11 @@ stop.
 - Server settings, such as the shell and history size, apply to this
   computer's server. `atur-term --host` changes another computer's. Stopping or
   restarting it asks first.
-- **Settings → Mobile** turns phone access on, shows a pairing code, and lists
-  paired phones. `atur-term mobile` does the same without the desktop app.
+- **Settings → Phones** turns phone access on, shows a pairing code with its
+  link, addresses and countdown, and lists paired phones, for this computer's
+  server or any remote server. **Pair a Phone…** in the command palette opens
+  it for a chosen server. `atur-term mobile` does the same without the
+  desktop app.
 - **Settings → Backup & Restore** exports settings, themes, extension preferences,
   projects, and layouts. Restore applies on the next launch and keeps a recovery
   copy in `Backups`. Existing projects are kept; matching projects receive the

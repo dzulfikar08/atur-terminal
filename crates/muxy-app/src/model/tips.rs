@@ -39,7 +39,7 @@ pub(crate) const TIPS: &[&str] = &[
         "Record a shortcut in Settings → Quick Terminal → Shortcut to open a floating Home shell over any app."
     ),
     tr_key!(
-        "To pair a phone, turn on Settings → Mobile → Allow mobile devices and click Show Pairing Code, or run atur-term mobile enable and then atur-term mobile pair."
+        "To pair a phone, open the command palette and choose Pair a Phone…, or go to Settings → Phones. It works for remote servers too."
     ),
     tr_key!(
         "Working over SSH? Run atur-term on that machine for tabs and splits in the terminal, and press Ctrl-B then ? to see its keys."

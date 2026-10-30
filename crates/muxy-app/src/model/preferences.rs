@@ -138,7 +138,7 @@ impl AppModel {
                 self.settings_window = Some(SettingsWindowState { window, view });
                 self.dismiss_overlay(cx);
                 self.read_server_settings(cx);
-                self.read_remote_access(cx);
+                self.read_mobile(cx);
             }
             Err(error) => {
                 if extensions.read(cx).updating_all() {
@@ -155,7 +155,7 @@ impl AppModel {
     pub(crate) fn settings_closed(&mut self, cx: &mut Context<Self>) {
         self.record_quick_shortcut(false, cx);
         self.flush_preferences(cx);
-        self.withdraw_pairing(cx);
+        self.withdraw_pairings(cx);
         self.retain_extension_updates(cx);
         self.settings_window = None;
         cx.notify();
@@ -173,6 +173,12 @@ impl AppModel {
     fn preferences_snapshot(&self) -> Snapshot {
         let mut settings = self.settings.clone();
         settings.appearance = self.appearance.clone();
+        let mobile_server = self.mobile_target();
+        let mobile = &self
+            .servers
+            .get(mobile_server)
+            .unwrap_or(&self.servers.local)
+            .mobile;
         Snapshot {
             quick_shortcut_status: self.quick_shortcut_status(),
             capabilities: self.capabilities.clone(),
@@ -185,10 +191,19 @@ impl AppModel {
                 || self.server_preferences.control_busy
                 || self.updates.replacing(),
             pending_server_fields: self.pending_server_fields(),
-            mobile: self.mobile.state.clone(),
-            mobile_pairing: self.mobile.pairing.clone(),
-            mobile_busy: self.mobile.busy,
-            mobile_error: self.mobile.error.clone(),
+            mobile: mobile.state.clone(),
+            mobile_pairing: mobile.pairing.clone(),
+            mobile_busy: mobile.busy,
+            mobile_error: mobile.error.clone(),
+            mobile_connected: self.ready(mobile_server),
+            mobile_server,
+            mobile_label: self.server_label(mobile_server),
+            mobile_servers: self
+                .servers
+                .ids()
+                .into_iter()
+                .map(|server| (server, self.server_label(server)))
+                .collect(),
             ai_installed: self
                 .ai
                 .installed

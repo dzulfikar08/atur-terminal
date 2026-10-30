@@ -253,7 +253,11 @@ impl SettingsView {
                     .text_color(self.theme.accent)
                     .bg(self.theme.accent_soft)
                     .child(
-                        if matches!(self.category, Category::Server | Category::Mobile) {
+                        if self.category == Category::Mobile
+                            && !self.snapshot.mobile_server.is_local()
+                        {
+                            SharedString::from(self.snapshot.mobile_label.clone())
+                        } else if matches!(self.category, Category::Server | Category::Mobile) {
                             tr!("Current device")
                         } else {
                             tr!("User")

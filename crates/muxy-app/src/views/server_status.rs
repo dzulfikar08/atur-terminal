@@ -162,7 +162,7 @@ fn actions(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
     let m = model.metrics;
     let theme = &model.theme;
     let status = model.server_status();
-    let mut actions = popover::footer(theme, m);
+    let mut actions = popover::footer(theme, m).flex_wrap();
     if matches!(
         status,
         ServerStatus::Disconnected | ServerStatus::Connecting
@@ -183,6 +183,20 @@ fn actions(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
             .debug_selector(|| "connect-server".into()),
         );
     } else {
+        actions = actions.child(
+            controls::button(
+                Style { theme, metrics: &m },
+                "pair-phone-server",
+                &tr!("Pair a Phone…"),
+                model.server_control_enabled(),
+                cx.listener(|model, _, _, cx| {
+                    let server = model.status_server();
+                    model.dismiss_overlay(cx);
+                    model.pair_phone_on(server, cx);
+                }),
+            )
+            .debug_selector(|| "pair-phone-server".into()),
+        );
         for (restart, id, label) in [
             (true, "restart-project-server", tr!("Restart server…")),
             (false, "stop-project-server", tr!("Stop server…")),

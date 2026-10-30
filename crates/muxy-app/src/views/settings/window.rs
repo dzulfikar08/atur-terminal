@@ -588,7 +588,7 @@ impl SettingsWindow {
                 let _ = self.model.update(cx, AppModel::read_server_settings);
             }
             SettingsEvent::ReadMobile => {
-                let _ = self.model.update(cx, AppModel::read_remote_access);
+                let _ = self.model.update(cx, AppModel::read_mobile);
             }
             SettingsEvent::PairPhone => {
                 let _ = self.model.update(cx, AppModel::pair_phone);
@@ -599,6 +599,11 @@ impl SettingsWindow {
             SettingsEvent::RevokeDevice(device) => {
                 let _ = self.model.update(cx, |model, cx| {
                     model.confirm_revoke(*device, window.window_handle(), cx);
+                });
+            }
+            SettingsEvent::MobileServer(server) => {
+                let _ = self.model.update(cx, |model, cx| {
+                    model.select_mobile_server(*server, cx);
                 });
             }
             SettingsEvent::Connect => {

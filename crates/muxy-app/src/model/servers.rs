@@ -43,6 +43,8 @@ pub(crate) struct Runtime {
     pub(super) sessions_revision: u64,
     pub(crate) progress: HashMap<SessionId, SessionProgress>,
     pub(crate) activity: activity::ActivityView,
+    /// Phone access as Settings shows it, which the server owns.
+    pub(super) mobile: super::mobile::MobileAccess,
 }
 
 impl Runtime {
@@ -66,6 +68,7 @@ impl Runtime {
             sessions_revision: 0,
             progress: HashMap::new(),
             activity: activity::ActivityView::default(),
+            mobile: super::mobile::MobileAccess::default(),
         }
     }
 }
@@ -484,6 +487,7 @@ impl AppModel {
         runtime.references = None;
         runtime.sessions_revision = 0;
         runtime.discarding.clear();
+        runtime.mobile = super::mobile::MobileAccess::default();
         let panes: Vec<_> = self
             .completions
             .iter()
@@ -509,7 +513,6 @@ impl AppModel {
             }
             self.server_preferences.busy = false;
             self.server_preferences.pending.clear();
-            self.mobile = super::mobile::MobileAccess::default();
         }
         self.sync_preferences(cx);
         self.forget_requests(server);
