@@ -263,6 +263,8 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 match request.action {
                     FilesAction::ReadBytes(_) => "FilesReadBytes",
                     FilesAction::WriteBytes { .. } => "FilesWriteBytes",
+                    FilesAction::ReadRange { .. } => "FilesReadRange",
+                    FilesAction::WriteChunk { .. } => "FilesWriteChunk",
                     _ => "FilesRequest",
                 },
                 ChannelKind::Control,
@@ -273,6 +275,7 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             } => (
                 match reply {
                     FilesReply::Bytes(_) => "FilesBytesReply",
+                    FilesReply::Chunk(_) => "FilesChunkReply",
                     _ => "FilesReply",
                 },
                 ChannelKind::Control,
@@ -493,6 +496,9 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "FilesReadBytes",
             "FilesWriteBytes",
             "FilesBytesReply",
+            "FilesReadRange",
+            "FilesWriteChunk",
+            "FilesChunkReply",
             "GitChanged",
             "GitRequest",
             "GitReply",

@@ -429,6 +429,13 @@ fn chunked_files_round_trip_binary_content_atomically() {
         b"old"
     );
     assert!(workspace.files(chunk(5, 10, false)).is_err());
+    // A piece that does not follow the last one ends the upload.
+    assert!(workspace.files(chunk(100_000, 300_000, true)).is_err());
+    assert_eq!(
+        std::fs::read(workspace.path.join("model.bin")).unwrap(),
+        b"old"
+    );
+    workspace.files(chunk(0, 100_000, false)).unwrap();
     workspace.files(chunk(100_000, 300_000, true)).unwrap();
     assert_eq!(
         std::fs::read(workspace.path.join("model.bin")).unwrap(),
