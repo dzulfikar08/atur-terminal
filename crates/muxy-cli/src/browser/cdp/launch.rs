@@ -481,13 +481,21 @@ fn quit(command: &str, pid: u32) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether process `pid` still runs; one that has quit but whose parent has
+/// not collected it yet does not count.
 fn alive(pid: &str) -> bool {
-    Command::new("kill")
-        .args(["-0", pid])
-        .stdout(Stdio::null())
+    Command::new("ps")
+        .args(["-o", "stat=", "-p", pid])
+        .stdin(Stdio::null())
         .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
+        .output()
+        .is_ok_and(|output| {
+            output.status.success()
+                && !String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .starts_with('Z')
+                && !output.stdout.iter().all(u8::is_ascii_whitespace)
+        })
 }
 
 /// A loopback port nothing listens on.

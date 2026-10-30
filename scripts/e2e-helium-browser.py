@@ -85,7 +85,7 @@ class Run:
         if fail:
             assert done.returncode != 0, f"{args} should fail, printed {done.stdout!r}"
             return done.stderr
-        assert done.returncode == 0, f"{args} failed: {done.stderr}"
+        assert done.returncode == 0, f"{args} failed ({done.returncode}): {done.stderr!r}"
         return done.stdout.strip()
 
     def expect(self, name, got, want):
