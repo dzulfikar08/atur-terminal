@@ -262,6 +262,17 @@ impl Socket {
     }
 }
 
+/// The `Content-Length` of an HTTP reply head.
+fn content_length(head: &str) -> Option<usize> {
+    head.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.trim()
+            .eq_ignore_ascii_case("content-length")
+            .then(|| value.trim().parse().ok())
+            .flatten()
+    })
+}
+
 fn find_header_end(head: &[u8]) -> Option<usize> {
     head.windows(4)
         .position(|window| window == b"\r\n\r\n")
@@ -310,12 +321,35 @@ pub(super) fn http_request(
          Content-Length: 0\r\n\r\n"
     )?;
     let mut reply = Vec::new();
-    stream
-        .take(u64::try_from(MAX_MESSAGE).unwrap_or(u64::MAX))
-        .read_to_end(&mut reply)?;
-    let split = find_header_end(&reply).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "the browser's reply is invalid")
-    })?;
+    let mut chunk = [0_u8; 8192];
+    let split = loop {
+        if let Some(end) = find_header_end(&reply) {
+            break end;
+        }
+        let count = stream.read(&mut chunk)?;
+        if count == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "the browser's reply is invalid",
+            ));
+        }
+        reply.extend_from_slice(&chunk[..count]);
+    };
+    // The browser may keep the connection open, so read what the reply says.
+    let length = content_length(&String::from_utf8_lossy(&reply[..split]));
+    while length.is_none_or(|length| reply.len() - split < length) {
+        if reply.len() > MAX_MESSAGE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "reply is too large",
+            ));
+        }
+        let count = stream.read(&mut chunk)?;
+        if count == 0 {
+            break;
+        }
+        reply.extend_from_slice(&chunk[..count]);
+    }
     let head = String::from_utf8_lossy(&reply[..split]);
     let status = head.lines().next().unwrap_or_default();
     if status.split_whitespace().nth(1) != Some("200") {
@@ -379,6 +413,19 @@ mod tests {
     fn the_header_end_is_found() {
         assert_eq!(find_header_end(b"HTTP/1.1 101\r\n\r\nxyz"), Some(16));
         assert_eq!(find_header_end(b"HTTP/1.1 101\r\n"), None);
+    }
+
+    #[test]
+    fn the_length_of_a_reply_is_read_from_its_head() {
+        assert_eq!(
+            content_length("HTTP/1.1 200 OK\r\nContent-Length:442\r\nContent-Type: a\r\n"),
+            Some(442)
+        );
+        assert_eq!(
+            content_length("HTTP/1.1 200 OK\r\ncontent-length: 7\r\n"),
+            Some(7)
+        );
+        assert_eq!(content_length("HTTP/1.1 200 OK\r\n"), None);
     }
 
     #[test]
