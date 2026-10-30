@@ -739,11 +739,34 @@ impl Owner {
     fn screen_prompts(&mut self, history: usize) -> Result<Vec<u16>, muxy_terminal::TerminalError> {
         let mut rows = self.terminal.screen_prompts()?;
         if self.detect_prompts {
+            self.verify_prompt_marks(history);
             rows.extend(self.marks.screen_rows(history, self.size.rows));
             rows.sort_unstable();
             rows.dedup();
         }
         Ok(rows)
+    }
+
+    /// Moves the marks on screen to where their messages are now, and drops those
+    /// whose message is gone: an application that redraws its screen (a banner that
+    /// goes away) moves rows that herdr has not scrolled into scrollback yet.
+    fn verify_prompt_marks(&mut self, history: usize) {
+        if !matches!(self.stream, Stream::Always | Stream::Open(_))
+            || !self
+                .marks
+                .check_due(history, self.size.rows, Instant::now())
+        {
+            return;
+        }
+        let Ok(screen) = self.terminal.screen() else {
+            return;
+        };
+        let texts = PromptMarks::texts(&screen);
+        if self.marks.stale(history, &texts) {
+            // The rows moved under scrollback counted a moment ago: count it afresh.
+            let base = self.pty.history_rows_now().unwrap_or(history);
+            self.marks.reanchor(base, &texts);
+        }
     }
 
     fn resize(&mut self, size: Size) -> Result<(), Fault> {

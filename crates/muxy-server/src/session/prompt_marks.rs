@@ -9,7 +9,7 @@
 //! A mark is an absolute row: the rows of scrollback above the screen plus the
 //! screen row. Only what was submitted through this server is marked.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
@@ -21,6 +21,8 @@ const SETTLE: Duration = Duration::from_millis(120);
 const RETRY: Duration = Duration::from_millis(150);
 /// When a submission that never showed up is given up.
 const GIVE_UP: Duration = Duration::from_secs(2);
+/// How often the marks on the screen are checked against what it shows.
+const CHECK: Duration = Duration::from_millis(100);
 /// Marks kept per session; the oldest go first.
 const MAX_MARKS: usize = 4096;
 /// Bytes of typed text kept: the first line is all that is searched for.
@@ -166,6 +168,10 @@ impl Needle {
         })
     }
 
+    fn matches(&self, row: &str) -> bool {
+        row.contains(self.long.as_str()) || row.contains(self.short.as_str())
+    }
+
     /// The lowest row above the cursor that shows the message, else the lowest
     /// row anywhere but at the cursor, which is where an unsent draft stays.
     fn find(&self, rows: &[String], cursor: usize) -> Option<usize> {
@@ -208,14 +214,30 @@ impl Pending {
     }
 }
 
+/// A marked row and the message that is on it, so that the mark follows the
+/// message while the application redraws what is on screen (a banner that goes
+/// away moves everything under it up).
+#[derive(Debug)]
+struct Mark {
+    needle: Needle,
+    /// Rows from the marked row down to the one that shows the message.
+    offset: usize,
+}
+
 #[derive(Debug, Default)]
 pub(super) struct PromptMarks {
     typed: Typed,
     pending: Option<Pending>,
-    rows: BTreeSet<u64>,
+    rows: BTreeMap<u64, Mark>,
+    checked: Option<Instant>,
 }
 
 impl PromptMarks {
+    /// The text of each screen row, for matching.
+    pub(super) fn texts(screen: &[Row]) -> Vec<String> {
+        screen.iter().map(row_text).collect()
+    }
+
     /// Follows bytes sent to the application; the text typed before an Enter.
     pub(super) fn type_in(&mut self, bytes: &[u8]) -> Option<String> {
         self.typed.feed(bytes)
@@ -266,7 +288,7 @@ impl PromptMarks {
         let Some(pending) = self.pending.take() else {
             return false;
         };
-        let rows: Vec<String> = screen.iter().map(row_text).collect();
+        let rows = Self::texts(screen);
         // Content that is no longer there takes its marks with it.
         self.prune(u64::try_from(base.saturating_add(rows.len())).unwrap_or(u64::MAX));
         let Some(found) = pending.needle.find(&rows, usize::from(cursor)) else {
@@ -278,15 +300,17 @@ impl PromptMarks {
             }
             return false;
         };
-        let row = if pending.pad && found > 0 && rows[found - 1].is_empty() {
-            found - 1
-        } else {
-            found
-        };
-        let (Ok(base), Ok(row)) = (u64::try_from(base), u64::try_from(row)) else {
+        let offset = usize::from(pending.pad && found > 0 && rows[found - 1].is_empty());
+        let (Ok(base), Ok(row)) = (u64::try_from(base), u64::try_from(found - offset)) else {
             return false;
         };
-        self.rows.insert(base.saturating_add(row));
+        self.rows.insert(
+            base.saturating_add(row),
+            Mark {
+                needle: pending.needle,
+                offset,
+            },
+        );
         if self.rows.len() > MAX_MARKS {
             self.rows.pop_first();
         }
@@ -306,7 +330,85 @@ impl PromptMarks {
 
     /// Forgets marks at or below row `total`, after the content shrank.
     pub(super) fn prune(&mut self, total: u64) {
-        self.rows.retain(|row| *row < total);
+        self.rows.retain(|row, _| *row < total);
+    }
+
+    /// Whether the marks on a screen of `rows` rows under `history` rows of
+    /// scrollback are to be checked against what the screen shows: some are
+    /// there, and the last check was a while ago.
+    pub(super) fn check_due(&mut self, history: usize, rows: u16, now: Instant) -> bool {
+        if self.checked.is_some_and(|at| now < at + CHECK)
+            || self.on_screen(history, usize::from(rows)).next().is_none()
+        {
+            return false;
+        }
+        self.checked = Some(now);
+        true
+    }
+
+    fn on_screen(&self, history: usize, rows: usize) -> impl Iterator<Item = (&u64, &Mark)> {
+        let start = u64::try_from(history).unwrap_or(u64::MAX);
+        let end = start.saturating_add(u64::try_from(rows).unwrap_or(u64::MAX));
+        self.rows.range(start..end)
+    }
+
+    /// Whether a mark on the screen no longer has its message where it points.
+    pub(super) fn stale(&self, history: usize, texts: &[String]) -> bool {
+        let start = u64::try_from(history).unwrap_or(u64::MAX);
+        self.on_screen(history, texts.len()).any(|(row, mark)| {
+            usize::try_from(row - start)
+                .ok()
+                .and_then(|row| texts.get(row + mark.offset))
+                .is_none_or(|text| !mark.needle.matches(text))
+        })
+    }
+
+    /// Moves each mark on the screen to where its message is now: the closest row
+    /// that shows it and no other mark does. A mark whose message is gone is
+    /// dropped.
+    pub(super) fn reanchor(&mut self, history: usize, texts: &[String]) {
+        let start = u64::try_from(history).unwrap_or(u64::MAX);
+        let keys: Vec<u64> = self
+            .on_screen(history, texts.len())
+            .map(|(row, _)| *row)
+            .collect();
+        let at = |key: u64, offset: usize| {
+            usize::try_from(key - start)
+                .ok()
+                .map(|row| row.saturating_add(offset))
+        };
+        let mut claimed = BTreeSet::new();
+        let mut lost = Vec::new();
+        for key in keys {
+            let Some(mark) = self.rows.get(&key) else {
+                continue;
+            };
+            match at(key, mark.offset).filter(|row| {
+                texts
+                    .get(*row)
+                    .is_some_and(|text| mark.needle.matches(text))
+            }) {
+                Some(row) => {
+                    claimed.insert(row);
+                }
+                None => lost.push(key),
+            }
+        }
+        for key in lost {
+            let Some(mark) = self.rows.remove(&key) else {
+                continue;
+            };
+            let expected = at(key, mark.offset).unwrap_or(0);
+            let moved = (0..texts.len())
+                .filter(|row| !claimed.contains(row) && mark.needle.matches(&texts[*row]))
+                .min_by_key(|row| row.abs_diff(expected))
+                .filter(|row| *row >= mark.offset)
+                .and_then(|row| Some((row, u64::try_from(row - mark.offset).ok()?)));
+            if let Some((row, from_top)) = moved {
+                claimed.insert(row);
+                self.rows.insert(start.saturating_add(from_top), mark);
+            }
+        }
     }
 
     /// Marks in scrollback rows `range`, as indexes into it.
@@ -316,18 +418,15 @@ impl PromptMarks {
         };
         self.rows
             .range(start..end)
-            .filter_map(|row| u16::try_from(row - start).ok())
+            .filter_map(|(row, _)| u16::try_from(row - start).ok())
             .collect()
     }
 
     /// Marks on the screen under `history` rows of scrollback, as screen rows.
     pub(super) fn screen_rows(&self, history: usize, rows: u16) -> Vec<u16> {
-        let Ok(start) = u64::try_from(history) else {
-            return Vec::new();
-        };
-        self.rows
-            .range(start..start + u64::from(rows))
-            .filter_map(|row| u16::try_from(row - start).ok())
+        let start = u64::try_from(history).unwrap_or(u64::MAX);
+        self.on_screen(history, usize::from(rows))
+            .filter_map(|(row, _)| u16::try_from(row - start).ok())
             .collect()
     }
 }
@@ -493,6 +592,71 @@ mod tests {
         }
         assert_eq!(marks.history_rows(&(0..MAX_MARKS * 2 + 2)).len(), MAX_MARKS);
         assert_eq!(marks.rows.len(), MAX_MARKS);
-        assert_eq!(marks.rows.first().copied(), Some(2));
+        assert_eq!(marks.rows.keys().next().copied(), Some(2));
+    }
+
+    fn marked(lines: &[&str], pad: bool, base: usize, cursor: u16) -> PromptMarks {
+        let mut marks = PromptMarks::default();
+        let now = Instant::now();
+        submit(&mut marks, "fix the login redirect", pad, now);
+        assert!(marks.resolve(now + SETTLE, &screen(lines), cursor, base));
+        marks
+    }
+
+    #[test]
+    fn a_mark_follows_its_message_when_the_screen_shifts() {
+        let mut marks = marked(&["", "", "fix the login redirect", "", "> "], true, 100, 4);
+        // Rows 0 and 1 of the screen hold the mark's padding row and message now.
+        assert_eq!(marks.screen_rows(100, 5), [1]);
+        let moved = PromptMarks::texts(&screen(&["", "fix the login redirect", "", "> ", ""]));
+        assert!(marks.stale(100, &moved));
+        marks.reanchor(100, &moved);
+        assert!(!marks.stale(100, &moved));
+        assert_eq!(marks.screen_rows(100, 5), [0]);
+        // Where it is is also where it stays.
+        marks.reanchor(100, &moved);
+        assert_eq!(marks.screen_rows(100, 5), [0]);
+    }
+
+    #[test]
+    fn a_mark_whose_message_was_overwritten_is_dropped() {
+        // A shell command's row that a full-screen program then paints over.
+        let mut marks = marked(&["fix the login redirect", "ok", "$ "], false, 0, 2);
+        let gone = PromptMarks::texts(&screen(&["welcome banner", "", "> "]));
+        assert!(marks.stale(0, &gone));
+        marks.reanchor(0, &gone);
+        assert!(marks.screen_rows(0, 3).is_empty());
+        assert!(marks.history_rows(&(0..10)).is_empty());
+    }
+
+    #[test]
+    fn two_marks_with_the_same_text_keep_their_own_rows() {
+        let mut marks = marked(&["fix the login redirect", "", "> "], false, 0, 2);
+        let now = Instant::now();
+        submit(&mut marks, "fix the login redirect", false, now);
+        let both = screen(&[
+            "fix the login redirect",
+            "x",
+            "fix the login redirect",
+            "> ",
+        ]);
+        assert!(marks.resolve(now + SETTLE, &both, 3, 0));
+        let shifted = PromptMarks::texts(&screen(&[
+            "x",
+            "fix the login redirect",
+            "y",
+            "fix the login redirect",
+        ]));
+        marks.reanchor(0, &shifted);
+        assert_eq!(marks.screen_rows(0, 4), [1, 3]);
+    }
+
+    #[test]
+    fn marks_in_scrollback_are_not_checked() {
+        let mut marks = marked(&["fix the login redirect", "", "> "], false, 0, 2);
+        assert!(marks.check_due(0, 3, Instant::now()));
+        // The screen moved on by ten rows: the mark is history, untouched.
+        assert!(!marks.check_due(10, 3, Instant::now() + CHECK));
+        assert_eq!(marks.history_rows(&(0..10)), [0]);
     }
 }
