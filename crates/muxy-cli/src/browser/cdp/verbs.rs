@@ -58,6 +58,10 @@ fn wrap(body: &str) -> String {
 /// Whether `body` parses as the body of an async function, without running
 /// it.
 fn compiles(transport: &mut dyn Transport, body: &str) -> bool {
+    // The browser only compiles scripts once its runtime agent is on.
+    if transport.call("Runtime.enable", json!({})).is_err() {
+        return false;
+    }
     let params = json!({
         "expression": wrap(body),
         "sourceURL": "",
@@ -438,9 +442,13 @@ mod tests {
         )?;
         assert_eq!(
             expression_fake.methods(),
-            ["Runtime.compileScript", "Runtime.evaluate"]
+            [
+                "Runtime.enable",
+                "Runtime.compileScript",
+                "Runtime.evaluate"
+            ]
         );
-        assert!(expression(&expression_fake, 1).contains("return (\n1 + 1\n);"));
+        assert!(expression(&expression_fake, 2).contains("return (\n1 + 1\n);"));
 
         let mut statements_fake = Fake::new(|method, _| {
             if method == "Runtime.compileScript" {
@@ -454,8 +462,8 @@ mod tests {
             "browser.eval",
             &args(json!({"script": "const a = 1; return a"})),
         )?;
-        assert!(expression(&statements_fake, 1).contains("const a = 1; return a"));
-        assert!(!expression(&statements_fake, 1).contains("return (\n"));
+        assert!(expression(&statements_fake, 2).contains("const a = 1; return a"));
+        assert!(!expression(&statements_fake, 2).contains("return (\n"));
         Ok(())
     }
 
