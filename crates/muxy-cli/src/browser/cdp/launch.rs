@@ -389,7 +389,8 @@ pub(super) fn attach(config: &Config) -> Result<Browser, String> {
 /// user allows, else says how.
 fn restart_without_debugging(config: &Config, process: &Process) -> Result<Browser, String> {
     if config.restart || confirm_restart(config.name()) {
-        eprintln!(
+        let _ = writeln!(
+            io::stderr(),
             "atur-term: restarting {} with remote debugging; your tabs are restored",
             config.name()
         );
@@ -419,7 +420,8 @@ fn confirm_restart(name: &str) -> bool {
     if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
         return false;
     }
-    eprint!(
+    let _ = write!(
+        io::stderr(),
         "{name} is running without remote debugging. Restart it with debugging on? \
          Your tabs are restored. [y/N] "
     );

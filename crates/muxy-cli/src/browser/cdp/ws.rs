@@ -102,7 +102,7 @@ pub(super) fn encode_frame(opcode: u8, payload: &[u8], mask: [u8; 4]) -> Vec<u8>
     frame.push(0x80 | opcode);
     match payload.len() {
         length if length < 126 => frame.push(0x80 | u8::try_from(length).unwrap_or(0)),
-        length if length <= usize::from(u16::MAX) => {
+        length if u16::try_from(length).is_ok() => {
             frame.push(0x80 | 126);
             frame.extend_from_slice(&u16::try_from(length).unwrap_or(0).to_be_bytes());
         }
@@ -198,7 +198,7 @@ impl Socket {
         loop {
             while let Some((frame, used)) = parse_frame(&self.buffer)? {
                 self.buffer.drain(..used);
-                if let Some(text) = self.accept(frame)? {
+                if let Some(text) = self.accept(&frame)? {
                     return Ok(Some(text));
                 }
             }
@@ -231,13 +231,12 @@ impl Socket {
     }
 
     /// Handles a frame; a finished text message comes back.
-    fn accept(&mut self, frame: Frame) -> io::Result<Option<String>> {
+    fn accept(&mut self, frame: &Frame) -> io::Result<Option<String>> {
         match frame.opcode {
             OP_PING => {
                 self.send(OP_PONG, &frame.payload)?;
                 Ok(None)
             }
-            OP_PONG => Ok(None),
             OP_CLOSE => Err(io::Error::new(
                 io::ErrorKind::ConnectionAborted,
                 "the browser closed the connection",
