@@ -203,6 +203,16 @@ impl Client {
     pub fn revoke_device(&self, device: DeviceId) -> Result<RemoteAccessState, ClientError> {
         remote_access(self.request(RequestBody::RevokeDevice(device))?)
     }
+
+    /// Lets a paired phone view and control this computer's screen, or stops it.
+    /// Only a local connection may ask.
+    pub fn set_device_screen(
+        &self,
+        device: DeviceId,
+        allowed: bool,
+    ) -> Result<RemoteAccessState, ClientError> {
+        remote_access(self.request(RequestBody::SetDeviceScreen(device, allowed))?)
+    }
 }
 
 fn remote_access(body: ReplyBody) -> Result<RemoteAccessState, ClientError> {

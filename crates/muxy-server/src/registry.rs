@@ -20,6 +20,9 @@ use crate::spawn::spawn_shell;
 
 type Sessions = Arc<Mutex<State>>;
 
+/// Told to a phone whose screen viewer ended because the permission went away.
+pub(crate) const SCREEN_TURNED_OFF: &str = "Screen sharing was turned off for this phone.";
+
 #[derive(Debug, Default)]
 struct State {
     sessions: BTreeMap<SessionId, SessionHandle>,
@@ -366,6 +369,24 @@ impl Registry {
     ) -> Result<muxy_protocol::RemoteAccessState, ServerError> {
         self.remote.revoke(device)?;
         self.close_devices(Some(device));
+        Ok(self.remote_access_state())
+    }
+
+    /// Allows or forbids a paired device to view and control the screen.
+    /// Forbidding ends the screen viewers it has open.
+    pub(crate) fn set_device_screen(
+        &self,
+        device: muxy_protocol::DeviceId,
+        allowed: bool,
+    ) -> Result<muxy_protocol::RemoteAccessState, ServerError> {
+        self.remote.set_screen(device, allowed)?;
+        if !allowed {
+            for connection in self.live_connections() {
+                if connection.device() == Some(device) {
+                    connection.end_screens(SCREEN_TURNED_OFF);
+                }
+            }
+        }
         Ok(self.remote_access_state())
     }
 

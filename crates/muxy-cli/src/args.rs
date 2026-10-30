@@ -34,6 +34,7 @@ pub(crate) enum Mobile {
     Disable,
     Pair { addresses: Vec<String> },
     Revoke { device: String },
+    Screen { device: String, allowed: bool },
 }
 
 /// Reads the command, and the other computer whose server it uses when it
@@ -142,6 +143,13 @@ fn mobile(arguments: &[OsString]) -> io::Result<Mobile> {
         [Some("revoke"), Some(device)] if !device.is_empty() => Ok(Mobile::Revoke {
             device: (*device).to_owned(),
         }),
+        [Some("screen"), Some(device), Some(switch @ ("on" | "off"))] if !device.is_empty() => {
+            Ok(Mobile::Screen {
+                device: (*device).to_owned(),
+                allowed: *switch == "on",
+            })
+        }
+        [Some("screen"), ..] => Err(invalid("usage: atur-term mobile screen <device> on|off")),
         _ => Err(invalid(
             "unknown mobile command; run atur-term mobile --help",
         )),

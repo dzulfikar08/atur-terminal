@@ -877,6 +877,71 @@ files.writeText("notes.md", text)
 - Ids and paths are strings, so names that aren't UTF-8 can't be used. The SDK
   chooses the ids of operations and of new worktree projects.
 
+## The computer's screen
+
+A phone can show the computer's desktop and drive it with touch and keys, over the connection it already
+has (TLS or UDP). This goes through `Direct`, the object the Atur app's React Native module drives, and
+not through `Connection`: requests and events are JSON strings, and pictures and video reach the app
+through one protocol it implements, `ScreenSink`. The computer must run Linux with a Wayland desktop
+and `wayvnc`, and must allow this phone first (Settings → Phones on the computer, or
+`atur-term mobile screen <device> on`); a phone starts with no permission.
+
+```swift
+final class Sink: ScreenSink {
+    // One H.264 access unit, Annex B, SPS and PPS inline on key frames. `reset`: the server started
+    // a new context, so drop reference state and set the decoder up again from this unit.
+    func onVideo(annexB: Data, reset: Bool) { videoDecoder.feed(annexB, reset: reset) }
+    // A whole picture: width * height * 4 bytes in R, G, B, A order, A = 255.
+    func onFrame(width: UInt32, height: UInt32, rgba: Data) { pictureView.show(width, height, rgba) }
+}
+direct.setScreenSink(sink: Sink())
+let opened = direct.call(method: "screenOpen", argsJson: #"{"viewOnly":false,"h264":true}"#)
+```
+
+```kotlin
+val sink = object : ScreenSink {
+    override fun onVideo(annexB: ByteArray, reset: Boolean) = decoder.feed(annexB, reset)
+    override fun onFrame(width: UInt, height: UInt, rgba: ByteArray) = view.show(width, height, rgba)
+}
+direct.setScreenSink(sink)
+val opened = direct.call("screenOpen", """{"viewOnly":false,"h264":true}""")
+```
+
+| Request | How | Arguments | What it does |
+| --- | --- | --- | --- |
+| `screenOpen` | `call` | `viewOnly`, `h264` (both booleans, default false) | Opens the screen and answers `{"ok":{}}` once the server's channel is open; the handshake goes on in the background. Needs a sink. `h264: true` only when the phone's hardware decodes H.264: with `false` the core never offers it and the server sends pictures (ZRLE). One screen per connection: opening again closes the previous one |
+| `screenClose` | `call` | none | Ends the screen. Safe to call again |
+| `screenPointer` | `fire` | `x`, `y` (desktop pixels, clamped), `buttons` (bitmask: 1 left, 2 middle, 4 right) | Moves the pointer and sets the buttons |
+| `screenScroll` | `fire` | `x`, `y`, `dx`, `dy` (wheel notches, at most 10; positive `dy` scrolls up, positive `dx` right) | Turns the wheel at that point |
+| `screenKey` | `fire` | `keysym` (X11), `down` | Presses or releases a key |
+| `screenType` | `fire` | `text` | Presses and releases the key of each character; `\n` is Return, `\t` Tab, `\b` BackSpace |
+| `screenViewOnly` | `fire` | `viewOnly` | Drops all input while true; keys held are released |
+| `screenClipboard` | `fire` | `text` | Sends text to the computer's clipboard |
+| `screenReleaseAll` | `fire` | none | Releases every key and button held (focus lost) |
+| `screenRefresh` | `fire` | none | Asks the server for a whole update, which restarts H.264 with a key frame: call it when the decoder lost sync or a view attaches |
+
+`fire` requests are queued in order with typing and ignored while no screen is open. The connect answer
+has `"screen": true` when the server offers the screen.
+
+Events arrive through `DirectListener.onMessage`:
+
+| Event | Fields |
+| --- | --- |
+| `{"t":"screen"}` | `state`: `connecting`, `ready` or `closed`. `width`, `height`, `name` with `ready` (again after the desktop changes size). `reason` with `closed`: empty when the app closed the screen, else the computer's own words (for example, that the permission was turned off) or why the stream was lost |
+| `{"t":"screenStats"}` | About once a second while ready: `codec` (`zrle`, `raw`, `h264 (mediacodec)`, `h264 (videotoolbox)`), `fps`, `kbps`, `dropped`, `decodeMs` |
+| `{"t":"screenClipboard"}` | `text`: the computer's clipboard changed |
+
+- Nothing queues. The core hands the RFB reader a few chunks, keeps one picture, and calls the sink on its
+  own thread, waiting for each call. A slow sink slows the acknowledgements to the server, which then sends
+  only the newest picture. `onFrame` gets at most about 30 pictures a second, the newest only; return from
+  `onVideo` fast, since returning acknowledges the bytes.
+- `screenOpen` fails with `ScreenNotAllowed` when the computer has not allowed this phone (`reason` is the
+  computer's own sentence: show it as it is), with `ScreenUnavailable` when the computer could not start its
+  capture (`reason` says why, for example that `wayvnc` is not installed), and with `Unsupported` when the
+  server has no screen feature.
+- Turning the permission off on the computer closes the screen at once. Disconnecting, or dropping the
+  `Direct`, closes it too.
+
 ## Reconnecting
 
 - Connect when the app comes to the foreground, and disconnect when it goes to
@@ -909,6 +974,8 @@ for each case.
 | `Timeout` | The server didn't answer in time | "Atur Terminal isn't responding." | Yes |
 | `Disconnected` | The connection closed during the call | Reconnect | Yes |
 | `Server(reason)` | The server refused the request; `reason` is readable text | Show `reason` | Depends |
+| `ScreenNotAllowed(reason)` | The computer doesn't let this phone view or control its screen | Show `reason` as it is | No, until the user allows it on the computer |
+| `ScreenUnavailable(reason)` | The computer could not start mirroring its screen: no desktop session, or no capture program | Show `reason` | Yes, once the computer is ready |
 
 ```swift
 do {
@@ -964,6 +1031,9 @@ try {
 - Phones can't turn mobile access on or off, pair or revoke devices, stop the
   server, change server settings, or run extension commands. Those stay on the
   computer.
+- A phone can view and control the computer's screen only after the user allows that phone on the computer,
+  and the permission can be taken away again at any time, which closes the phone's screen at once. A phone
+  can't grant it to itself.
 - Revoking a phone in Settings → Phones closes its connection and invalidates
   its token at once.
 - Over SSH, the app acts as the SSH user, so the limits above for paired
@@ -995,6 +1065,11 @@ target/debug/atur-term mobile disable
 - `cargo test -p atur-mobile` pairs, connects, attaches, types, scrolls back,
   sends taps and scrolling, works with Git and files, and revokes against a
   real server. It also connects through a simulated SSH channel.
+- `tests/screen.rs` runs the screen through `Direct` against an in-process server whose
+  capture program is a Python stand-in for `wayvnc` (`tests/fake_wayvnc.py`): pictures, the H.264 fixture
+  of `atur-screen`, input, clipboard, refusal and the permission being turned off. The example
+  `phone_probe` does the same against a real desktop (headless sway, real `wayvnc`) over TLS and UDP;
+  the `screen-e2e` job of `.github/workflows/ci.yml` runs it through `scripts/screen-e2e.sh`.
 
 ## Not in this version
 

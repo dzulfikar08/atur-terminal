@@ -46,7 +46,10 @@ fn shifted(c: char) -> char {
     }
 }
 
-fn char_keysym(c: char) -> Option<u32> {
+/// X11 keysym of a typed character: Latin-1 as it is, other characters as Unicode keysyms,
+/// DEL as Delete. `None` for the other control characters, which are keys (Return, Tab,
+/// BackSpace), not characters.
+pub fn char_keysym(c: char) -> Option<u32> {
     let code = u32::from(c);
     match code {
         0x20..=0x7e | 0xa0..=0xff => Some(code),

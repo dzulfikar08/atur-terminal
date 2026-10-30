@@ -30,6 +30,16 @@ pub enum MobileError {
     Server {
         reason: String,
     },
+    /// The computer does not let this phone view or control its screen; `reason` is the
+    /// server's own explanation, to show as it is.
+    ScreenNotAllowed {
+        reason: String,
+    },
+    /// The computer could not start mirroring its screen (no desktop session, no capture
+    /// program); `reason` is the server's own explanation, to show as it is.
+    ScreenUnavailable {
+        reason: String,
+    },
 }
 
 impl fmt::Display for MobileError {
@@ -51,7 +61,9 @@ impl fmt::Display for MobileError {
                 .write_str("This needs a newer Atur Terminal on the phone or the computer."),
             Self::Timeout => formatter.write_str("The server did not answer in time."),
             Self::Disconnected => formatter.write_str("Disconnected from the server."),
-            Self::Server { reason } => formatter.write_str(reason),
+            Self::Server { reason }
+            | Self::ScreenNotAllowed { reason }
+            | Self::ScreenUnavailable { reason } => formatter.write_str(reason),
         }
     }
 }

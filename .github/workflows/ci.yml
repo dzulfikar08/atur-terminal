@@ -5,7 +5,7 @@ name: ci
 # releases do not ship them.
 on:
   push:
-    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror]
+    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror, phone-screen]
   pull_request:
   workflow_call:
 
@@ -111,7 +111,8 @@ jobs:
 
   # The screen mirroring check needs a Wayland compositor and the current
   # wayvnc, which Arch ships and Ubuntu's packages are too old for. The
-  # binaries are built on Ubuntu 22.04, like the release, and run there.
+  # binaries are built on Ubuntu 22.04, like the release, and run there:
+  # the server, the desktop client's probe and the phone core's probe.
   screen-build:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -133,9 +134,13 @@ jobs:
       - run: >-
           ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
           cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe --example herdr_marks_probe
+      # The phone core's probe: it drives the screen through the facade the phone apps use.
+      - run: >-
+          ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
+          cargo build --locked --release -p atur-mobile --example phone_probe
       - run: |
           mkdir bin
-          cp target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe bin/
+          cp target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe target/release/examples/phone_probe bin/
       - uses: actions/upload-artifact@v4
         with:
           name: screen-e2e-bin

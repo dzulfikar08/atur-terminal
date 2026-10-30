@@ -191,6 +191,29 @@ fn view_only_ignores_input_but_still_releases() {
     );
 }
 
+#[test]
+fn refresh_requests_a_full_update_even_in_view_only_mode() {
+    let harness = start_ready(
+        ScreenOptions {
+            view_only: true,
+            prefer_h264: true,
+        },
+        100,
+        80,
+        Chunking::Whole,
+    );
+    harness.screen.refresh();
+    assert_eq!(harness.server.read(10), update_request(false, 100, 80));
+    assert!(harness.server.settle().is_empty());
+}
+
+#[test]
+fn refresh_before_the_screen_size_is_known_sends_nothing() {
+    let harness = start(ScreenOptions::default());
+    harness.screen.refresh();
+    assert!(harness.server.settle().is_empty());
+}
+
 fn caps_body(flags: u32) -> Vec<u8> {
     let mut body = flags.to_be_bytes().to_vec();
     body.extend_from_slice(&[0, 0, 0, 0]);

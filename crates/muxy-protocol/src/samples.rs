@@ -156,6 +156,7 @@ fn remote_samples() -> Vec<Message> {
         RequestBody::StartPairingWithHosts(vec!["box.example.com".into(), "203.0.113.7".into()]),
         RequestBody::CancelPairing,
         RequestBody::RevokeDevice(device),
+        RequestBody::SetDeviceScreen(device, true),
         RequestBody::OfferUdp,
         RequestBody::ReadAddresses,
     ] {
@@ -182,6 +183,7 @@ fn remote_samples() -> Vec<Message> {
                 paired_at: 100,
                 last_seen: Some(200),
                 connected: true,
+                screen: true,
             }],
         }),
         ReplyBody::Pairing(crate::PairingOffer {

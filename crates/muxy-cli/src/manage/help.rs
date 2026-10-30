@@ -14,7 +14,7 @@ Usage: atur-term [--host DESTINATION [--udp]] [COMMAND]
   git           Run a server Git action using JSON
   files         Run a server file action using JSON
   exec          Execute a program in a server project
-  mobile        Enable access, pair phones and revoke devices
+  mobile        Enable access, pair, revoke and allow the screen for phones
   browser       Drive browser tabs in the desktop app on this computer
   install-skills
                 Install the atur-term-cli skill for AI coding agents
@@ -45,7 +45,8 @@ pub(crate) const MOBILE: &str = "Usage: atur-term mobile [action]
   enable [--port N]         Let phones connect; --port changes the port (7419)
   disable                   Turn mobile access off
   pair [--address HOST]...  Show a pairing code and wait for the phone
-  revoke <device>           Revoke a device by the start of its ID
+  revoke <device>           Revoke a device by the start of its ID or its exact name
+  screen <device> on|off    Let a phone view and control this computer's screen
 
 Pairing codes list the server's own addresses. --address puts a DNS name or
 IPv4 address first, for a server that phones reach by another name, such as a

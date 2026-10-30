@@ -113,6 +113,10 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 ..
             } => ("RevokeDevice", ChannelKind::Control),
             Message::Request {
+                body: RequestBody::SetDeviceScreen(..),
+                ..
+            } => ("SetDeviceScreen", ChannelKind::Control),
+            Message::Request {
                 body: RequestBody::OpenScreen,
                 ..
             } => ("OpenScreen", ChannelKind::Control),
@@ -600,6 +604,7 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "Addresses",
             "CancelPairing",
             "RevokeDevice",
+            "SetDeviceScreen",
             "Authenticated",
             "Paired",
             "RemoteAccess",

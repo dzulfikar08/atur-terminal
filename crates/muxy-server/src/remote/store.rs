@@ -16,6 +16,8 @@ pub(super) struct Device {
     pub(super) token_hash: [u8; 32],
     pub(super) paired_at: u64,
     pub(super) last_seen: Option<u64>,
+    /// Whether the device may view and control the computer's screen.
+    pub(super) screen: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -41,6 +43,9 @@ struct DocumentDevice {
     token_sha256: String,
     paired_at: u64,
     last_seen: Option<u64>,
+    /// Missing in files written before the screen permission existed.
+    #[serde(default)]
+    screen: bool,
 }
 
 pub(super) fn load(path: &Path) -> io::Result<Stored> {
@@ -86,6 +91,7 @@ fn stored(document: Document) -> Option<Stored> {
                 token_hash: unhex(&device.token_sha256)?.try_into().ok()?,
                 paired_at: device.paired_at,
                 last_seen: device.last_seen,
+                screen: device.screen,
             })
         })
         .collect::<Option<Vec<_>>>()?;
@@ -117,6 +123,7 @@ pub(super) fn save(path: &Path, stored: &Stored) -> io::Result<()> {
                 token_sha256: hex(&device.token_hash),
                 paired_at: device.paired_at,
                 last_seen: device.last_seen,
+                screen: device.screen,
             })
             .collect(),
     };
@@ -197,6 +204,7 @@ mod tests {
                 token_hash: [7; 32],
                 paired_at: 10,
                 last_seen: Some(11),
+                screen: true,
             }],
         };
         save(&path, &stored)?;
@@ -207,6 +215,23 @@ mod tests {
         assert_eq!(loaded.devices.len(), 1);
         assert_eq!(loaded.devices[0].token_hash, [7; 32]);
         assert_eq!(loaded.devices[0].last_seen, Some(11));
+        assert!(loaded.devices[0].screen);
+        fs::remove_dir_all(directory)
+    }
+
+    #[test]
+    fn a_file_from_before_the_screen_permission_reads_as_not_allowed() -> io::Result<()> {
+        let directory = directory()?;
+        let path = directory.join("remote.json");
+        let document = format!(
+            r#"{{"enabled":false,"port":7419,"certificate":null,"private_key":null,"devices":[{{"id":"{}","name":"Phone","token_sha256":"{}","paired_at":10,"last_seen":null}}]}}"#,
+            DeviceId::from_u128(9),
+            hex(&[7; 32]),
+        );
+        fs::write(&path, document)?;
+        let loaded = load(&path)?;
+        assert_eq!(loaded.devices.len(), 1);
+        assert!(!loaded.devices[0].screen);
         fs::remove_dir_all(directory)
     }
 }

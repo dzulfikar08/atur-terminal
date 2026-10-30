@@ -37,6 +37,7 @@ fn phone(name: &str) -> PairedDevice {
         paired_at: now(),
         last_seen: None,
         connected: false,
+        screen: false,
     }
 }
 

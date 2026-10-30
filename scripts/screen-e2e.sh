@@ -3,11 +3,14 @@
 # the server starts wayvnc itself, a client opens a screen over the server's
 # channel, sees the desktop change, drives it with the pointer and keyboard and
 # exchanges clipboard text. The same changes are timed straight against
-# wayvnc, to show what the relay adds.
+# wayvnc, to show what the relay adds. Then the phone core does the same
+# through the facade the phone apps use: it pairs over TLS, is refused the
+# screen until the computer allows it, and over TLS and over UDP sees the
+# desktop change, drives it, and loses the screen when the permission goes.
 #
 # Needs sway, wayvnc, wev, wl-clipboard and python. Run by the `screen-e2e` job of
 # .github/workflows/ci.yml with the binaries built by the `screen-build` job:
-#   scripts/screen-e2e.sh BIN_DIR   # holds atur-term-server and screen_probe
+#   scripts/screen-e2e.sh BIN_DIR   # holds atur-term-server, screen_probe and phone_probe
 set -euo pipefail
 
 BIN=$(cd "${1:?usage: screen-e2e.sh BIN_DIR}" && pwd)
@@ -91,6 +94,31 @@ echo "$DIRECT_RESULT"
   echo '```'
 } >>"$SUMMARY"
 
+# The phone core: the facade the phone apps drive, paired like a phone, with the
+# permission a phone needs from the computer.
+phone() { "$BIN/phone_probe" --server "$WORK/srv/server.sock" --credential "$WORK/phone.json" "$@"; }
+
+echo "== a phone pairs, and is refused the screen until the computer allows it"
+phone pair
+phone refused
+phone allow
+
+echo "== a phone sees the desktop's colour over TLS and over UDP, with and without H.264 offered"
+PHONE_REPORT=""
+for transport in tls auto; do
+  for h264 in off on; do
+    PHONE_REPORT+="$(phone --expect-udp colors "$transport" "$h264")"$'\n'
+  done
+done
+printf '%s' "$PHONE_REPORT"
+{
+  echo "### Phone core: the screen through the facade, TLS then UDP, H.264 offered or not"
+  echo
+  echo '```json'
+  printf '%s' "$PHONE_REPORT"
+  echo '```'
+} >>"$SUMMARY"
+
 # A window to receive the keys and clicks; it fills the output, so it comes after
 # the checks that read the background's colour.
 stdbuf -oL wev >"$WORK/wev.log" 2>&1 &
@@ -103,6 +131,21 @@ grep -E "sym: a " "$WORK/wev.log"
 grep -E "sym: B " "$WORK/wev.log"
 grep -E "wl_pointer\] button: .*state: 1" "$WORK/wev.log"
 grep -E "wl_pointer\] axis" "$WORK/wev.log"
+
+echo "== a phone's keys, clicks and the wheel reach the desktop"
+for transport in tls auto; do
+  seen_lines=$(wc -l <"$WORK/wev.log")
+  phone --expect-udp input "$transport"
+  sleep 0.5
+  tail -n +"$((seen_lines + 1))" "$WORK/wev.log" >"$WORK/wev-phone.log"
+  grep -E "sym: x " "$WORK/wev-phone.log"
+  grep -E "sym: Y " "$WORK/wev-phone.log"
+  grep -E "wl_pointer\] button: .*state: 1" "$WORK/wev-phone.log"
+  grep -E "wl_pointer\] axis" "$WORK/wev-phone.log"
+done
+
+echo "== taking the permission away ends a phone's screen at once"
+phone permission
 
 echo "== the clipboard, both ways"
 # wayvnc holds the desktop's selection for the client that set it and drops it

@@ -2,29 +2,37 @@ name: mobile
 
 # The phone core (crates/atur-mobile): checks and tests on Linux, the same facade over a lossy link
 # (TLS against UDP), the route race with one address delayed, then the Android libraries and the
-# iOS XCFramework the Atur app links.
+# iOS XCFramework the Atur app links. The core carries the computer's screen to the phone with
+# crates/atur-screen, so that crate and its end-to-end script (scripts/screen-e2e.sh, run by the
+# `screen-e2e` job of ci.yml with the phone probe in it) trigger these checks too.
 # GitHub-hosted runners only.
 on:
   push:
-    branches: [atur-terminal, feat/mobile-rn]
+    branches: [atur-terminal, feat/mobile-rn, phone-screen]
     paths:
+      - "crates/atur-screen/**"
       - "crates/atur-mobile/**"
       - "crates/muxy-client/**"
       - "crates/muxy-protocol/**"
       - "crates/muxy-core/**"
       - "crates/muxy-server/**"
       - "scripts/build-mobile-sdk.sh"
+      - "scripts/screen-e2e.sh"
+      - "scripts/screen-e2e/**"
       - "scripts/lossy-netem.sh"
       - "scripts/route-netem.sh"
       - ".github/workflows/mobile.yml"
       - "Cargo.lock"
   pull_request:
     paths:
+      - "crates/atur-screen/**"
       - "crates/atur-mobile/**"
       - "crates/muxy-client/**"
       - "crates/muxy-server/**"
       - "crates/muxy-protocol/**"
       - "scripts/build-mobile-sdk.sh"
+      - "scripts/screen-e2e.sh"
+      - "scripts/screen-e2e/**"
       - "scripts/lossy-netem.sh"
       - "scripts/route-netem.sh"
       - ".github/workflows/mobile.yml"
@@ -65,9 +73,9 @@ jobs:
         run: |
           echo "ATUR_TERM_ZIG=$(command -v zig)" >> "$GITHUB_ENV"
           echo "$GITHUB_WORKSPACE/scripts/zig" >> "$GITHUB_PATH"
-      - run: cargo fmt -p atur-mobile -p muxy-protocol -p muxy-server -p muxy-client -- --check
-      - run: cargo clippy --locked -p atur-mobile -p muxy-protocol -p muxy-server -p muxy-client --all-targets -- -D warnings
-      - run: cargo test --locked -p atur-mobile -p muxy-protocol -p muxy-server -p muxy-client
+      - run: cargo fmt -p atur-mobile -p atur-screen -p muxy-protocol -p muxy-server -p muxy-client -- --check
+      - run: cargo clippy --locked -p atur-mobile -p atur-screen -p muxy-protocol -p muxy-server -p muxy-client --all-targets -- -D warnings
+      - run: cargo test --locked -p atur-mobile -p atur-screen -p muxy-protocol -p muxy-server -p muxy-client
       - name: Protocol fixtures stay append-only
         run: |
           git fetch --no-tags origin atur-terminal

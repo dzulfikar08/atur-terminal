@@ -601,6 +601,11 @@ impl SettingsWindow {
                     model.confirm_revoke(*device, window.window_handle(), cx);
                 });
             }
+            SettingsEvent::DeviceScreen(device, allowed) => {
+                let _ = self.model.update(cx, |model, cx| {
+                    model.set_device_screen(*device, *allowed, cx);
+                });
+            }
             SettingsEvent::MobileServer(server) => {
                 let _ = self.model.update(cx, |model, cx| {
                     model.select_mobile_server(*server, cx);

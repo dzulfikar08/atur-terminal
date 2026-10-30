@@ -54,7 +54,7 @@ atur-term --help          # all commands; atur-term <command> --help for details
 | `atur-term browser open\|list\|read\|click\|…` | Drives browser tabs in the desktop app on this computer. See [Browser control](#browser-control). |
 | `atur-term exec <project> -- <program> [args]` | Runs a program in the project folder, without a shell. |
 | `atur-term git`, `atur-term files` | Run raw server Git and file actions as JSON. Advanced; the JSON shape follows the protocol and may change. |
-| `atur-term mobile` | Turns on phone access and pairs phones. See [Mobile](mobile.md). |
+| `atur-term mobile [enable\|disable\|pair\|revoke <phone>\|screen <phone> on\|off]` | Lists paired phones and whether each may view the screen; turns on phone access, pairs phones, revokes them, and lets a phone view and control this computer's screen. See [Mobile](mobile.md). |
 | `atur-term install-skills` | Installs the Atur Terminal CLI skill for the AI agents found in your home folder. `--dir <path>` adds another skills folder. |
 | `atur-term stdio` | Joins stdin and stdout to the server. Used by `--host` over SSH; you don't run it yourself. |
 

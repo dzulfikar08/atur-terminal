@@ -191,6 +191,12 @@ pub enum RequestBody {
     /// ask, and only servers that list `Feature::SCREEN` know it.
     #[n(46)]
     OpenScreen,
+    /// Lets a paired phone view and control the server's desktop, or stops it.
+    /// Only local connections may ask: a phone can't grant itself the access.
+    /// Answered with `ReplyBody::RemoteAccess`. Only servers that list
+    /// `Feature::SCREEN` know it.
+    #[n(47)]
+    SetDeviceScreen(#[n(0)] crate::DeviceId, #[n(1)] bool),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

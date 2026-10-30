@@ -52,15 +52,26 @@ atur-term mobile pair
 | --- | --- | --- |
 | See status and phones | **Settings → Phones** | `atur-term mobile` |
 | Revoke a phone | **Revoke** next to it | `atur-term mobile revoke <id>` |
+| Let a phone view and control this computer's screen | **Screen** switch next to it | `atur-term mobile screen <id> on\|off` |
 | Turn access off | **Allow mobile devices** off | `atur-term mobile disable` |
 
 Revoking a phone, or turning access off, disconnects it at once.
+
+`<id>` is the start of the phone's ID, as `atur-term mobile` lists it, or its
+exact name.
 
 ## What a phone can do
 
 A paired phone gets full terminal access: it can use projects, terminals, Git,
 and files. It can't manage mobile access, change server settings, stop the
 server, or run programs with `exec`.
+
+Viewing and controlling this computer's screen is separate, and off for every
+phone until you allow it. Turn on **Screen** next to the phone in
+**Settings → Phones**, or run `atur-term mobile screen <id> on`. A phone
+without it is told how to allow it. Turning **Screen** off, or revoking the
+phone, closes its screen view at once. `atur-term mobile` shows `screen on` or
+`screen off` for each phone.
 
 ## Troubleshooting
 

@@ -24,6 +24,7 @@ bindgen = ["uniffi/cli"]
 workspace = true
 
 [dependencies]
+atur-screen = { path = "../atur-screen" }
 muxy-client = { path = "../muxy-client" }
 muxy-protocol = { path = "../muxy-protocol" }
 serde_json.workspace = true

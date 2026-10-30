@@ -340,6 +340,7 @@ pub(crate) enum Work {
     StartPairing,
     CancelPairing,
     RevokeDevice(muxy_protocol::DeviceId),
+    SetDeviceScreen(muxy_protocol::DeviceId, bool),
     StopServer {
         restart: bool,
     },
@@ -421,6 +422,7 @@ impl Work {
             Self::StartPairing => "StartPairing",
             Self::CancelPairing => "CancelPairing",
             Self::RevokeDevice(..) => "RevokeDevice",
+            Self::SetDeviceScreen(..) => "SetDeviceScreen",
             Self::StopServer { .. } => "StopServer",
             Self::PrepareUpdate { .. } => "PrepareUpdate",
             Self::CheckServerUpdate { .. } => "CheckServerUpdate",
@@ -942,7 +944,8 @@ fn rejected(work: Work, error: ClientError) -> Update {
         Work::ReadRemoteAccess
         | Work::WriteRemoteAccess(_)
         | Work::CancelPairing
-        | Work::RevokeDevice(_) => Update::RemoteAccess(Err(error)),
+        | Work::RevokeDevice(_)
+        | Work::SetDeviceScreen(..) => Update::RemoteAccess(Err(error)),
         Work::StartPairing => Update::Pairing(Err(error)),
         Work::StopServer { restart, .. } => Update::ServerStopped {
             restart,
@@ -1054,6 +1057,11 @@ fn perform(work: Work, client: &Client, target: &Target) -> Option<Update> {
         Work::CancelPairing => return Some(Update::RemoteAccess(client.cancel_pairing())),
         Work::RevokeDevice(device) => {
             return Some(Update::RemoteAccess(client.revoke_device(device)));
+        }
+        Work::SetDeviceScreen(device, allowed) => {
+            return Some(Update::RemoteAccess(
+                client.set_device_screen(device, allowed),
+            ));
         }
         Work::StopServer { restart } => {
             return Some(Update::ServerStopped {

@@ -1193,8 +1193,10 @@
 "Save" = "Save";
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file.";
 "Scan it with the Atur Terminal mobile app, or open this link on the phone:" = "Scan it with the Atur Terminal mobile app, or open this link on the phone:";
+"Screen" = "Screen";
 "Screen Mirroring" = "Screen Mirroring";
 "Screen Mirroring is turned off in Settings → Extensions." = "Screen Mirroring is turned off in Settings → Extensions.";
+"Screen lets a phone view and control this computer's screen." = "Screen lets a phone view and control this computer's screen.";
 "Screen view closed" = "Screen view closed";
 "Screen view unavailable" = "Screen view unavailable";
 "Screen: %@" = "Screen: %@";

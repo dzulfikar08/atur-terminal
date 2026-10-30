@@ -47,6 +47,10 @@ such as a cloud server behind NAT, puts that name first with
 - A connection that hasn't signed in gets nothing else from the server.
 - Paired phones can't manage mobile access, change server settings, stop the
   server, or run programs outside a terminal (`exec`).
+- A paired phone can view and control the computer's screen only while the
+  computer allows it for that phone (`RequestBody::SetDeviceScreen`, local
+  connections only). The permission is saved with the device, off by default,
+  and turning it off ends the phone's open screen viewers at once.
 - Over SSH, the phone logs in as the user and can do what that login can. Host
   keys and credentials stay in the app's SSH client.
 
@@ -129,7 +133,8 @@ hotspot or Wi-Fi address is used the next time without pairing again.
   `hosts`. It is only ever more addresses to try: the certificate fingerprint, the port and the device token
   never change.
 - The connect answer is `{serverId, serverName, serverVersion, transport, udpNote, route: {host, kind:
-  "local" | "tailscale" | "other", ms}, addresses}`, and `echoStats` carries `route` too.
+  "local" | "tailscale" | "other", ms}, addresses, screen}` (`screen`: the server offers the
+  [computer's screen](#the-computers-screen-on-the-phone)), and `echoStats` carries `route` too.
 
 The route race has an integration test in `muxy-client/tests/remote.rs`: a proxy that holds connections on
 `127.0.0.2` back, so the fast `127.0.0.1` wins even when listed second, and a server reachable only
@@ -167,3 +172,50 @@ It exists so the Kotlin and Swift glue stays a few lines long and identical on b
 hosted runners; `cargo test -p atur-mobile --test sdk bench_facade -- --ignored --nocapture` prints attach
 and echo timings against an in-process server, and its `lossy` job runs `bench_facade_lossy` over TLS and
 over UDP on a loopback link shaped to 800 ms round trip and 10% loss with a 10 s outage.
+
+## The computer's screen on the phone
+
+A paired phone can show the computer's desktop and drive it over the connection it already has, TLS or UDP.
+The server side is the [screen channel](./protocol.md#screen-channel) (`OpenScreen`, `ScreenData` carrying the RFB bytes of
+`wayvnc`); the server refuses a phone the user has not allowed (`ErrorCode::Unauthorized`, with the sentence
+the app shows as it is) and closes a phone's viewers when the permission goes. The client side is
+`atur-screen` (RFB, ZRLE, H.264 through a pluggable decoder, input) joined to the facade by
+`crates/atur-mobile/src/screen.rs`:
+
+- **Transport.** A `ScreenTransport` over `muxy_client::ScreenLink`: `send` writes `ScreenData`, `processed`
+  reports handled bytes with a `FrameAck`, which is the flow control (the server never has more than a window
+  of unreported bytes on the wire), `close` detaches the channel.
+- **Media.** Foreign code implements one UniFFI trait, `ScreenSink` (`on_video(annex_b, reset)`,
+  `on_frame(width, height, rgba)`), and gives it to `Direct::set_screen_sink`. A pump thread, woken by the
+  session's `wake`, converts the newest BGRA picture to RGBA once and calls `on_frame` at most about 30 times
+  a second; while the sink is busy newer pictures replace each other in the session's single slot.
+- **H.264.** `screenOpen` with `h264: true` starts the session with `Screen::start_with_decoder` and a
+  decoder that forwards every access unit (Annex B, the `reset` flag from the rectangle) to `on_video`; it is
+  named `mediacodec` on Android, `videotoolbox` on iOS and `native` elsewhere in the statistics. The session
+  acknowledges a chunk only after `decode` returned, so a slow hardware decoder slows the server down; no video
+  is ever queued. `atur-screen` has no built-in decoder on Android and iOS (its `ffmpeg` decoder is for desktops
+  only). With `h264: false` the core never offers H.264 and the server sends ZRLE. `screenRefresh` calls
+  `Screen::refresh()`: a full non-incremental update request, which makes the server restart the stream with a
+  key frame, as a decode failure does.
+- **Requests.** `screenOpen` and `screenClose` are `call`s. The input (`screenPointer`, `screenScroll`,
+  `screenKey`, `screenType`, `screenViewOnly`, `screenClipboard`, `screenReleaseAll`, `screenRefresh`) is `fire`d,
+  queued in order with typing and ignored without a screen. Arguments and answers are in
+  [`crates/atur-mobile/README.md`](../../crates/atur-mobile/README.md#the-computers-screen).
+- **Events.** `{"t":"screen","state":"connecting"|"ready"|"closed", ...}` (`width`, `height`, `name` with
+  `ready`, again when the desktop is resized; `reason` with `closed`, empty when the app closed it and else the
+  server's own words), `{"t":"screenStats","codec","fps","kbps","dropped","decodeMs"}` once a second and
+  `{"t":"screenClipboard","text"}`. The events of one screen are ordered and none follows its `closed`.
+- **Errors.** `ScreenNotAllowed` (the server answered `Unauthorized`; `reason` is its sentence),
+  `ScreenUnavailable` (any other refusal, such as `wayvnc` missing or no Wayland desktop; `reason` is the
+  server's text) and `Unsupported` (the server lists no `Feature::SCREEN`). The connect answer's `screen`
+  says whether it does.
+- **Lifetime.** One screen per connection; opening another closes the previous one first (its `closed` event
+  comes before the new `connecting`). `disconnect`, dropping the `Direct`, or losing the connection ends it.
+
+`crates/atur-mobile/tests/screen.rs` runs all of this against an in-process server over TLS whose capture
+program is a Python stand-in for `wayvnc` (`tests/fake_wayvnc.py`: ZRLE pictures, the H.264 fixture of
+`atur-screen` as access units, input and clipboard logging). The example `phone_probe` drives a real
+desktop the same way for the `screen-e2e` job of `.github/workflows/ci.yml` (`scripts/screen-e2e.sh`, a
+headless sway with the real `wayvnc`): it pairs over TLS, is refused until the computer allows the phone,
+sees the desktop's colour change over TLS and over UDP with H.264 offered or not, drives the desktop (checked
+with `wev`) and loses the screen when the permission is taken away.

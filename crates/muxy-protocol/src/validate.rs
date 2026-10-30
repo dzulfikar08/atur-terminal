@@ -229,6 +229,7 @@ fn validate_request(body: &RequestBody) -> Result<(), ErrorCode> {
         | RequestBody::StartPairing
         | RequestBody::CancelPairing
         | RequestBody::RevokeDevice(_)
+        | RequestBody::SetDeviceScreen(..)
         | RequestBody::CancelExec(_)
         | RequestBody::ReadActivity
         | RequestBody::IdentifyClient(_)

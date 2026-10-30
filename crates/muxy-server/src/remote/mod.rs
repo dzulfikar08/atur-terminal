@@ -173,6 +173,7 @@ impl RemoteAccess {
                     paired_at: device.paired_at,
                     last_seen: device.last_seen,
                     connected: connected.contains(&device.id),
+                    screen: device.screen,
                 })
                 .collect(),
         }
@@ -329,6 +330,7 @@ impl RemoteAccess {
             token_hash: hash(&token),
             paired_at: now,
             last_seen: Some(now),
+            screen: false,
         });
         if let Err(error) = self.save(&stored) {
             log::error!("pairing not saved: {error}");
@@ -389,6 +391,37 @@ impl RemoteAccess {
                 .devices
                 .iter()
                 .any(|stored| stored.id == device)
+    }
+
+    /// Whether the device is paired and may view and control the screen.
+    pub(crate) fn screen_allowed(&self, device: DeviceId) -> bool {
+        let state = self.lock();
+        state.stored.settings.enabled
+            && state.unreadable.is_none()
+            && state
+                .stored
+                .devices
+                .iter()
+                .any(|stored| stored.id == device && stored.screen)
+    }
+
+    /// Saves whether a paired device may view and control the screen. A device
+    /// that is not paired is ignored, as in `revoke`.
+    pub(crate) fn set_screen(&self, device: DeviceId, allowed: bool) -> Result<(), ServerError> {
+        let mut state = self.lock();
+        let mut stored = state.stored.clone();
+        let Some(entry) = stored.devices.iter_mut().find(|stored| stored.id == device) else {
+            return Ok(());
+        };
+        if entry.screen == allowed {
+            return Ok(());
+        }
+        entry.screen = allowed;
+        self.save(&stored)?;
+        state.stored = stored;
+        drop(state);
+        self.changed();
+        Ok(())
     }
 
     pub(crate) fn revoke(&self, device: DeviceId) -> Result<(), ServerError> {

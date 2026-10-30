@@ -351,6 +351,30 @@ impl AppModel {
         }));
     }
 
+    /// Lets a paired phone view and control the screen of the server Settings
+    /// shows, or stops it.
+    pub(crate) fn set_device_screen(
+        &mut self,
+        device: DeviceId,
+        allowed: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let server = self.mobile_target();
+        if !self.mobile_available(server) {
+            return;
+        }
+        if self.mobile_mut(server).is_some_and(|mobile| mobile.busy) {
+            self.set_mobile_error(
+                server,
+                tr!("Wait for the current mobile access change to finish").to_string(),
+            );
+        } else {
+            self.send_mobile(server, Work::SetDeviceScreen(device, allowed), cx);
+        }
+        self.sync_preferences(cx);
+        cx.notify();
+    }
+
     fn set_mobile_error(&mut self, server: ServerId, error: String) {
         if let Some(mobile) = self.mobile_mut(server) {
             mobile.error = Some(error);

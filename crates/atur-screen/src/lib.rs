@@ -8,7 +8,8 @@
 //!   H.264, `DesktopSize`, `ExtendedDesktopSize`, `ContinuousUpdates`, Fence, extended clipboard):
 //!   bytes in any split go in, framebuffer changes, events and reply bytes come out.
 //! * `decode` holds the H.264 decoders (`VideoToolbox`, or an `ffmpeg` process); the session
-//!   advertises H.264 only when a decoder exists, ZRLE works without one.
+//!   advertises H.264 only when a decoder exists, ZRLE works without one. Phones have no
+//!   built-in decoder and inject theirs with [`Screen::start_with_decoder`].
 //! * The framebuffer is a persistent BGRA buffer; every finished update is copied into one
 //!   [`Frame`] in a single-slot mailbox, so video is never queued and a slow UI only
 //!   drops frames. Because the reader waits when the mailbox of chunks is full, the transport

@@ -180,7 +180,11 @@ impl Requests {
         reason = "Keep request dispatch exhaustive in one place"
     )]
     fn route(&self, body: RequestBody, id: RequestId) -> Result<Option<ReplyBody>, ServerError> {
-        policy::permit(self.outbox.device().is_some(), &body)?;
+        policy::permit(
+            self.outbox.device(),
+            |device| self.registry.remote.screen_allowed(device),
+            &body,
+        )?;
         let outbox = &self.outbox;
         match body {
             RequestBody::Ping => Ok(Some(ReplyBody::Pong)),
@@ -192,6 +196,7 @@ impl Requests {
             }
             RequestBody::OpenScreen => {
                 let output = Arc::clone(outbox);
+                let registry = Arc::clone(&self.registry);
                 let last_channel = Arc::clone(&self.last_channel);
                 self.screen_workers
                     .try_spawn(move || {
@@ -199,7 +204,16 @@ impl Requests {
                             return;
                         }
                         let body = match screen::open(&output, &last_channel) {
-                            Ok(channel) => ReplyBody::ScreenOpened(channel),
+                            Ok(channel) => {
+                                // The permission may have been taken away while the capture started.
+                                if output
+                                    .device()
+                                    .is_some_and(|device| !registry.remote.screen_allowed(device))
+                                {
+                                    output.end_screens(crate::registry::SCREEN_TURNED_OFF);
+                                }
+                                ReplyBody::ScreenOpened(channel)
+                            }
                             Err(error) => ReplyBody::Error(error.to_reply()),
                         };
                         output.push_control(Message::Reply { id, body });
@@ -471,6 +485,9 @@ fn ordered_request(
         }
         RequestBody::RevokeDevice(device) => {
             ReplyBody::RemoteAccess(registry.revoke_device(device)?)
+        }
+        RequestBody::SetDeviceScreen(device, allowed) => {
+            ReplyBody::RemoteAccess(registry.set_device_screen(device, allowed)?)
         }
         RequestBody::ListSessions => ReplyBody::Sessions(registry.list()),
         RequestBody::CreateSession {

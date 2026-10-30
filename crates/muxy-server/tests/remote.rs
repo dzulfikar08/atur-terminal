@@ -446,6 +446,7 @@ fn paired_devices_cannot_manage_access_or_the_server() -> TestResult {
         RequestBody::StartPairingWithHosts(vec!["box.example.com".into()]),
         RequestBody::CancelPairing,
         RequestBody::RevokeDevice(DeviceId::new()),
+        RequestBody::SetDeviceScreen(DeviceId::new(), true),
         RequestBody::StopServer,
         RequestBody::StopServerIfIdle,
         RequestBody::WriteServerSettings(fixture.registry.settings().document()),
@@ -503,6 +504,35 @@ fn revoking_closes_only_that_device_and_disabling_closes_all() -> TestResult {
     second_phone.closed()?;
     let refused = fixture.connect(true)?;
     drop(refused);
+    Ok(())
+}
+
+#[test]
+fn a_phone_is_refused_the_screen_until_the_computer_allows_it_and_again_after() -> TestResult {
+    let fixture = Fixture::new();
+    let mut local = fixture.enabled()?;
+    let (paired, mut phone) = fixture.pair(&mut local)?;
+    let device = paired.credential.device;
+    let state = remote_access(local.request(RequestBody::ReadRemoteAccess)?)?;
+    assert!(state.devices.iter().all(|stored| !stored.screen));
+    let reply = phone.request(RequestBody::OpenScreen)?;
+    let reason =
+        unauthorized(&reply).ok_or_else(|| format!("expected a refusal, got {reply:?}"))?;
+    assert!(
+        reason.contains("atur-term mobile screen <device> on"),
+        "{reason}"
+    );
+    let state = remote_access(local.request(RequestBody::SetDeviceScreen(device, true))?)?;
+    assert!(
+        state
+            .devices
+            .iter()
+            .any(|stored| stored.id == device && stored.screen)
+    );
+    let state = remote_access(local.request(RequestBody::SetDeviceScreen(device, false))?)?;
+    assert!(state.devices.iter().all(|stored| !stored.screen));
+    let reply = phone.request(RequestBody::OpenScreen)?;
+    assert!(unauthorized(&reply).is_some(), "{reply:?}");
     Ok(())
 }
 

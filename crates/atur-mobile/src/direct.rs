@@ -8,7 +8,9 @@
 //! * requests: [`Direct::call`] (blocking) and [`Direct::fire`] (queued, returns at once, keeps
 //!   order; typing, paste and resize);
 //! * answers: `{"ok": value}` or `{"error": {"code", "reason"}}`;
-//! * pushed events: [`DirectListener::on_message`], one JSON object each, `t` names the kind.
+//! * pushed events: [`DirectListener::on_message`], one JSON object each, `t` names the kind;
+//! * the computer's desktop: `screen*` requests and `screen` events, with pictures and video
+//!   going to a [`ScreenSink`] (see the `screen` module).
 //!
 //! Session ids are decimal strings, because a 64-bit id does not fit a JavaScript number.
 
@@ -20,7 +22,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use muxy_client::PredictMode;
-use muxy_protocol::{HistoryCursor, SessionId};
+use muxy_protocol::{Feature, HistoryCursor, SessionId};
 use serde_json::{Value, json};
 
 use crate::connection::{Connection, ConnectionEvent, ConnectionListener, TransportMode};
@@ -28,6 +30,7 @@ use crate::input::{self, Segment};
 use crate::keys::{self, Key, Modifiers};
 use crate::records::{AgentState, ServerCredential, SessionStatus};
 use crate::route::RouteInfo;
+use crate::screen::{self, ScreenSink, ScreenSlot, SinkCell};
 use crate::terminal::Terminal;
 use crate::terminals::Content;
 use crate::{MobileError, ansi};
@@ -46,7 +49,7 @@ const MAX_HISTORY_ROWS: usize = 20_000;
 const HISTORY_PAGE: u16 = 500;
 
 /// What a request can fail with: a core error the app can act on, or a malformed request.
-enum Fail {
+pub(crate) enum Fail {
     Core(MobileError),
     Bad(String),
 }
@@ -63,9 +66,9 @@ impl From<muxy_client::ClientError> for Fail {
     }
 }
 
-type Answer = Result<Value, Fail>;
+pub(crate) type Answer = Result<Value, Fail>;
 
-fn bad(what: &str) -> Fail {
+pub(crate) fn bad(what: &str) -> Fail {
     Fail::Bad(format!("missing or invalid `{what}`"))
 }
 
@@ -85,6 +88,8 @@ fn envelope(answer: Answer) -> String {
                 MobileError::Timeout => ("Timeout", String::new()),
                 MobileError::Disconnected => ("Disconnected", String::new()),
                 MobileError::Server { reason } => ("Server", reason.clone()),
+                MobileError::ScreenNotAllowed { reason } => ("ScreenNotAllowed", reason.clone()),
+                MobileError::ScreenUnavailable { reason } => ("ScreenUnavailable", reason.clone()),
             };
             json!({ "error": { "code": code, "reason": reason } })
         }
@@ -92,7 +97,7 @@ fn envelope(answer: Answer) -> String {
     value.to_string()
 }
 
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -440,12 +445,14 @@ enum Job {
         cols: u16,
         rows: u16,
     },
+    Screen(screen::Input),
 }
 
 struct Live {
     connection: Arc<Connection>,
     shared: Arc<Shared>,
     jobs: Sender<Job>,
+    screen: Arc<ScreenSlot>,
 }
 
 /// One connection to one computer, as the React Native module uses it.
@@ -453,6 +460,7 @@ struct Live {
 pub struct Direct {
     listener: Arc<dyn DirectListener>,
     live: Mutex<Option<Arc<Live>>>,
+    sink: Arc<SinkCell>,
 }
 
 impl std::fmt::Debug for Direct {
@@ -468,6 +476,7 @@ impl Direct {
         Arc::new(Self {
             listener,
             live: Mutex::new(None),
+            sink: Arc::default(),
         })
     }
 
@@ -483,15 +492,23 @@ impl Direct {
         envelope(self.dispatch(&method, &args_json))
     }
 
-    /// A request that must keep its order and never wait: typing, paste and resize are queued
-    /// and carried out by one thread, in the order they were fired.
+    /// A request that must keep its order and never wait: typing, paste, resize and the input of a
+    /// screen are queued and carried out by one thread, in the order they were fired.
     pub fn fire(&self, method: String, args_json: String) -> String {
         envelope(self.enqueue(&method, &args_json))
     }
 
+    /// Where the screen's H.264 access units and pictures go; `None` removes the sink. The app
+    /// sets one before opening a screen and may replace it while the screen is open.
+    pub fn set_screen_sink(&self, sink: Option<Arc<dyn ScreenSink>>) {
+        *lock(&self.sink) = sink;
+    }
+
     /// Closes the connection. Safe to call twice, or when never connected.
     pub fn disconnect(&self) {
-        if let Some(live) = lock(&self.live).take() {
+        let live = lock(&self.live).take();
+        if let Some(live) = live {
+            live.screen.close();
             live.shared.close();
             live.connection.disconnect();
         }
@@ -503,6 +520,18 @@ impl Direct {
         lock(&self.live)
             .clone()
             .ok_or(Fail::Core(MobileError::Disconnected))
+    }
+
+    /// `screenOpen` and `screenClose`; `None` for any other request.
+    fn screen_call(&self, live: &Live, method: &str, args: &Value) -> Option<Answer> {
+        screen::call(
+            &live.screen,
+            live.connection.client(),
+            &self.sink,
+            &self.listener,
+            method,
+            args,
+        )
     }
 
     fn start(&self, credential_json: &str) -> Answer {
@@ -525,11 +554,14 @@ impl Direct {
         let server_id = connection.server_id()?;
         let version = connection.server_version();
         let transport = connection.transport_name();
+        let screen_offered = connection.client().supports(Feature::SCREEN);
+        let screen = Arc::<ScreenSlot>::default();
 
         let (jobs, queue) = mpsc::channel();
         let worker = Worker {
             shared: Arc::clone(&shared),
             connection: Arc::clone(&connection),
+            screen: Arc::clone(&screen),
         };
         spawn("atur-direct-input", move || {
             for job in queue {
@@ -543,6 +575,7 @@ impl Direct {
             connection,
             shared,
             jobs,
+            screen,
         }));
         Ok(json!({
             "serverId": server_id,
@@ -552,6 +585,7 @@ impl Direct {
             "udpNote": opened.udp_note,
             "route": opened.route.to_json(),
             "addresses": opened.addresses,
+            "screen": screen_offered,
         }))
     }
 
@@ -574,7 +608,10 @@ impl Direct {
                 cols: u16_arg(&args, "cols")?,
                 rows: u16_arg(&args, "rows")?,
             },
-            other => return Err(Fail::Bad(format!("`{other}` cannot be fired"))),
+            other => match screen::Input::parse(other, &args) {
+                Some(input) => Job::Screen(input?),
+                None => return Err(Fail::Bad(format!("`{other}` cannot be fired"))),
+            },
         };
         live.jobs
             .send(job)
@@ -583,11 +620,14 @@ impl Direct {
     }
 
     fn dispatch(&self, method: &str, args_json: &str) -> Answer {
-        if matches!(method, "input" | "paste" | "resize") {
+        if matches!(method, "input" | "paste" | "resize") || screen::is_input(method) {
             return self.enqueue(method, args_json);
         }
         let live = self.live()?;
         let args = parse_args(args_json)?;
+        if let Some(answer) = self.screen_call(&live, method, &args) {
+            return answer;
+        }
         let connection = &live.connection;
         let shared = &live.shared;
         match method {
@@ -836,7 +876,7 @@ fn parse_args(text: &str) -> Result<Value, Fail> {
     serde_json::from_str(text).map_err(|_| Fail::Bad("arguments are not JSON".into()))
 }
 
-fn str_arg(args: &Value, name: &str) -> Result<String, Fail> {
+pub(crate) fn str_arg(args: &Value, name: &str) -> Result<String, Fail> {
     args.get(name)
         .and_then(Value::as_str)
         .map(str::to_owned)
@@ -1074,6 +1114,7 @@ fn history_once(terminal: &Terminal, lines: usize, settle: bool) -> Result<Optio
 struct Worker {
     shared: Arc<Shared>,
     connection: Arc<Connection>,
+    screen: Arc<ScreenSlot>,
 }
 
 impl Worker {
@@ -1113,6 +1154,7 @@ impl Worker {
                     let _ = attached.terminal.resize(cols, rows);
                 }
             }
+            Job::Screen(input) => self.screen.input(input),
         }
     }
 

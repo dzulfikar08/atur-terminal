@@ -1,15 +1,20 @@
 //! H.264 decoding for RFB encoding 50.
 //!
-//! macOS decodes in `VideoToolbox`. Elsewhere an `ffmpeg` process on the PATH
-//! decodes, on the GPU through VA-API when the machine has it and in software
+//! macOS decodes in `VideoToolbox`. Other desktops run an `ffmpeg` process on the PATH,
+//! which decodes on the GPU through VA-API when the machine has it and in software
 //! otherwise. When neither exists [`new_h264`] returns `None` and the session
-//! never offers H.264, so the server sends ZRLE instead.
+//! never offers H.264, so the server sends ZRLE instead. Phones (Android, iOS) have no
+//! built-in decoder: their app injects its hardware codec through
+//! [`Screen::start_with_decoder`](crate::Screen::start_with_decoder).
 
 use std::sync::Arc;
 
 use crate::Frame;
 
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(
+    unix,
+    not(any(target_os = "macos", target_os = "android", target_os = "ios"))
+))]
 mod ffmpeg;
 mod nal;
 #[cfg(target_os = "macos")]
@@ -58,13 +63,16 @@ fn platform_decoder(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
     Some(Box::new(videotoolbox::VideoToolboxDecoder::new(sink)))
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(
+    unix,
+    not(any(target_os = "macos", target_os = "android", target_os = "ios"))
+))]
 fn platform_decoder(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
     let decoder = ffmpeg::FfmpegDecoder::new(sink)?;
     Some(Box::new(decoder))
 }
 
-#[cfg(not(unix))]
+#[cfg(any(not(unix), target_os = "android", target_os = "ios"))]
 fn platform_decoder(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
     let _ = sink;
     None

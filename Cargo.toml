@@ -26,7 +26,7 @@ muxy-client = ["muxy-core", "muxy-protocol"]
 muxy-cli = ["muxy-core", "muxy-protocol", "muxy-client", "muxy-app-core"]
 muxy-app = ["muxy-core", "muxy-app-core", "muxy-client", "muxy-protocol", "muxy-ui", "atur-screen"]
 muxy-ui = ["muxy-core"]
-atur-mobile = ["muxy-client", "muxy-protocol"]
+atur-mobile = ["atur-screen", "muxy-client", "muxy-protocol"]
 atur-screen = []
 
 [workspace.metadata.architecture.allowed-dev-dependencies]

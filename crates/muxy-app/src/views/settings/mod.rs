@@ -178,6 +178,8 @@ pub(crate) enum SettingsEvent {
     PairPhone,
     CancelPairing,
     RevokeDevice(muxy_protocol::DeviceId),
+    /// Lets a paired phone view and control the screen, or stops it.
+    DeviceScreen(muxy_protocol::DeviceId, bool),
     /// Phone access of another server.
     MobileServer(muxy_app_core::ServerId),
     Connect,

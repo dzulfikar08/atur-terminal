@@ -449,6 +449,7 @@ fn devices(
         .gap(px(8.0))
         .children(state.devices.iter().map(|device| {
             let id = device.id;
+            let screen = device.screen;
             div()
                 .flex()
                 .items_center()
@@ -467,14 +468,40 @@ fn devices(
                                 .child(presence(device, now)),
                         ),
                 )
-                .child(controls::button(
-                    pane.style(),
-                    &format!("mobile-revoke-{id}"),
-                    &tr!("Revoke"),
-                    !pane.snapshot.mobile_busy,
-                    cx.listener(move |_, _, _, cx| cx.emit(SettingsEvent::RevokeDevice(id))),
-                ))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.0))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .child(tr!("Screen"))
+                                .child(controls::toggle(
+                                    pane.style(),
+                                    &format!("mobile-screen-{id}"),
+                                    screen,
+                                    cx.listener(move |_, _, _, cx| {
+                                        cx.emit(SettingsEvent::DeviceScreen(id, !screen));
+                                    }),
+                                )),
+                        )
+                        .child(controls::button(
+                            pane.style(),
+                            &format!("mobile-revoke-{id}"),
+                            &tr!("Revoke"),
+                            !pane.snapshot.mobile_busy,
+                            cx.listener(move |_, _, _, cx| {
+                                cx.emit(SettingsEvent::RevokeDevice(id));
+                            }),
+                        )),
+                )
         }))
+        .child(div().text_color(pane.theme.fg_muted).child(tr!(
+            "Screen lets a phone view and control this computer's screen."
+        )))
         .into_any_element()
 }
 

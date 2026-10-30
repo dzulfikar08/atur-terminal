@@ -615,6 +615,27 @@ impl Outbox {
         }
     }
 
+    /// Ends every screen stream at once: the queued bytes are dropped, the
+    /// capture links close, and the client is told `reason`.
+    pub(crate) fn end_screens(&self, reason: &str) {
+        let viewers: Vec<crate::screen::Viewer> = {
+            let mut state = self.lock();
+            state
+                .screens
+                .values_mut()
+                .filter_map(|stream| {
+                    stream.queue.clear();
+                    stream.queued = 0;
+                    stream.ending.get_or_insert_with(|| reason.to_owned());
+                    stream.viewer.take()
+                })
+                .collect()
+        };
+        self.ready.notify_all();
+        self.space.notify_all();
+        drop(viewers);
+    }
+
     /// Forgets a stream that never started.
     pub(super) fn release_screen(&self, channel: ChannelId) {
         let removed = self.lock().screens.remove(&channel);
@@ -885,6 +906,24 @@ mod tests {
             Some((channel, Message::ScreenClosed("gone".into())))
         );
         assert!(outbox.detach(channel).is_err());
+    }
+
+    #[test]
+    fn ending_the_screens_drops_queued_bytes_and_tells_the_client_why() {
+        let outbox = Arc::new(Outbox::new(Arc::default()));
+        let channel = ChannelId(5);
+        assert!(outbox.reserve_screen(channel));
+        assert!(outbox.push_screen(channel, vec![1; SCREEN_WINDOW]));
+        let pusher = Arc::clone(&outbox);
+        let waiting = thread::spawn(move || pusher.push_screen(channel, vec![2; 1024]));
+        thread::sleep(Duration::from_millis(100));
+        outbox.end_screens("off");
+        assert_eq!(waiting.join().ok(), Some(false));
+        assert_eq!(
+            outbox.next(),
+            Some((channel, Message::ScreenClosed("off".into())))
+        );
+        assert!(!outbox.push_screen(channel, vec![3]));
     }
 
     #[test]

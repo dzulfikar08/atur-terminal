@@ -1,4 +1,4 @@
-//! `atur-term mobile`: let phones connect, pair them, and revoke them.
+//! `atur-term mobile`: let phones connect, pair them, revoke them, and allow them the screen.
 
 use std::collections::HashSet;
 use std::error::Error;
@@ -8,7 +8,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use muxy_app_core::qr::{QUIET_ZONE, QrCode};
 use muxy_client::{Client, ClientEvent};
-use muxy_protocol::{ListenerStatus, RemoteAccessSettings, RemoteAccessState};
+use muxy_protocol::{ListenerStatus, PairedDevice, RemoteAccessSettings, RemoteAccessState};
 
 use crate::args::Mobile;
 
@@ -42,6 +42,7 @@ pub(crate) fn run(command: Mobile, client: &Client) -> Result {
         }
         Mobile::Pair { addresses } => pair(client, addresses),
         Mobile::Revoke { device } => revoke(client, &device),
+        Mobile::Screen { device, allowed } => screen(client, &device, allowed),
     }
 }
 
@@ -81,30 +82,55 @@ fn print_state(state: &RemoteAccessState) -> Result {
         let id = device.id.to_string();
         writeln!(
             stdout,
-            "  {}  {}  {seen}",
+            "  {}  {}  {seen}  screen {}",
             &id[..8],
-            device.name.escape_debug()
+            device.name.escape_debug(),
+            if device.screen { "on" } else { "off" }
         )?;
     }
     Ok(())
 }
 
-fn revoke(client: &Client, prefix: &str) -> Result {
-    let state = client.read_remote_access()?;
-    let matches: Vec<_> = state
+/// The one paired device that `query` names: the start of its ID, or else its exact name.
+fn find_device(state: &RemoteAccessState, query: &str) -> Result<PairedDevice> {
+    let by_id: Vec<_> = state
         .devices
         .iter()
-        .filter(|device| device.id.to_string().starts_with(prefix))
+        .filter(|device| device.id.to_string().starts_with(query))
         .collect();
+    let matches = if by_id.is_empty() {
+        state
+            .devices
+            .iter()
+            .filter(|device| device.name == query)
+            .collect()
+    } else {
+        by_id
+    };
     match matches.as_slice() {
-        [device] => {
-            client.revoke_device(device.id)?;
-            writeln!(io::stdout(), "Revoked {}.", device.name.escape_debug())?;
-            Ok(())
-        }
-        [] => Err(format!("no paired device starts with {prefix}").into()),
-        _ => Err(format!("more than one device starts with {prefix}; use more characters").into()),
+        [device] => Ok((*device).clone()),
+        [] => Err(format!("no paired device starts with or is named {query}").into()),
+        _ => Err(format!("more than one device matches {query}; use more characters").into()),
     }
+}
+
+fn revoke(client: &Client, query: &str) -> Result {
+    let device = find_device(&client.read_remote_access()?, query)?;
+    client.revoke_device(device.id)?;
+    writeln!(io::stdout(), "Revoked {}.", device.name.escape_debug())?;
+    Ok(())
+}
+
+fn screen(client: &Client, query: &str, allowed: bool) -> Result {
+    let device = find_device(&client.read_remote_access()?, query)?;
+    client.set_device_screen(device.id, allowed)?;
+    writeln!(
+        io::stdout(),
+        "Screen sharing is {} for {}.",
+        if allowed { "on" } else { "off" },
+        device.name.escape_debug()
+    )?;
+    Ok(())
 }
 
 /// Shows a pairing code until a new device pairs, the code expires, or Ctrl-C

@@ -23,6 +23,7 @@ mod keys;
 mod mouse;
 mod records;
 mod route;
+mod screen;
 mod scrollback;
 mod terminal;
 mod terminals;
@@ -48,6 +49,7 @@ pub use records::{
     Line, PairingLink, Project, Screen, ServerCredential, Session, SessionStatus, Span, Style,
     TerminalColor, Underline,
 };
+pub use screen::ScreenSink;
 pub use scrollback::Scrollback;
 pub use terminal::Terminal;
 

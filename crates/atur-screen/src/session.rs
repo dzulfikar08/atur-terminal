@@ -142,8 +142,13 @@ impl Screen {
         Self::start_with_decoder(transport, options, wake, decode::new_h264)
     }
 
-    /// Like [`Screen::start`] with the H.264 decoder factory injected; for tests.
-    #[doc(hidden)]
+    /// Like [`Screen::start`] with the H.264 decoder factory injected, for hosts whose
+    /// platform decodes H.264 itself (a phone's hardware codec) and for tests.
+    ///
+    /// `make_decoder` runs once, on the calling thread, and only when `options.prefer_h264`
+    /// is set; the session offers H.264 exactly when it returns `Some`. The decoder gets the
+    /// [`FrameSink`] that publishes pictures to [`Screen::frame`]; a decoder that renders on
+    /// its own (a hardware surface) never calls it.
     pub fn start_with_decoder(
         transport: impl ScreenTransport,
         options: ScreenOptions,
@@ -249,6 +254,14 @@ impl Screen {
             dropped,
             decode_ms: stats.decode_ms,
         }
+    }
+
+    /// Asks the server for a complete, non-incremental update of the whole screen. With H.264
+    /// the server answers by restarting the stream with a key frame, which is how a viewer whose
+    /// decoder lost sync (or whose picture was detached for a while) catches up. No-op until the
+    /// screen size is known. Allowed in view-only mode: it sends no input.
+    pub fn refresh(&self) {
+        self.guard.shared.refresh();
     }
 
     /// Ends the session; the state becomes `Closed("")`.
@@ -655,6 +668,23 @@ impl Shared {
         } else if !msg::cut_text_latin1(&mut bytes, text) {
             return;
         }
+        self.send(&bytes);
+    }
+
+    /// A full update request for the whole framebuffer, in order with the input.
+    fn refresh(&self) {
+        let width = self.fb_width.load(Ordering::Relaxed);
+        let height = self.fb_height.load(Ordering::Relaxed);
+        if width == 0 || height == 0 {
+            return;
+        }
+        let mut bytes = Vec::with_capacity(10);
+        msg::update_request(
+            &mut bytes,
+            false,
+            usize::try_from(width).unwrap_or(usize::MAX),
+            usize::try_from(height).unwrap_or(usize::MAX),
+        );
         self.send(&bytes);
     }
 }

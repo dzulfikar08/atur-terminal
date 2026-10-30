@@ -93,7 +93,15 @@ sequenceDiagram
 
 - `OpenScreen` (request 46, no fields) answers `ScreenOpened` (reply 41, the new
   channel) or an error whose message says why the desktop can't be mirrored: no
-  Wayland session, `wayvnc` not installed, not Linux. Paired phones may not ask.
+  Wayland session, `wayvnc` not installed, not Linux. Local and ssh connections
+  may ask. A paired phone may ask only while the computer allows its screen
+  (`PairedDevice.screen`); otherwise the server refuses with `Unauthorized` and
+  says where to allow it. Turning the permission off, or revoking the phone,
+  ends its open screen viewers at once.
+- `SetDeviceScreen` (request 47: device ID, allowed) sets that permission and
+  answers `RemoteAccess` with the new state. Only local connections may ask:
+  a phone can't grant itself the screen. The permission is saved with the
+  device and is off for every phone until the computer allows it.
 - `ScreenData` (message 24) is raw bytes, like `Input`, in both directions: the
   RFB conversation of one viewer. The server never interprets it. `ScreenClosed`
   (message 25, a reason that is empty for a normal end) follows the last bytes

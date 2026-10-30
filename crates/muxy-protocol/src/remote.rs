@@ -100,6 +100,12 @@ pub struct PairedDevice {
     pub last_seen: Option<u64>,
     #[n(4)]
     pub connected: bool,
+    /// May view and control the computer's screen. Servers that predate the
+    /// field never send it, which reads as not allowed.
+    #[n(5)]
+    #[cbor(default)]
+    #[serde(default)]
+    pub screen: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
