@@ -71,7 +71,8 @@ impl Typed {
                 Escape::Ss3 => self.escape = Escape::None,
                 Escape::Csi if ('\u{40}'..='\u{7e}').contains(&ch) => {
                     self.escape = Escape::None;
-                    match (self.params.as_str(), ch) {
+                    let params = std::mem::take(&mut self.params);
+                    match (params.as_str(), ch) {
                         ("200", '~') => self.paste = true,
                         ("201", '~') => self.paste = false,
                         ("13" | "13;1", 'u') if !self.paste => submitted = Some(self.take()),
