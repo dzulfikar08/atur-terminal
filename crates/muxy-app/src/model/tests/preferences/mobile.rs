@@ -383,3 +383,22 @@ fn the_countdown_rounds_up_so_it_never_shows_zero_early() {
     assert_eq!(countdown(Duration::from_secs(9)), "0:09");
     assert_eq!(countdown(Duration::ZERO), "0:00");
 }
+
+#[gpui::test]
+fn the_palette_offers_to_pair_a_phone_on_each_server(cx: &mut TestAppContext) {
+    let remote = ServerId::new();
+    let (boot, _local, _remotes) = remote_boot(
+        AppState::bootstrap().expect("state"),
+        vec![entry(remote, "box")],
+    );
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        let registry = model.command_registry(true, cx);
+        assert!(
+            registry
+                .command(&format!("pair-phone-{}", ServerId::local()))
+                .is_some()
+        );
+        assert!(registry.command(&format!("pair-phone-{remote}")).is_some());
+    });
+}

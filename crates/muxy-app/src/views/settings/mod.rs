@@ -186,6 +186,10 @@ pub(crate) enum SettingsEvent {
 }
 
 #[derive(Clone)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "A copy of the model's state, which Settings only displays"
+)]
 pub(crate) struct Snapshot {
     pub(crate) settings: Settings,
     pub(crate) capabilities: muxy_core::capability::Capabilities,
