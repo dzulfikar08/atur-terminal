@@ -123,7 +123,7 @@ jobs:
           key: screen-e2e
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' || github.ref == 'refs/heads/feat/screen-mirror' }}
       - run: >-
-          cargo build --locked --release -p muxy-server -p muxy-cli --example screen_probe
+          cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe
       - run: |
           mkdir bin
           cp target/release/atur-term-server target/release/examples/screen_probe bin/
