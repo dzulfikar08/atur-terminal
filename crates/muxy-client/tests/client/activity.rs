@@ -47,7 +47,7 @@ fn omp_osc_titles_drive_activity_and_notifications_without_screen_markers() -> T
         ),
         (
             "π > Inspect files",
-            AgentState::Idle,
+            AgentState::Done,
             Some(ActivityKind::Completed),
         ),
     ] {

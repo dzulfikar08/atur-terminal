@@ -406,7 +406,8 @@ fn agent_state(status: &str) -> AgentState {
     match status {
         "working" => AgentState::Working,
         "blocked" => AgentState::Blocked,
-        "idle" | "done" => AgentState::Idle,
+        "idle" => AgentState::Idle,
+        "done" => AgentState::Done,
         _ => AgentState::Unknown,
     }
 }
@@ -589,7 +590,8 @@ mod tests {
         assert_eq!(provider("omp"), Some(AgentProvider::OhMyPi));
         assert_eq!(provider("github_copilot"), Some(AgentProvider::Copilot));
         assert_eq!(provider("amp"), None);
-        assert_eq!(agent_state("done"), AgentState::Idle);
+        assert_eq!(agent_state("idle"), AgentState::Idle);
+        assert_eq!(agent_state("done"), AgentState::Done);
         assert_eq!(agent_state("working"), AgentState::Working);
         assert_eq!(agent_state("blocked"), AgentState::Blocked);
         assert_eq!(agent_state("unknown"), AgentState::Unknown);
@@ -604,6 +606,16 @@ mod tests {
         assert!(!detector.adopt(provider, AgentState::Blocked));
         assert!(detector.adopt(provider, AgentState::Idle));
         assert!(!detector.adopt(provider, AgentState::Idle));
+    }
+
+    #[test]
+    fn a_reported_done_completes_once_and_a_new_cycle_completes_again() {
+        let mut detector = crate::detection::Detector::default();
+        let provider = Some(AgentProvider::Claude);
+        assert!(detector.adopt(provider, AgentState::Done));
+        assert!(!detector.adopt(provider, AgentState::Done));
+        assert!(!detector.adopt(provider, AgentState::Working));
+        assert!(detector.adopt(provider, AgentState::Done));
     }
 
     #[test]

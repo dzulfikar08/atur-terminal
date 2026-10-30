@@ -52,6 +52,10 @@ open_enum! {
         Idle = 1,
         Working = 2,
         Blocked = 3,
+        /// The agent finished a turn and nobody has looked at the session yet. The server
+        /// reports it while the session has an unread `Completed` event; acknowledging the
+        /// event makes the state `Idle` again, for every client.
+        Done = 4,
     }
 }
 

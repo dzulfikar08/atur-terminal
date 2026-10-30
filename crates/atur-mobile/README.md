@@ -263,7 +263,7 @@ to the server can throw.
 | `ScrollDirection` | `up`, `down` |
 | `Activity` | `agents`, `events` |
 | `Agent` | `sessionId`, `projectId`, `provider`, `state` |
-| `AgentState` | `unknown`, `idle`, `working`, `blocked` |
+| `AgentState` | `unknown`, `idle`, `working`, `blocked`, `done` |
 | `ActivityEvent` | `id`, `sessionId`, `projectId`, `provider`, `timestamp` (Unix seconds), `kind` |
 | `ActivityKind` | `attention`, `completed` |
 | `GitRepository`, `ProjectFiles`, and what they return | see [Git and files](#git-and-files) |

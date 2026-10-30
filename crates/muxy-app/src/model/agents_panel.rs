@@ -191,6 +191,7 @@ impl AppModel {
                     let status = match agent.state {
                         AgentState::Blocked => AgentStatus::Blocked,
                         AgentState::Working => AgentStatus::Working,
+                        AgentState::Done => AgentStatus::Completed,
                         _ if finished.contains(&session) => AgentStatus::Completed,
                         _ => AgentStatus::Idle,
                     };

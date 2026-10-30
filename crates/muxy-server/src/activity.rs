@@ -17,6 +17,9 @@ struct State {
     agents: BTreeMap<SessionId, AgentActivity>,
     events: Vec<ActivityEvent>,
     claimed: HashSet<u64>,
+    /// Sessions whose reported `Done` was acknowledged; the backing keeps reporting it until the
+    /// agent starts again, and that must not raise a new unread event.
+    seen_done: HashSet<SessionId>,
 }
 
 impl State {
@@ -35,6 +38,9 @@ impl State {
 }
 
 /// Live agent state and at most one unread indicator event per session, held only in memory.
+///
+/// `Done` is derived: a session that is idle or reports `Done` shows `Done` while it has an unread
+/// `Completed` event, and `Idle` once the event is acknowledged by any client.
 #[derive(Debug, Default)]
 pub(crate) struct Activity {
     state: Mutex<State>,
@@ -72,13 +78,35 @@ impl Activity {
         let state = lock(&self.state);
         ActivitySnapshot {
             revision: state.revision,
-            agents: state.agents.values().cloned().collect(),
+            agents: state
+                .agents
+                .values()
+                .map(|agent| {
+                    let unread = state.events.iter().any(|event| {
+                        event.session == agent.session && event.kind == ActivityKind::Completed
+                    });
+                    let mut agent = agent.clone();
+                    agent.state = match agent.state {
+                        AgentState::Idle | AgentState::Done if unread => AgentState::Done,
+                        AgentState::Done => AgentState::Idle,
+                        other => other,
+                    };
+                    agent
+                })
+                .collect(),
             events: state.events.clone(),
         }
     }
 
-    pub(crate) fn update(&self, activity: AgentActivity, completed: bool) {
+    pub(crate) fn update(&self, mut activity: AgentActivity, completed: bool) {
         let mut state = lock(&self.state);
+        if activity.state == AgentState::Done {
+            if state.seen_done.contains(&activity.session) {
+                activity.state = AgentState::Idle;
+            }
+        } else {
+            state.seen_done.remove(&activity.session);
+        }
         let previous = state.agents.get(&activity.session);
         if previous == Some(&activity) {
             return;
@@ -131,6 +159,7 @@ impl Activity {
 
     pub(crate) fn remove(&self, session: SessionId) {
         let mut state = lock(&self.state);
+        state.seen_done.remove(&session);
         let agent_removed = state.agents.remove(&session).is_some();
         let event_removed = state.retain_events(|event| event.session != session);
         if agent_removed || event_removed {
@@ -140,6 +169,21 @@ impl Activity {
 
     pub(crate) fn acknowledge(&self, ids: &[u64]) {
         let mut state = lock(&self.state);
+        let finished: Vec<_> = state
+            .events
+            .iter()
+            .filter(|event| event.kind == ActivityKind::Completed && ids.contains(&event.id))
+            .map(|event| event.session)
+            .collect();
+        for session in finished {
+            if state
+                .agents
+                .get(&session)
+                .is_some_and(|agent| agent.state == AgentState::Done)
+            {
+                state.seen_done.insert(session);
+            }
+        }
         if state.retain_events(|event| !ids.contains(&event.id)) {
             state.revision += 1;
         }
@@ -212,5 +256,33 @@ mod tests {
         assert!(activity.snapshot().events.is_empty());
         assert!(lock(&activity.state).claimed.is_empty());
         assert!(activity.revision() > revision);
+    }
+
+    #[test]
+    fn a_finished_session_is_done_until_an_event_is_acknowledged() {
+        let activity = Activity::default();
+        activity.update(agent(AgentState::Working), false);
+        activity.update(agent(AgentState::Idle), true);
+        assert_eq!(activity.snapshot().agents[0].state, AgentState::Done);
+        let id = activity.snapshot().events[0].id;
+        activity.acknowledge(&[id]);
+        assert_eq!(activity.snapshot().agents[0].state, AgentState::Idle);
+    }
+
+    #[test]
+    fn a_reported_done_stays_acknowledged_until_the_agent_works_again() {
+        let activity = Activity::default();
+        activity.update(agent(AgentState::Working), false);
+        activity.update(agent(AgentState::Done), true);
+        assert_eq!(activity.snapshot().agents[0].state, AgentState::Done);
+        let id = activity.snapshot().events[0].id;
+        activity.acknowledge(&[id]);
+        assert_eq!(activity.snapshot().agents[0].state, AgentState::Idle);
+        activity.update(agent(AgentState::Done), false);
+        assert!(activity.snapshot().events.is_empty());
+        assert_eq!(activity.snapshot().agents[0].state, AgentState::Idle);
+        activity.update(agent(AgentState::Working), false);
+        activity.update(agent(AgentState::Done), true);
+        assert_eq!(activity.snapshot().agents[0].state, AgentState::Done);
     }
 }

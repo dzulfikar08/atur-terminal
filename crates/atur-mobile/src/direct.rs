@@ -873,6 +873,7 @@ fn state_name(state: AgentState) -> &'static str {
         AgentState::Idle => "idle",
         AgentState::Working => "working",
         AgentState::Blocked => "blocked",
+        AgentState::Done => "done",
     }
 }
 

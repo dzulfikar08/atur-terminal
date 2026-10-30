@@ -76,7 +76,9 @@ fn agent_rank(state: AgentState) -> (u8, &'static str) {
     match state {
         AgentState::Working => (2, "working"),
         AgentState::Blocked => (1, "waiting"),
-        AgentState::Idle | AgentState::Unknown | AgentState::Unrecognized(_) => (0, "idle"),
+        AgentState::Idle | AgentState::Done | AgentState::Unknown | AgentState::Unrecognized(_) => {
+            (0, "idle")
+        }
     }
 }
 

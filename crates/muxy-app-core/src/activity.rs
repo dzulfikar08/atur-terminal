@@ -13,6 +13,7 @@ pub fn effective_progress(
         })),
         Some(
             AgentState::Idle
+            | AgentState::Done
             | AgentState::Blocked
             | AgentState::Unknown
             | AgentState::Unrecognized(_),
@@ -42,6 +43,7 @@ pub fn indicator(
             AgentState::Unknown | AgentState::Idle | AgentState::Unrecognized(_) => {
                 ActivityIndicator::Idle
             }
+            AgentState::Done => ActivityIndicator::Completed,
             AgentState::Working => ActivityIndicator::Working,
             AgentState::Blocked => ActivityIndicator::Blocked,
         });

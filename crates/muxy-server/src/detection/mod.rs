@@ -271,7 +271,12 @@ impl Detector {
         if provider.is_none() {
             return false;
         }
-        let completed = self.cycle && state == AgentState::Idle;
+        let completed = match state {
+            AgentState::Idle => self.cycle,
+            // A done agent the server meets for the first time has not been looked at either.
+            AgentState::Done => self.cycle || self.state != AgentState::Done,
+            _ => false,
+        };
         match state {
             AgentState::Working => self.cycle = true,
             AgentState::Blocked => {}

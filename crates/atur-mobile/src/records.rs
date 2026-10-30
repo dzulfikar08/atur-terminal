@@ -139,6 +139,8 @@ pub enum AgentState {
     Idle,
     Working,
     Blocked,
+    /// Finished a turn; nobody has looked at the session since.
+    Done,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, uniffi::Record)]
@@ -188,6 +190,7 @@ impl From<muxy_protocol::ActivitySnapshot> for Activity {
                         muxy_protocol::AgentState::Idle => AgentState::Idle,
                         muxy_protocol::AgentState::Working => AgentState::Working,
                         muxy_protocol::AgentState::Blocked => AgentState::Blocked,
+                        muxy_protocol::AgentState::Done => AgentState::Done,
                     },
                 })
                 .collect(),
