@@ -139,6 +139,9 @@ jobs:
     timeout-minutes: 20
     container:
       image: archlinux:latest
+      # Arch's sway carries a file capability (CAP_SYS_NICE); a container that
+      # does not hold it cannot even start the program.
+      options: --cap-add=SYS_NICE
     steps:
       - run: pacman -Syu --noconfirm sway wayvnc wev wl-clipboard python procps-ng git
       - uses: actions/checkout@v4
