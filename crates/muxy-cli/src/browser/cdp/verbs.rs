@@ -358,6 +358,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
     fn value(value: Value) -> Result<Value, String> {
         Ok(json!({ "result": { "type": "object", "value": value } }))
     }
