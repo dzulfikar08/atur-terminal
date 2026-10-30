@@ -362,7 +362,7 @@ mod tests {
     fn typed_text_follows_edits_pastes_and_kill_keys() {
         let mut typed = Typed::default();
         assert_eq!(
-            typed.feed(b"helo\x7fllo world\r").as_deref(),
+            typed.feed(b"hellp\x7fo world\r").as_deref(),
             Some("hello world")
         );
         assert_eq!(
