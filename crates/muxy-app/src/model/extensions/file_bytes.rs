@@ -86,18 +86,7 @@ where
     if bytes.len() as u64 > MAX_CHUNKED_FILE_BYTES {
         return Err("file exceeds the 64 MiB limit".into());
     }
-    let reply = if !chunked {
-        if bytes.len() > MAX_FILE_BYTES {
-            return Err(
-                "this server writes files of at most 5 MiB; update it to write larger files".into(),
-            );
-        }
-        send(FilesAction::WriteBytes {
-            path: server_path(path),
-            bytes,
-        })
-        .await?
-    } else {
+    let reply = if chunked {
         let mut offset = 0;
         loop {
             let end = (offset + PIECE).min(bytes.len());
@@ -128,6 +117,17 @@ where
                 }
             }
         }
+    } else {
+        if bytes.len() > MAX_FILE_BYTES {
+            return Err(
+                "this server writes files of at most 5 MiB; update it to write larger files".into(),
+            );
+        }
+        send(FilesAction::WriteBytes {
+            path: server_path(path),
+            bytes,
+        })
+        .await?
     };
     match reply {
         FilesReply::Path(path) => {
