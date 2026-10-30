@@ -170,6 +170,7 @@ fn chunked_file_requests_are_bounded() {
             length,
         })
     };
-    assert!(range(MAX_FILE_BYTES as u32).validate().is_ok());
-    assert!(range(MAX_FILE_BYTES as u32 + 1).validate().is_err());
+    let limit = u32::try_from(MAX_FILE_BYTES).expect("fits");
+    assert!(range(limit).validate().is_ok());
+    assert!(range(limit + 1).validate().is_err());
 }

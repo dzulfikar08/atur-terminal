@@ -7,7 +7,8 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use muxy_protocol::{FilesAction, FilesReply, MAX_CHUNKED_FILE_BYTES, MAX_FILE_BYTES, ServerPath};
 use serde_json::{Value, json};
 
-const PIECE: usize = 4 * 1024 * 1024;
+const PIECE_LEN: u32 = 4 * 1024 * 1024;
+const PIECE: usize = PIECE_LEN as usize;
 
 fn server_path(path: &str) -> ServerPath {
     ServerPath(path.as_bytes().to_vec())
@@ -28,7 +29,7 @@ where
             let reply = send(FilesAction::ReadRange {
                 path: server_path(path),
                 offset: bytes.len() as u64,
-                length: PIECE as u32,
+                length: PIECE_LEN,
             })
             .await?;
             let FilesReply::Chunk(chunk) = reply else {
@@ -76,7 +77,7 @@ where
     F: FnMut(FilesAction) -> Fut,
     Fut: Future<Output = Result<FilesReply, String>>,
 {
-    if data.len() / 4 * 3 > MAX_CHUNKED_FILE_BYTES as usize + 3 {
+    if (data.len() / 4 * 3) as u64 > MAX_CHUNKED_FILE_BYTES + 3 {
         return Err("file exceeds the 64 MiB limit".into());
     }
     let bytes = STANDARD
@@ -198,7 +199,9 @@ pub(super) fn upload_id() -> u64 {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let clock = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos() as u64);
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_nanos()).ok())
+        .unwrap_or(0);
     clock
         .rotate_left(17)
         .wrapping_add(NEXT.fetch_add(1, Ordering::Relaxed))
@@ -248,7 +251,7 @@ mod tests {
                 FilesAction::ReadRange { offset, length, .. } => {
                     self.requests.borrow_mut().push("range");
                     let file = self.file.borrow();
-                    let start = (offset as usize).min(file.len());
+                    let start = usize::try_from(offset).unwrap().min(file.len());
                     let end = (start + length as usize).min(file.len());
                     Ok(FilesReply::Chunk(FileChunk {
                         path,
@@ -351,7 +354,10 @@ mod tests {
     #[test]
     fn files_over_the_limit_and_bad_base64_are_refused_before_any_request() {
         let fake = Fake::default();
-        let over = STANDARD.encode(vec![0_u8; MAX_CHUNKED_FILE_BYTES as usize + 1]);
+        let over = STANDARD.encode(vec![
+            0_u8;
+            usize::try_from(MAX_CHUNKED_FILE_BYTES).unwrap() + 1
+        ]);
         assert!(block_on(write("f", &over, true, 1, go(&fake))).is_err());
         assert!(block_on(write("f", "***", true, 1, go(&fake))).is_err());
         assert!(fake.requests.borrow().is_empty());
