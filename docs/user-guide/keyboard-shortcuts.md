@@ -43,7 +43,7 @@ For the terminal UI, see [Terminal UI keys](../features/terminal-ui.md#keys).
 | --- | --- |
 | Copy / paste | `Cmd+C` / `Cmd+V` |
 | Find / next / previous | `Cmd+F` / `Cmd+G` / `Cmd+Shift+G` |
-| Previous / next prompt | `Cmd+Up` / `Cmd+Down` |
+| Previous / next prompt (your messages and commands; ticks on the scrollbar show where they are) | `Cmd+Up` / `Cmd+Down` (Linux: `Ctrl+Shift+Up` / `Ctrl+Shift+Down`) |
 | Font size bigger / smaller / reset | `Cmd+=` / `Cmd+-` / `Cmd+0` |
 | Clear screen | `Cmd+K` |
 | Scroll to top / bottom | `Cmd+Home` / `Cmd+End` |
