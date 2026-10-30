@@ -242,7 +242,11 @@ def e2e(binary, engine):
         probe = subprocess.run([str(binary), "browser", "list"], env=run.env, text=True, capture_output=True, timeout=60)
         run.check("the browser starts again on demand", probe.returncode == 0, probe.stderr)
         run.stop_browser()
-        time.sleep(2)
+        for _ in range(100):
+            alive = subprocess.run(["pgrep", "-f", f"--user-data-dir={run.profile}"], capture_output=True)
+            if alive.returncode != 0:
+                break
+            time.sleep(0.2)
         plain = subprocess.Popen(
             [
                 os.environ.get("ATUR_TERM_BROWSER_PATH") or ("google-chrome" if engine == "chrome" else engine),
@@ -251,7 +255,12 @@ def e2e(binary, engine):
             ],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
         )
-        time.sleep(3)
+        for _ in range(100):
+            if subprocess.run(["pgrep", "-f", f"--user-data-dir={run.profile}"], capture_output=True).returncode == 0:
+                break
+            time.sleep(0.2)
+        time.sleep(2)
+        run.check("the plain browser is running", plain.poll() is None, f"exited with {plain.poll()}")
         refusal = run.cli("list", fail=True)
         run.check(
             "a running browser without debugging gets an explanation, not a restart",
