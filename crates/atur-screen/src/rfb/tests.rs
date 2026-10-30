@@ -460,7 +460,8 @@ fn lengths_from_the_wire_are_bounded() {
     let mut machine = ready(4, 4);
     let mut bytes = update_header(1);
     bytes.extend_from_slice(&rect_header(0, 0, 4, 4, 16));
-    bytes.extend_from_slice(&be32(MAX_ZRLE + 1));
+    // Far more than a 4x4 rectangle can take even as raw tiles.
+    bytes.extend_from_slice(&be32(10_000_000));
     assert!(failing(&mut machine, &bytes).contains("ZRLE"));
 
     let mut machine = ready(4, 4);

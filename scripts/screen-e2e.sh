@@ -93,7 +93,7 @@ echo "$DIRECT_RESULT"
 
 # A window to receive the keys and clicks; it fills the output, so it comes after
 # the checks that read the background's colour.
-wev >"$WORK/wev.log" 2>&1 &
+stdbuf -oL wev >"$WORK/wev.log" 2>&1 &
 wait_for "the wev window" bash -c 'swaymsg -t get_tree | grep -q "\"app_id\": \"wev\""'
 
 echo "== keys, clicks and the wheel reach the desktop"
