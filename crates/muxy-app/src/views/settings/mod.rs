@@ -387,6 +387,7 @@ impl SettingsView {
             "history-budget",
             "mobile-port",
             "browser-home-page",
+            "browser-engine-path",
             "browser-profile-name",
         ]
         .into_iter()
@@ -535,6 +536,7 @@ impl SettingsView {
             ("history-budget", budget),
             ("mobile-port", mobile_port),
             ("browser-home-page", settings.browser.home_page.clone()),
+            ("browser-engine-path", settings.browser.engine_path.clone()),
         ]
         .into_iter()
         .chain(terminal::field_values(&self.snapshot.terminal))

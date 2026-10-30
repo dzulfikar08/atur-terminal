@@ -137,6 +137,11 @@ atur-term browser read "$TAB"                           # title, URL and page te
   pass to `click`, `fill`, `type`, and the other element commands. They print
   `false` when nothing matches.
 - `eval` runs JavaScript in the page and prints the result as JSON.
+- To work in the user's own signed-in browser, add `--engine helium` (or `chromium`,
+  `chrome`) to every browser command, or set `ATUR_TERM_BROWSER_ENGINE`. You can only
+  drive tabs you opened (`--any-tab` to use another one, only when asked). If it says
+  the browser runs without remote debugging, relay that message to the user; never
+  pass `--restart-browser` unless they said to.
 - Screenshots work on background tabs:
   `atur-term browser screenshot "$TAB" | base64 -D > page.png`.
 - Close only tabs you opened.

@@ -1,6 +1,7 @@
 //! The built-in browser's model: what a browser pane saves, how typed text
 //! becomes an address, and how the CLI talks to the app about it.
 
+pub mod agent;
 pub mod api;
 pub mod automation;
 mod target;
@@ -81,6 +82,56 @@ impl SearchEngine {
 
     pub fn search_url(self, query: &str) -> String {
         format!("{}?q={}", self.endpoint(), encode_query(query))
+    }
+}
+
+/// What `atur-term browser` drives: the built-in browser, or a Chromium-based
+/// browser on this computer reached over its remote debugging port.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BrowserEngine {
+    #[default]
+    Builtin,
+    Helium,
+    Chromium,
+    Chrome,
+}
+
+impl BrowserEngine {
+    pub const ALL: [Self; 4] = [Self::Builtin, Self::Helium, Self::Chromium, Self::Chrome];
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Builtin => "builtin",
+            Self::Helium => "helium",
+            Self::Chromium => "chromium",
+            Self::Chrome => "chrome",
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Builtin => "Built-in",
+            Self::Helium => "Helium",
+            Self::Chromium => "Chromium",
+            Self::Chrome => "Chrome",
+        }
+    }
+
+    /// The engine named `text`, ignoring case; `built-in` is accepted too.
+    pub fn parse(text: &str) -> Option<Self> {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "builtin" | "built-in" => Some(Self::Builtin),
+            "helium" => Some(Self::Helium),
+            "chromium" => Some(Self::Chromium),
+            "chrome" => Some(Self::Chrome),
+            _ => None,
+        }
+    }
+
+    /// Whether this engine drives an external browser.
+    pub const fn is_external(self) -> bool {
+        !matches!(self, Self::Builtin)
     }
 }
 

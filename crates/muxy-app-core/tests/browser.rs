@@ -1,4 +1,4 @@
-use muxy_app_core::browser::{BrowserPane, resolve_target};
+use muxy_app_core::browser::{BrowserEngine, BrowserPane, resolve_target};
 use muxy_app_core::settings::{BrowserSettings, Settings};
 use muxy_app_core::{AppState, PaneContent, ProjectId, ProjectKind, ServerId, restore};
 use muxy_protocol::{CatalogPage, ProjectDescriptor, ServerIdentity, ServerPath};
@@ -221,5 +221,14 @@ fn browser_settings_have_safe_defaults_and_check_the_home_page() -> TestResult {
     changed.browser.open_terminal_links = true;
     changed.save_browser(&path)?;
     assert!(Settings::load(&path)?.browser.open_terminal_links);
+    assert_eq!(defaults.engine, BrowserEngine::Builtin);
+    assert!(defaults.engine_path.is_empty());
+    let mut external = Settings::load(&path)?;
+    external.browser.engine = BrowserEngine::Helium;
+    external.browser.engine_path = "/opt/helium/helium".into();
+    external.save_browser(&path)?;
+    let reloaded = Settings::load(&path)?;
+    assert_eq!(reloaded.browser.engine, BrowserEngine::Helium);
+    assert_eq!(reloaded.browser.engine_path, "/opt/helium/helium");
     Ok(())
 }

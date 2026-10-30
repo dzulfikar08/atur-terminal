@@ -364,6 +364,10 @@ impl AppModel {
                 settings.browser.home_page = value;
                 settings.save_browser(&path)?;
             }
+            Change::Field("browser-engine-path", value) => {
+                settings.browser.engine_path = value;
+                settings.save_browser(&path)?;
+            }
             Change::Field("browser-profile-name", _) => return Ok(()),
             Change::Field(id @ ("quick-width" | "quick-height"), value) => {
                 let mut quick = settings.quick_terminal;
@@ -1007,6 +1011,7 @@ fn change_id(change: &Change) -> &str {
             BrowserChange::Enabled(_) => "browser-enabled",
             BrowserChange::TerminalLinks(_) => "browser-terminal-links",
             BrowserChange::SearchEngine(_) => "browser-search-engine",
+            BrowserChange::Engine(_) => "browser-engine",
             BrowserChange::Import { .. } => "browser-import",
             BrowserChange::DefaultProfile(_)
             | BrowserChange::AddProfile(_)
@@ -1026,6 +1031,7 @@ fn browser_settings(
         BrowserChange::Enabled(enabled) => browser.enabled = enabled,
         BrowserChange::TerminalLinks(enabled) => browser.open_terminal_links = enabled,
         BrowserChange::SearchEngine(engine) => browser.search_engine = engine,
+        BrowserChange::Engine(engine) => browser.engine = engine,
         BrowserChange::DefaultProfile(id) => browser.default_profile = id,
         _ => {}
     }

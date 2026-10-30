@@ -53,6 +53,7 @@ pub(crate) fn status_bar(model: &AppModel, cx: &mut Context<AppModel>) -> impl I
                 .gap(px(8.0))
                 .h_full()
                 .px(px(10.0))
+                .children(agent_driving(model))
                 .children(update_control(model, cx))
                 .children(super::disconnected::status(model, cx))
                 .child(super::server_status::control(model, cx))
@@ -73,6 +74,37 @@ fn item_separator(model: &AppModel) -> AnyElement {
         .flex_none()
         .bg(model.theme.border)
         .into_any_element()
+}
+
+/// The chip shown while an agent drives an external browser.
+fn agent_driving(model: &AppModel) -> Option<AnyElement> {
+    let engine = model.agent_driving?;
+    let m = model.metrics;
+    let theme = &model.theme;
+    Some(
+        div()
+            .debug_selector(|| "agent-driving-status".into())
+            .flex()
+            .flex_none()
+            .items_center()
+            .h_full()
+            .gap(px(6.0))
+            .text_color(theme.fg_muted)
+            .child(
+                div()
+                    .size(m.scaled(5.0))
+                    .flex_none()
+                    .rounded_full()
+                    .bg(theme.accent),
+            )
+            .child(
+                div()
+                    .text_size(m.font_footnote())
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(tr!("Agent driving %@", engine.name())),
+            )
+            .into_any_element(),
+    )
 }
 
 fn update_control(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElement> {

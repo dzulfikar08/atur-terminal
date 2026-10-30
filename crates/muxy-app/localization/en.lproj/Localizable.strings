@@ -125,6 +125,7 @@
 "Adjust smooth scrolling speed." = "Adjust smooth scrolling speed.";
 "Adjust the space above and below terminal text." = "Adjust the space above and below terminal text.";
 "Adjust the space to the left and right of terminal text." = "Adjust the space to the left and right of terminal text.";
+"Agent driving %@" = "Agent driving %@";
 "Agents" = "Agents";
 "Agents Focused" = "Agents Focused";
 "Agents Panel" = "Agents Panel";
@@ -257,6 +258,8 @@
 "Browse language extensions…" = "Browse language extensions…";
 "Browser" = "Browser";
 "Browser Profile" = "Browser Profile";
+"Browser for agents" = "Browser for agents";
+"Browser path" = "Browser path";
 "Browse…" = "Browse…";
 "Browsing" = "Browsing";
 "Built-in" = "Built-in";
@@ -794,6 +797,7 @@
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
 "Last seen just now" = "Last seen just now";
+"Leave empty to find the browser automatically." = "Leave empty to find the browser automatically.";
 "Left" = "Left";
 "Let paired phones reach the server over the local network or a VPN. A paired phone gets full terminal access." = "Let paired phones reach the server over the local network or a VPN. A paired phone gets full terminal access.";
 "Let the desktop show through the terminal background." = "Let the desktop show through the terminal background.";
@@ -1566,6 +1570,7 @@
 "Web content process terminated" = "Web content process terminated";
 "When closing tabs or panes" = "When closing tabs or panes";
 "Whether phones can reach the server right now." = "Whether phones can reach the server right now.";
+"Which browser `atur-term browser` drives. Helium, Chromium and Chrome are driven through their remote debugging port on this computer, using your normal profile, so sites stay logged in. Overridden by --engine or ATUR_TERM_BROWSER_ENGINE." = "Which browser `atur-term browser` drives. Helium, Chromium and Chrome are driven through their remote debugging port on this computer, using your normal profile, so sites stay logged in. Overridden by --engine or ATUR_TERM_BROWSER_ENGINE.";
 "White" = "White";
 "Whole word" = "Whole word";
 "Width" = "Width";

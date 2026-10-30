@@ -3,7 +3,7 @@
 
 use gpui::prelude::FluentBuilder;
 use gpui::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div, px};
-use muxy_app_core::browser::SearchEngine;
+use muxy_app_core::browser::{BrowserEngine, SearchEngine};
 use muxy_ui::controls::{self, Choice};
 use muxy_ui::l10n::tr_key;
 use muxy_ui::tr;
@@ -23,6 +23,7 @@ pub(crate) enum BrowserChange {
     Enabled(bool),
     TerminalLinks(bool),
     SearchEngine(SearchEngine),
+    Engine(BrowserEngine),
     DefaultProfile(String),
     AddProfile(String),
     RenameProfile(String, String),
@@ -109,6 +110,7 @@ pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<A
             view.field("browser-home-page"),
         ));
     }
+    rows.extend(agent_browser_rows(view, cx));
     if view.matches(Category::Browser, tr_key!("Profiles")) {
         rows.push(view.row_with(
             "browser-profiles",
@@ -123,6 +125,47 @@ pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<A
             tr_key!("Import from another browser"),
             sources(view, cx),
             true,
+        ));
+    }
+    rows
+}
+
+/// The rows that choose the browser agents drive and where to find it.
+fn agent_browser_rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<AnyElement> {
+    let settings = &view.snapshot.settings.browser;
+    let mut rows = Vec::new();
+    if view.matches(Category::Browser, tr_key!("Browser for agents")) {
+        let choices: Vec<_> = BrowserEngine::ALL
+            .iter()
+            .map(|engine| Choice::new(engine.id(), engine.name()))
+            .collect();
+        rows.push(view.row_with(
+            "browser-engine",
+            tr_key!("Browser for agents"),
+            controls::segmented(
+                view.style(),
+                "browser-engine",
+                &choices,
+                settings.engine.id(),
+                cx.listener(|_, selected: &gpui::SharedString, _, cx| {
+                    if let Some(engine) = BrowserEngine::ALL
+                        .into_iter()
+                        .find(|engine| engine.id() == selected.as_ref())
+                    {
+                        cx.emit(SettingsEvent::Change(Change::Browser(
+                            BrowserChange::Engine(engine),
+                        )));
+                    }
+                }),
+            ),
+            true,
+        ));
+    }
+    if view.matches(Category::Browser, tr_key!("Browser path")) {
+        rows.push(view.row(
+            "browser-engine-path",
+            tr_key!("Browser path"),
+            view.field("browser-engine-path"),
         ));
     }
     rows

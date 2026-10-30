@@ -102,6 +102,11 @@ atur-term browser close "$tab"
 - `snapshot` lists a page's interactive elements, each with a selector for
   `click`, `fill`, or `type`.
 - `atur-term browser --help` lists every command.
+- `--engine helium|chromium|chrome` (or `ATUR_TERM_BROWSER_ENGINE`, or Settings →
+  Browser) drives your own browser over its debugging port instead, with the
+  same commands and output. `--any-tab` lets a command use tabs agents didn't
+  open; `--restart-browser` restarts a running browser that has no debugging
+  port. See [Drive your own browser](browser.md#drive-your-own-browser-helium-chromium-chrome).
 
 ## Exit codes
 

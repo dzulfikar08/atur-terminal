@@ -1,3 +1,5 @@
+#[cfg(not(test))]
+mod agent_driving;
 pub(crate) mod agents_panel;
 pub(crate) mod ai;
 pub(crate) mod banners;
@@ -109,6 +111,8 @@ pub(crate) struct AppModel {
     pub(crate) extensions: extensions::Runtime,
     pub(crate) sidebar_view: Entity<crate::views::cached::CachedView<Self>>,
     pub(crate) webviews: webviews::Webviews,
+    /// The external browser an agent is driving through `atur-term browser`.
+    pub(crate) agent_driving: Option<muxy_app_core::browser::BrowserEngine>,
     pub(crate) browsers: browsers::Browsers,
     pub(crate) panels: muxy_ui::panel::PanelHost,
     pub(crate) composer: composer::ComposerRuntime,
@@ -487,6 +491,7 @@ impl AppModel {
             ),
             webviews: webviews::Webviews::default(),
             browsers: browsers::Browsers::default(),
+            agent_driving: None,
             panels: muxy_ui::panel::PanelHost::default(),
             composer: composer::ComposerRuntime::new(boot.composer),
             voice: voice::VoiceRuntime::default(),
@@ -612,6 +617,8 @@ impl AppModel {
                 .record((model.state.current_project().id, tab));
         }
         Self::start_diagnostics(cx);
+        #[cfg(not(test))]
+        Self::start_agent_driving_poll(cx);
         model.start_update_checks(cx);
         model.start_servers(cx);
         model
