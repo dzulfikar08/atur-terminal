@@ -38,7 +38,7 @@ const MAX_PARAMS: usize = 32;
 enum Escape {
     #[default]
     None,
-    Escape,
+    Introducer,
     Csi,
     Ss3,
 }
@@ -60,7 +60,7 @@ impl Typed {
         let mut submitted = None;
         for ch in String::from_utf8_lossy(bytes).chars() {
             match self.escape {
-                Escape::Escape => {
+                Escape::Introducer => {
                     self.params.clear();
                     self.escape = match ch {
                         '[' => Escape::Csi,
@@ -97,7 +97,7 @@ impl Typed {
 
     fn key(&mut self, ch: char) -> Option<String> {
         match ch {
-            '\u{1b}' => self.escape = Escape::Escape,
+            '\u{1b}' => self.escape = Escape::Introducer,
             '\r' if !self.paste => return Some(self.take()),
             '\r' | '\n' => self.push('\n'),
             '\u{7f}' | '\u{8}' => {

@@ -1080,6 +1080,11 @@ impl Owner {
                 self.activity.clear_agent(self.info.id);
             }
         }
+        self.schedule_metadata();
+    }
+
+    /// Looks for a submitted message that is due, then sets when this runs next.
+    fn schedule_metadata(&mut self) {
         self.resolve_prompt_marks();
         let mut next = Instant::now()
             + if self.metadata.agent.is_some() {
