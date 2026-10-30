@@ -108,8 +108,7 @@ impl Message {
         samples.extend(close_samples());
         terminal_metadata_samples(&mut samples);
         samples.extend(activity_samples(session));
-        samples.extend(remote_samples());
-        samples.extend(screen_samples(channel));
+        samples.extend(remote_samples().into_iter().chain(screen_samples(channel)));
         samples
     }
 }
