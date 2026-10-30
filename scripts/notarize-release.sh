@@ -52,16 +52,27 @@ if [[ "$STATUS" -ne 0 ]]; then
 fi
 python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin).get("status") == "Accepted" else 1)' \
     < "$TEMP/submission.json"
+# Stapling asks Apple's ticket service over the network; that connection drops now and then
+# (stapler exit 68), so each stapler call is retried.
+stapler() {
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        xcrun stapler "$@" && return 0
+        echo "stapler $1 failed; retrying in 15 seconds ($attempt/5)" >&2
+        sleep 15
+    done
+    return 1
+}
 case "$1" in
     *.app)
-        xcrun stapler staple "$1"
-        xcrun stapler validate "$1"
+        stapler staple "$1"
+        stapler validate "$1"
         codesign --verify --deep --strict --verbose=2 "$1"
         spctl --assess --type execute --verbose=2 "$1"
         ;;
     *.dmg)
-        xcrun stapler staple "$1"
-        xcrun stapler validate "$1"
+        stapler staple "$1"
+        stapler validate "$1"
         spctl --assess --type open --context context:primary-signature --verbose=2 "$1"
         ;;
     *.zip)

@@ -110,7 +110,11 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -dvv "$APP" 2>&1 | grep -E 'Authority|TeamIdentifier|flags'
           spctl -a -vv -t exec "$APP"
-          xcrun stapler validate "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
+          for attempt in 1 2 3 4 5; do
+            xcrun stapler validate "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg" && break
+            [[ $attempt == 5 ]] && exit 1
+            sleep 15
+          done
           spctl -a -vv -t open --context context:primary-signature "$PACKAGE_DIR/AturTerminal-$VERSION-$ARCH.dmg"
       - name: Remove the signing keychain
         if: always()
