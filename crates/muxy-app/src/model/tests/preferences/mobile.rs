@@ -314,6 +314,8 @@ fn another_servers_phones_are_managed_through_its_own_worker(cx: &mut TestAppCon
     cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
     let (view, cx) = settings_window(boot, cx);
     view.update(cx, |model, cx| {
+        model.receive((ServerId::local(), 1, Update::Connected(Vec::new())), cx);
+        acknowledge_catalog(model, cx);
         connect_remote(model, remote, Vec::new(), &[], cx);
         model.select_mobile_server(remote, cx);
     });
