@@ -1,5 +1,7 @@
 //! How this computer's keys and modifiers become the remote keyboard's.
 
+use std::collections::HashMap;
+
 use atur_screen::keys::{ALT_L, CONTROL_L, SHIFT_L, SUPER_L};
 use gpui::{Keystroke, Modifiers};
 
@@ -86,6 +88,45 @@ pub(super) fn typed(keystroke: &Keystroke) -> Option<&str> {
         None
     } else {
         keystroke.key_char.as_deref()
+    }
+}
+
+/// Whether letting go of the remote Control also lets go of the keys pressed
+/// with it. On a Mac, AppKit sends no key release for a key pressed while
+/// Command is held, so Command+C would leave `c` down on the remote computer.
+pub(super) fn drops_keys(changes: &[(u32, bool)], mac: bool) -> bool {
+    mac && changes.contains(&(CONTROL_L, false))
+}
+
+/// The remote keysym each key pressed here went down as. A key's name depends
+/// on Shift when it is pressed or released (Shift+1 is `!`, then `1` once Shift
+/// is up), so a release is matched by name only when the name is known.
+#[derive(Debug, Default)]
+pub(super) struct Pressed {
+    keys: HashMap<String, u32>,
+}
+
+impl Pressed {
+    pub(super) fn press(&mut self, key: &str, keysym: u32) {
+        self.keys.insert(key.to_owned(), keysym);
+    }
+
+    /// The keysyms to release for the release of `key`. A key not known to be
+    /// down releases every pressed key, since it may be one under another name.
+    pub(super) fn release(&mut self, key: &str) -> Vec<u32> {
+        match self.keys.remove(key) {
+            Some(keysym) => vec![keysym],
+            None => self.drain(),
+        }
+    }
+
+    /// Every keysym held, forgetting them.
+    pub(super) fn drain(&mut self) -> Vec<u32> {
+        self.keys.drain().map(|(_, keysym)| keysym).collect()
+    }
+
+    pub(super) fn clear(&mut self) {
+        self.keys.clear();
     }
 }
 

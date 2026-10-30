@@ -23,7 +23,7 @@ use super::{DecodeError, FrameSink, H264Decoder};
 use crate::{Frame, Pixels};
 
 /// Access units that may wait for the writer thread.
-const QUEUE_DEPTH: usize = 8;
+const QUEUE_DEPTH: usize = 1;
 /// How long `decode` waits for room in the queue before it declares ffmpeg overloaded.
 const SEND_TIMEOUT: Duration = Duration::from_millis(200);
 /// The same while ffmpeg is still starting up and has not produced a picture yet.
@@ -368,9 +368,9 @@ impl FfmpegDecoder {
 impl H264Decoder for FfmpegDecoder {
     fn name(&self) -> String {
         let label = if self.vaapi_device.is_some() {
-            "ffmpeg (vaapi)"
+            "ffmpeg vaapi"
         } else {
-            "ffmpeg (software)"
+            "ffmpeg software"
         };
         label.to_string()
     }

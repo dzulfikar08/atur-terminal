@@ -129,3 +129,46 @@ fn typed_text_names_the_key_only_without_control_alt_or_command() {
     }
     assert_eq!(typed(&stroke("enter")), None);
 }
+
+#[test]
+fn shift_stays_down_for_a_key_the_system_reports_without_shift() {
+    // Shift+1 arrives as "!" with its own shift flag cleared. The window's
+    // modifiers still say Shift is held, so the remote Shift is not let go.
+    let real = held(keys(false, false, true, false), false);
+    assert!(changes(real, real).is_empty());
+    let cleared = held(keys(false, false, false, false), false);
+    assert_eq!(changes(real, cleared), [(SHIFT_L, false)]);
+}
+
+#[test]
+fn a_release_matches_the_key_pressed_under_the_same_name() {
+    let mut pressed = Pressed::default();
+    pressed.press("a", 0x61);
+    pressed.press("b", 0x62);
+    assert_eq!(pressed.release("a"), [0x61]);
+    assert_eq!(pressed.release("b"), [0x62]);
+    assert!(pressed.release("b").is_empty());
+}
+
+#[test]
+fn a_release_under_another_name_lets_go_of_everything_pressed() {
+    let mut pressed = Pressed::default();
+    pressed.press("!", 0x21);
+    pressed.press("a", 0x61);
+    let mut released = pressed.release("1");
+    released.sort_unstable();
+    assert_eq!(released, [0x21, 0x61]);
+    assert!(pressed.drain().is_empty());
+}
+
+#[test]
+fn on_a_mac_letting_go_of_control_drops_the_keys_pressed_with_it() {
+    let command = held(keys(false, false, false, true), true);
+    let up = changes(command, Held::default());
+    assert!(drops_keys(&up, true));
+    assert!(!drops_keys(&up, false));
+    let down = changes(Held::default(), command);
+    assert!(!drops_keys(&down, true));
+    let shift_up = changes(held(keys(false, false, true, false), true), Held::default());
+    assert!(!drops_keys(&shift_up, true));
+}

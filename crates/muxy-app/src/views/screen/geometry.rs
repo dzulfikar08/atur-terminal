@@ -31,7 +31,10 @@ pub(super) struct Rect {
 }
 
 /// Logical pixels a smooth scroll moves for one wheel notch.
-const PIXELS_PER_NOTCH: f32 = 40.0;
+pub(super) const PIXELS_PER_NOTCH: f32 = 40.0;
+
+/// Lines GPUI reports for one notch of a mouse wheel: three on Linux, one on macOS.
+pub(super) const LINES_PER_NOTCH: f32 = if cfg!(target_os = "macos") { 1.0 } else { 3.0 };
 
 /// The most wheel notches kept for later events.
 const MAX_PENDING_NOTCHES: f32 = 100.0;
@@ -130,14 +133,14 @@ pub(super) fn picture_point(rect: Rect, picture: (u32, u32), point: (f32, f32)) 
     )
 }
 
-/// Wheel notches in a scroll event of `Lines` or, with `precise`, of pixels.
-/// What is left of a notch waits in `remainder` for the next event. Positive
-/// is up and to the left, as GPUI reports it.
-pub(super) fn notches(delta: (f32, f32), precise: bool, remainder: &mut (f32, f32)) -> (i32, i32) {
-    let scale = if precise { 1.0 / PIXELS_PER_NOTCH } else { 1.0 };
+/// Wheel notches in a scroll event whose `delta` counts `unit` for one notch
+/// ([`LINES_PER_NOTCH`] or [`PIXELS_PER_NOTCH`]). What is left of a notch waits
+/// in `remainder` for the next event. Positive is up and to the left, as GPUI
+/// reports it.
+pub(super) fn notches(delta: (f32, f32), unit: f32, remainder: &mut (f32, f32)) -> (i32, i32) {
     (
-        take(&mut remainder.0, delta.0 * scale),
-        take(&mut remainder.1, delta.1 * scale),
+        take(&mut remainder.0, delta.0 / unit),
+        take(&mut remainder.1, delta.1 / unit),
     )
 }
 

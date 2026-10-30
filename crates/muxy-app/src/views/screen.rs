@@ -4,7 +4,6 @@
 //! ends it.
 
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -123,7 +122,7 @@ pub(crate) struct ScreenView {
     buttons: PointerButtons,
     held: keyboard::Held,
     /// The remote keysym each key down here pressed, so its release matches it.
-    pressed: HashMap<String, u32>,
+    pressed: keyboard::Pressed,
     wheel: (f32, f32),
     /// The text last sent to or received from the remote clipboard.
     clipboard: Option<String>,
@@ -155,7 +154,7 @@ impl ScreenView {
         let keys = cx.intercept_keystrokes(move |event, window, cx| {
             let _ = weak.update(cx, |view, cx| {
                 if view.focus.contains_focused(window, cx) {
-                    view.key_down(&event.keystroke, cx);
+                    view.key_down(&event.keystroke, window.modifiers(), cx);
                     cx.stop_propagation();
                 }
             });
@@ -188,7 +187,7 @@ impl ScreenView {
             viewport: Rc::default(),
             buttons: PointerButtons::default(),
             held: keyboard::Held::default(),
-            pressed: HashMap::new(),
+            pressed: keyboard::Pressed::default(),
             wheel: (0.0, 0.0),
             clipboard: None,
             stats: ScreenStats::default(),
@@ -293,7 +292,8 @@ impl ScreenView {
             screen.close();
         }
         if let Some(image) = self.shown.take().and_then(|shown| shown.image) {
-            cx.drop_image(image, None);
+            // Inside a window update the window is out of reach, so drop the texture afterwards.
+            cx.defer(move |cx| cx.drop_image(image, None));
         }
     }
 
@@ -412,8 +412,9 @@ impl ScreenView {
     // Keyboard
 
     /// A key went down while the view has the focus. The reserved chord is the
-    /// view's own; everything else is the remote keyboard's.
-    fn key_down(&mut self, keystroke: &Keystroke, cx: &mut Context<Self>) {
+    /// view's own; everything else is the remote keyboard's. `modifiers` are the
+    /// window's, since a keystroke leaves Shift out for keys without a case.
+    fn key_down(&mut self, keystroke: &Keystroke, modifiers: Modifiers, cx: &mut Context<Self>) {
         if keyboard::is_reserved(keystroke) {
             self.toolbar = !self.toolbar;
             cx.notify();
@@ -429,17 +430,15 @@ impl ScreenView {
             return;
         }
         let screen = screen.clone();
-        self.sync_modifiers(&screen, keystroke.modifiers);
+        self.sync_modifiers(&screen, modifiers);
         let text = keyboard::typed(keystroke);
-        if let Some(keysym) =
-            atur_screen::keys::keysym(&keystroke.key, text, keystroke.modifiers.shift)
-        {
-            self.pressed.insert(keystroke.key.clone(), keysym);
+        if let Some(keysym) = atur_screen::keys::keysym(&keystroke.key, text, modifiers.shift) {
+            self.pressed.press(&keystroke.key, keysym);
             screen.key(keysym, true);
         }
     }
 
-    fn key_up(&mut self, keystroke: &Keystroke) {
+    fn key_up(&mut self, keystroke: &Keystroke, modifiers: Modifiers) {
         let Phase::Live(screen) = &self.phase else {
             return;
         };
@@ -447,10 +446,10 @@ impl ScreenView {
             return;
         }
         let screen = screen.clone();
-        if let Some(keysym) = self.pressed.remove(&keystroke.key) {
+        for keysym in self.pressed.release(&keystroke.key) {
             screen.key(keysym, false);
         }
-        self.sync_modifiers(&screen, keystroke.modifiers);
+        self.sync_modifiers(&screen, modifiers);
     }
 
     /// Makes the remote modifier keys match `modifiers`, as pressed here.
@@ -458,8 +457,15 @@ impl ScreenView {
         if self.view_only {
             return;
         }
-        let after = keyboard::held(modifiers, cfg!(target_os = "macos"));
-        for (keysym, down) in keyboard::changes(self.held, after) {
+        let mac = cfg!(target_os = "macos");
+        let after = keyboard::held(modifiers, mac);
+        let changes = keyboard::changes(self.held, after);
+        if keyboard::drops_keys(&changes, mac) {
+            for keysym in self.pressed.drain() {
+                screen.key(keysym, false);
+            }
+        }
+        for (keysym, down) in changes {
             screen.key(keysym, down);
         }
         self.held = after;
@@ -556,6 +562,20 @@ impl ScreenView {
         cx.stop_propagation();
     }
 
+    /// A button let go outside the picture: over the toolbar, or outside the
+    /// window. This runs before the toolbar's clicks, so it must not stop them.
+    fn mouse_up_out(&mut self, event: &MouseUpEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let held = match event.button {
+            MouseButton::Left => self.buttons.left,
+            MouseButton::Middle => self.buttons.middle,
+            MouseButton::Right => self.buttons.right,
+            MouseButton::Navigate(_) => false,
+        };
+        if held && self.set_button(event.button, false) {
+            self.send_pointer(event.position, event.modifiers, window, cx);
+        }
+    }
+
     fn mouse_move(&mut self, event: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
         self.send_pointer(event.position, event.modifiers, window, cx);
     }
@@ -570,11 +590,14 @@ impl ScreenView {
             return;
         };
         let screen = screen.clone();
-        let (delta, precise) = match event.delta {
-            ScrollDelta::Lines(lines) => ((lines.x, lines.y), false),
-            ScrollDelta::Pixels(pixels) => ((f32::from(pixels.x), f32::from(pixels.y)), true),
+        let (delta, unit) = match event.delta {
+            ScrollDelta::Lines(lines) => ((lines.x, lines.y), geometry::LINES_PER_NOTCH),
+            ScrollDelta::Pixels(pixels) => (
+                (f32::from(pixels.x), f32::from(pixels.y)),
+                geometry::PIXELS_PER_NOTCH,
+            ),
         };
-        let (across, along) = geometry::notches(delta, precise, &mut self.wheel);
+        let (across, along) = geometry::notches(delta, unit, &mut self.wheel);
         if across != 0 || along != 0 {
             self.sync_modifiers(&screen, event.modifiers);
             if let Some((x, y)) = self.picture_at(event.position, window) {
@@ -663,8 +686,8 @@ impl Render for ScreenView {
             })
             .key_context("ScreenView")
             .track_focus(&self.focus)
-            .on_key_up(cx.listener(|view, event: &gpui::KeyUpEvent, _, _| {
-                view.key_up(&event.keystroke);
+            .on_key_up(cx.listener(|view, event: &gpui::KeyUpEvent, window, _| {
+                view.key_up(&event.keystroke, window.modifiers());
             }))
             .on_modifiers_changed(cx.listener(
                 |view, event: &gpui::ModifiersChangedEvent, _, cx| {
@@ -699,7 +722,7 @@ impl ScreenView {
             area = area
                 .on_mouse_down(button, cx.listener(Self::mouse_down))
                 .on_mouse_up(button, cx.listener(Self::mouse_up))
-                .on_mouse_up_out(button, cx.listener(Self::mouse_up));
+                .on_mouse_up_out(button, cx.listener(Self::mouse_up_out));
         }
         area.on_mouse_move(cx.listener(Self::mouse_move))
             .on_scroll_wheel(cx.listener(Self::scroll_wheel))

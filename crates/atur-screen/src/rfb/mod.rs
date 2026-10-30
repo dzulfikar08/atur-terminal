@@ -23,7 +23,6 @@ use zrle::Zrle;
 pub(crate) const MAX_CLIPBOARD: usize = 1 << 20;
 const MAX_DIMENSION: usize = 16_384;
 const MAX_PIXELS: usize = 64 * 1024 * 1024;
-const MAX_ZRLE: usize = 16 << 20;
 const MAX_H264: usize = 16 << 20;
 const MAX_NAME: usize = 64 * 1024;
 const MAX_REASON: usize = 4096;
@@ -645,7 +644,11 @@ impl Machine {
             return Ok(false);
         }
         let length = to_usize(u32_at(data, 12));
-        if length > MAX_ZRLE {
+        self.check_rect(rect)?;
+        // Raw tiles are the worst case: every pixel, a tile header per 64x64 tile, and some
+        // slack for the zlib framing. A bigger rectangle than that is corrupt.
+        let most = rect.w * rect.h * 4 + rect.w.div_ceil(64) * rect.h.div_ceil(64) + 65_536;
+        if length > most {
             return Err(protocol_error(
                 "The screen server sent an oversized ZRLE rectangle.",
             ));
@@ -653,7 +656,6 @@ impl Machine {
         if data.len() < 16 + length {
             return Ok(false);
         }
-        self.check_rect(rect)?;
         self.zrle
             .decode(&data[16..16 + length], rect, &mut self.fb)?;
         self.pos += 16 + length;
@@ -725,7 +727,6 @@ impl Machine {
             return Ok(());
         }
         self.fb = Framebuffer::new(width, height);
-        self.update.dirty = true;
         self.events.push(Event::Resized { width, height });
         msg::update_request(&mut self.out, false, width, height);
         if self.continuous {

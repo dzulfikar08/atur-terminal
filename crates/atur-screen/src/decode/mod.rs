@@ -34,7 +34,7 @@ impl std::error::Error for DecodeError {}
 
 /// Decodes the Annex B byte stream of one RFB connection, access unit by access unit.
 pub trait H264Decoder: Send {
-    /// What decodes: `"videotoolbox"`, `"ffmpeg (vaapi)"`, ...
+    /// What decodes: `"videotoolbox"`, `"ffmpeg vaapi"`, ...
     fn name(&self) -> String;
 
     /// Feeds one access unit (the payload of one RFB H.264 rectangle, SPS and

@@ -726,9 +726,6 @@ impl Publisher {
     reason = "the processor thread owns the machine and its decoder until it ends"
 )]
 fn process_loop(shared: &Arc<Shared>, receiver: &Receiver<Inbox>, mut machine: Machine) {
-    let h264_codec = machine
-        .h264_name()
-        .map_or_else(|| "h264".to_owned(), |name| format!("h264 ({name})"));
     let mut publisher = Publisher::default();
     loop {
         let next = match publisher.wait() {
@@ -740,7 +737,7 @@ fn process_loop(shared: &Arc<Shared>, receiver: &Receiver<Inbox>, mut machine: M
         }
         match next {
             Ok(Inbox::Data(chunk)) => {
-                if !handle_chunk(shared, &mut machine, &mut publisher, &h264_codec, &chunk) {
+                if !handle_chunk(shared, &mut machine, &mut publisher, &chunk) {
                     return;
                 }
             }
@@ -759,7 +756,6 @@ fn handle_chunk(
     shared: &Shared,
     machine: &mut Machine,
     publisher: &mut Publisher,
-    h264_codec: &str,
     chunk: &[u8],
 ) -> bool {
     shared.add_received(chunk.len());
@@ -787,7 +783,14 @@ fn handle_chunk(
                 match codec {
                     Some(Codec::Raw) => shared.set_codec("raw"),
                     Some(Codec::Zrle) => shared.set_codec("zrle"),
-                    Some(Codec::H264) => shared.set_codec(h264_codec),
+                    Some(Codec::H264) => {
+                        // Asked each time: a decoder that fell back to software says so.
+                        let name = machine.h264_name();
+                        shared.set_codec(
+                            &name
+                                .map_or_else(|| "h264".to_owned(), |name| format!("h264 ({name})")),
+                        );
+                    }
                     None => {}
                 }
                 publisher.dirty |= dirty;

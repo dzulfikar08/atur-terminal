@@ -57,10 +57,6 @@ wait_for "sway's IPC socket" bash -c 'ls "$XDG_RUNTIME_DIR"/sway-ipc.*.sock'
 export SWAYSOCK=$(ls "$XDG_RUNTIME_DIR"/sway-ipc.*.sock | head -1)
 wait_for "an output" bash -c 'swaymsg -t get_outputs | grep -q HEADLESS'
 
-# A window to receive the keys and clicks.
-wev >"$WORK/wev.log" 2>&1 &
-wait_for "the wev window" bash -c 'swaymsg -t get_tree | grep -q "\"app_id\": \"wev\""'
-
 # What a user's server does: start wayvnc itself, on demand.
 mkdir -p "$WORK/srv"
 ATUR_TERM_DIR="$WORK/srv" ATUR_TERM_SCREEN_GPU=0 ATUR_TERM_REMOTE_BIND=127.0.0.1 SHELL=/bin/sh \
@@ -81,6 +77,25 @@ probe "${SERVER[@]}" expect 200 30 30
 swaymsg output '*' bg '#1e1ec8' solid_color
 probe "${SERVER[@]}" expect 30 30 200
 
+echo "== how long a change takes to show: through the server, and straight to wayvnc"
+RELAY=$(probe "${SERVER[@]}" colors 30)
+DIRECT_RESULT=$(probe "${DIRECT[@]}" colors 30)
+echo "$RELAY"
+echo "$DIRECT_RESULT"
+{
+  echo "### Screen mirroring, headless sway, wayvnc $(wayvnc --version 2>&1 | head -1)"
+  echo
+  echo '```json'
+  echo "$RELAY"
+  echo "$DIRECT_RESULT"
+  echo '```'
+} >>"$SUMMARY"
+
+# A window to receive the keys and clicks; it fills the output, so it comes after
+# the checks that read the background's colour.
+wev >"$WORK/wev.log" 2>&1 &
+wait_for "the wev window" bash -c 'swaymsg -t get_tree | grep -q "\"app_id\": \"wev\""'
+
 echo "== keys, clicks and the wheel reach the desktop"
 probe "${SERVER[@]}" input
 sleep 0.5
@@ -97,20 +112,6 @@ reader=$!
 sleep 2
 printf 'from the desktop' | wl-copy
 wait "$reader"
-
-echo "== how long a change takes to show: through the server, and straight to wayvnc"
-RELAY=$(probe "${SERVER[@]}" colors 30)
-DIRECT_RESULT=$(probe "${DIRECT[@]}" colors 30)
-echo "$RELAY"
-echo "$DIRECT_RESULT"
-{
-  echo "### Screen mirroring, headless sway, wayvnc $(wayvnc --version 2>&1 | head -1)"
-  echo
-  echo '```json'
-  echo "$RELAY"
-  echo "$DIRECT_RESULT"
-  echo '```'
-} >>"$SUMMARY"
 
 echo "== the capture stops with the last viewer, and with the server"
 pgrep -f "wayvnc .*atur-term-screen" >/dev/null

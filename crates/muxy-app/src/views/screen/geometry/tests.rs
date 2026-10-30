@@ -119,33 +119,56 @@ fn the_fit_modes_alternate() {
 }
 
 #[test]
-fn line_wheels_send_whole_notches() {
+fn a_mouse_wheel_notch_is_one_click_whatever_lines_the_platform_counts() {
     let mut remainder = (0.0, 0.0);
-    assert_eq!(notches((0.0, 1.0), false, &mut remainder), (0, 1));
-    assert_eq!(notches((0.0, -2.0), false, &mut remainder), (0, -2));
-    assert_eq!(notches((1.0, 0.0), false, &mut remainder), (1, 0));
+    assert_eq!(
+        notches((0.0, LINES_PER_NOTCH), LINES_PER_NOTCH, &mut remainder),
+        (0, 1)
+    );
+    assert_eq!(
+        notches(
+            (0.0, -2.0 * LINES_PER_NOTCH),
+            LINES_PER_NOTCH,
+            &mut remainder
+        ),
+        (0, -2)
+    );
+    assert_eq!(
+        notches((LINES_PER_NOTCH, 0.0), LINES_PER_NOTCH, &mut remainder),
+        (1, 0)
+    );
+}
+
+#[test]
+fn three_lines_make_one_notch_where_a_notch_is_three_lines() {
+    let mut remainder = (0.0, 0.0);
+    assert_eq!(notches((0.0, 3.0), 3.0, &mut remainder), (0, 1));
+    assert_eq!(notches((0.0, 1.0), 3.0, &mut remainder), (0, 0));
+    assert_eq!(notches((0.0, 2.0), 3.0, &mut remainder), (0, 1));
 }
 
 #[test]
 fn smooth_scrolling_accumulates_until_a_notch_is_reached() {
     let mut remainder = (0.0, 0.0);
-    assert_eq!(notches((0.0, 20.0), true, &mut remainder), (0, 0));
-    assert_eq!(notches((0.0, 20.0), true, &mut remainder), (0, 1));
-    assert_eq!(notches((0.0, 100.0), true, &mut remainder), (0, 2));
+    let unit = PIXELS_PER_NOTCH;
+    assert_eq!(notches((0.0, 20.0), unit, &mut remainder), (0, 0));
+    assert_eq!(notches((0.0, 20.0), unit, &mut remainder), (0, 1));
+    assert_eq!(notches((0.0, 100.0), unit, &mut remainder), (0, 2));
     assert!(remainder.1.abs() < 0.51);
 }
 
 #[test]
 fn reversing_the_wheel_drops_what_was_left_over() {
     let mut remainder = (0.0, 0.0);
-    assert_eq!(notches((0.0, 30.0), true, &mut remainder), (0, 0));
-    assert_eq!(notches((0.0, -10.0), true, &mut remainder), (0, 0));
-    assert_eq!(notches((0.0, -30.0), true, &mut remainder), (0, -1));
+    let unit = PIXELS_PER_NOTCH;
+    assert_eq!(notches((0.0, 30.0), unit, &mut remainder), (0, 0));
+    assert_eq!(notches((0.0, -10.0), unit, &mut remainder), (0, 0));
+    assert_eq!(notches((0.0, -30.0), unit, &mut remainder), (0, -1));
 }
 
 #[test]
 fn a_flood_of_scrolling_is_bounded() {
     let mut remainder = (0.0, 0.0);
-    let (_, count) = notches((0.0, 1_000_000.0), false, &mut remainder);
+    let (_, count) = notches((0.0, 1_000_000.0), 1.0, &mut remainder);
     assert_eq!(count, 100);
 }
