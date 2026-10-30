@@ -174,3 +174,66 @@ fn a_pane_without_history_or_with_a_program_reading_the_wheel_has_no_scrollbar(
         assert!(!pane.scrollbar_dragging());
     });
 }
+
+fn offsets(prompts: &[usize], loaded: usize, total: f64, length: f32) -> Vec<f32> {
+    let prompts = prompts.iter().copied().collect();
+    let mut offsets = Vec::new();
+    crate::views::terminal::scrollbar::prompt_offsets(&prompts, loaded, total, length, |offset| {
+        offsets.push(offset);
+    });
+    offsets
+}
+
+fn assert_close(actual: &[f32], expected: &[f32]) {
+    assert_eq!(actual.len(), expected.len(), "{actual:?} vs {expected:?}");
+    for (actual, expected) in actual.iter().zip(expected) {
+        assert!((actual - expected).abs() < 1e-3, "{actual} vs {expected}");
+    }
+}
+
+#[test]
+fn prompt_ticks_sit_at_their_rows_share_of_the_track() {
+    assert_close(&offsets(&[0, 3, 15], 30, 30.0, 60.0), &[0.0, 6.0, 30.0]);
+    assert_close(&offsets(&[29], 30, 30.0, 60.0), &[58.0]);
+    assert_close(&offsets(&[], 30, 30.0, 60.0), &[]);
+}
+
+#[test]
+fn prompt_ticks_leave_room_above_for_history_that_is_not_loaded() {
+    assert_close(&offsets(&[0, 5], 10, 100.0, 100.0), &[90.0, 95.0]);
+}
+
+#[test]
+fn prompt_ticks_skip_rows_past_the_loaded_ones_and_empty_tracks() {
+    assert_close(&offsets(&[2, 10, 11], 10, 10.0, 100.0), &[20.0]);
+    assert!(offsets(&[1], 10, 0.0, 100.0).is_empty());
+    assert!(offsets(&[1], 10, 10.0, 1.0).is_empty());
+}
+
+#[test]
+fn many_prompts_are_thinned_to_one_tick_per_pixel_bucket() {
+    let few: Vec<usize> = (0..200).collect();
+    assert_eq!(offsets(&few, 200, 200.0, 100.0).len(), 200);
+
+    let many: Vec<usize> = (0..5_000).collect();
+    let thinned = offsets(&many, 5_000, 5_000.0, 100.0);
+    assert!(thinned.len() <= 26, "{}", thinned.len());
+    assert!(thinned.len() > 1);
+    assert!(thinned.windows(2).all(|pair| pair[1] - pair[0] > 0.0));
+    assert!(thinned.first().is_some_and(|first| first.abs() < 1e-3));
+}
+
+#[gpui::test]
+fn prompt_ticks_show_with_the_scrollbar_and_cover_the_loaded_history(cx: &mut TestAppContext) {
+    let (pane, cx) = pane(cx);
+    pane.update(cx, |pane, cx| {
+        pane.grid.as_mut().unwrap().prompts.extend([0, 10]);
+        let now = cx.background_executor().now();
+        assert!(pane.scrollbar_prompt_ticks(now).is_empty());
+        pane.scroll_rows(9.0, cx);
+        let ticks = pane.scrollbar_prompt_ticks(now);
+        let tops: Vec<f32> = ticks.iter().map(|tick| f32::from(tick.top())).collect();
+        assert_close(&tops, &[0.0, 20.0]);
+        assert!(ticks.iter().all(|tick| tick.right() < px(200.0)));
+    });
+}

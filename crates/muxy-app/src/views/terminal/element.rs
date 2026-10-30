@@ -158,17 +158,18 @@ pub(crate) fn terminal(view: Entity<TerminalPane>, palette: &Palette) -> impl In
                     }
                 }
             });
-            let scrollbar = view
-                .read(cx)
-                .scrollbar_thumb(cx.background_executor().now());
+            let now = cx.background_executor().now();
+            let scrollbar = view.read(cx).scrollbar_thumb(now);
+            let prompt_ticks = view.read(cx).scrollbar_prompt_ticks(now);
             (
                 painting,
                 frame,
                 frame.backgrounds(view.read(cx), &palette),
                 scrollbar,
+                prompt_ticks,
             )
         },
-        move |bounds, (painting, frame, padding, scrollbar), window, cx| {
+        move |bounds, (painting, frame, padding, scrollbar, prompt_ticks), window, cx| {
             let _span = crate::profiler::span(crate::profiler::Metric::TerminalPaint);
             let focus_border = mouse_view.read(cx).focus_border;
             let focus = mouse_view.read(cx).focus.clone();
@@ -219,6 +220,13 @@ pub(crate) fn terminal(view: Entity<TerminalPane>, palette: &Palette) -> impl In
                 let mut color: Hsla = rgb(palette.foreground).into();
                 color.a = 0.4;
                 window.paint_quad(fill(thumb, color).corner_radii(thumb.size.width / 2.0));
+            }
+            if !prompt_ticks.is_empty() {
+                let mut color: Hsla = rgb(palette.cursor).into();
+                color.a = 0.8;
+                for tick in prompt_ticks {
+                    window.paint_quad(fill(tick, color));
+                }
             }
             if let Some(color) = focus_border {
                 window.paint_quad(gpui::outline(bounds, color, gpui::BorderStyle::Solid));

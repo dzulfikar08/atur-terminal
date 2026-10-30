@@ -1,6 +1,6 @@
 //! The terminal's own scrollbar, for panes the system gives none.
 
-use std::time::Instant;
+use std::{collections::BTreeSet, time::Instant};
 
 use gpui::{Bounds, Context, Pixels, Task, point, px, size};
 use muxy_ui::scrollbar::{
@@ -11,6 +11,12 @@ use super::pane::{PaneState, TerminalPane};
 
 /// The gap between the thumb and the pane's right edge.
 const EDGE_GAP: f32 = 2.0;
+/// Prompt ticks are a little narrower than the thumb and centred on it.
+const PROMPT_TICK_WIDTH: f32 = 5.0;
+const PROMPT_TICK_HEIGHT: f32 = 2.0;
+/// More prompts than this are thinned to one tick per `PROMPT_TICK_SPACING`.
+const MAX_PROMPT_TICKS: usize = 200;
+const PROMPT_TICK_SPACING: f32 = 4.0;
 
 #[derive(Debug)]
 pub(crate) struct Scrollbar {
@@ -29,6 +35,9 @@ struct Geometry {
     thumb: ThumbGeometry,
     /// The rows the pane can scroll through.
     scrollable: f64,
+    /// The rows the thumb's track stands for: those scrolled through and
+    /// those on screen.
+    total: f64,
 }
 
 impl Geometry {
@@ -45,6 +54,27 @@ impl Geometry {
             ),
             size(px(WIDTH), px(length)),
         )
+    }
+
+    /// A tick for each of `prompts`, whose rows index the `loaded_rows` the
+    /// pane holds at the bottom of the history. Prompts above the loaded
+    /// window are unknown to the client and get no tick.
+    fn prompt_ticks(&self, prompts: &BTreeSet<usize>, loaded_rows: usize) -> Vec<Bounds<Pixels>> {
+        let left = self.track.right() - px(EDGE_GAP + f32::midpoint(WIDTH, PROMPT_TICK_WIDTH));
+        let mut ticks = Vec::with_capacity(prompts.len().min(MAX_PROMPT_TICKS));
+        prompt_offsets(
+            prompts,
+            loaded_rows,
+            self.total,
+            f32::from(self.track.size.height),
+            |offset| {
+                ticks.push(Bounds::new(
+                    point(left, self.track.top() + px(offset)),
+                    size(px(PROMPT_TICK_WIDTH), px(PROMPT_TICK_HEIGHT)),
+                ));
+            },
+        );
+        ticks
     }
 
     /// How far above the bottom the view is when the thumb's top sits `origin`
@@ -107,6 +137,7 @@ impl TerminalPane {
             track,
             thumb,
             scrollable,
+            total: scrollable + f64::from(rows),
         })
     }
 
@@ -117,6 +148,23 @@ impl TerminalPane {
             .then(|| self.scrollbar_geometry())
             .flatten()
             .map(|geometry| geometry.thumb_bounds())
+    }
+
+    /// The prompt ticks, while the scrollbar shows. Each of the displayed
+    /// grid's prompts that the client has loaded gets one.
+    pub(super) fn scrollbar_prompt_ticks(&self, now: Instant) -> Vec<Bounds<Pixels>> {
+        let Some(geometry) = self
+            .scrollbar
+            .shown(now)
+            .then(|| self.scrollbar_geometry())
+            .flatten()
+        else {
+            return Vec::new();
+        };
+        let Some(grid) = self.displayed_grid() else {
+            return Vec::new();
+        };
+        geometry.prompt_ticks(&grid.prompts, grid.history.len() + grid.rows.len())
     }
 
     pub(super) fn scrollbar_dragging(&self) -> bool {
@@ -214,4 +262,43 @@ impl TerminalPane {
 /// Whether `position` is over the strip of `track` the thumb moves in.
 fn near_thumb(track: Bounds<Pixels>, position: gpui::Point<Pixels>) -> bool {
     track.contains(&position) && position.x >= track.right() - px(WIDTH * 2.0)
+}
+
+/// Calls `emit` with each prompt's pixel offset below the top of a track
+/// `track_length` pixels tall, in ascending order. `prompts` index the
+/// `loaded_rows` rows ending the `total_rows` the track stands for. Rows past
+/// the loaded ones are skipped. Past `MAX_PROMPT_TICKS` prompts, only the first
+/// in each `PROMPT_TICK_SPACING` pixels gets an offset, so the output stays
+/// proportional to the track however many prompts there are.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    reason = "Row counts and pixel offsets are far inside f64 and f32 precision"
+)]
+pub(super) fn prompt_offsets(
+    prompts: &BTreeSet<usize>,
+    loaded_rows: usize,
+    total_rows: f64,
+    track_length: f32,
+    mut emit: impl FnMut(f32),
+) {
+    if !total_rows.is_finite() || total_rows <= 0.0 || track_length <= PROMPT_TICK_HEIGHT {
+        return;
+    }
+    let missing_above = (total_rows - loaded_rows as f64).max(0.0);
+    let furthest = track_length - PROMPT_TICK_HEIGHT;
+    let thin = prompts.len() > MAX_PROMPT_TICKS;
+    let mut last_bucket = -1.0_f32;
+    for &row in prompts.range(..loaded_rows) {
+        let fraction = ((missing_above + row as f64) / total_rows).clamp(0.0, 1.0);
+        let offset = ((fraction * f64::from(track_length)) as f32).min(furthest);
+        if thin {
+            let bucket = (offset / PROMPT_TICK_SPACING).floor();
+            if bucket <= last_bucket {
+                continue;
+            }
+            last_bucket = bucket;
+        }
+        emit(offset);
+    }
 }
