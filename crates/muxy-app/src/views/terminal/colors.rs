@@ -96,13 +96,13 @@ impl Palette {
     pub(crate) const fn new(dark: bool) -> Self {
         if dark {
             Self {
-                background: 0x19_17_1f,
-                foreground: 0xc9_c2_d9,
-                cursor: 0xc9_c2_d9,
+                background: 0x0c_0c_0c,
+                foreground: 0xeb_eb_eb,
+                cursor: 0xeb_eb_eb,
                 colors: default_colors([
-                    0x46_40_56, 0xec_48_99, 0x34_d3_99, 0xe0_af_68, 0xc3_70_d3, 0x63_66_f1,
-                    0x22_d3_ee, 0xa9_b1_d6, 0x7c_73_93, 0xf4_72_b6, 0x6e_e7_b7, 0xfb_bf_24,
-                    0xd9_9b_e5, 0x81_8c_f8, 0x67_e8_f9, 0xc9_c2_d9,
+                    0x3f_3f_3f, 0xe0_70_70, 0x6f_bf_8a, 0xd4_b0_62, 0x7d_9f_d0, 0xb5_95_c4,
+                    0x6f_b8_c4, 0xbd_bd_bd, 0x6b_6b_6b, 0xec_8c_8c, 0x8f_d4_a6, 0xe6_c8_7e,
+                    0xa0_bd_e3, 0xcd_b0_d8, 0x92_d0_da, 0xf5_f5_f5,
                 ]),
                 cursor_color: None,
                 cursor_style: None,
@@ -115,13 +115,13 @@ impl Palette {
             }
         } else {
             Self {
-                background: 0xf0_f0_f5,
-                foreground: 0x1e_1e_2e,
-                cursor: 0x1e_1e_2e,
+                background: 0xfa_fa_fa,
+                foreground: 0x17_17_17,
+                cursor: 0x17_17_17,
                 colors: default_colors([
-                    0xd5_d6_db, 0xa3_2d_68, 0x1a_7a_4e, 0x9a_70_24, 0x47_96_f0, 0x7c_3a_ed,
-                    0x0b_71_89, 0x3b_3f_5c, 0x7a_7e_94, 0xec_48_99, 0x34_d3_99, 0xe0_af_68,
-                    0x6b_ab_f5, 0xa7_8b_fa, 0x22_d3_ee, 0x1e_1e_2e,
+                    0xd9_d9_d9, 0xb3_37_3b, 0x2f_7d_4f, 0x8f_6a_1c, 0x3f_66_a8, 0x7a_4f_93,
+                    0x1f_76_83, 0x3f_3f_3f, 0x6e_6e_6e, 0xc9_56_5a, 0x3f_9a_64, 0xa8_81_2a,
+                    0x5a_82_c4, 0x96_70_ad, 0x3a_8f_9c, 0x17_17_17,
                 ]),
                 cursor_color: None,
                 cursor_style: None,

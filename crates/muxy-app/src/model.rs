@@ -1786,10 +1786,18 @@ impl AppModel {
         &mut self,
         server: ServerId,
         sessions: &[SessionInfo],
+        adopt: bool,
         cx: &mut Context<Self>,
     ) {
         if server.is_local() {
             self.restore_quick_terminal(sessions, cx);
+        }
+        if adopt {
+            let previous = self.state.clone();
+            if let Err(error) = self.state.adopt_live_sessions(server, sessions) {
+                self.state = previous;
+                self.fail(error.to_string(), cx);
+            }
         }
         let plan = restore::plan(&self.state, server, sessions);
         let active = self.active_pane();
@@ -3509,6 +3517,7 @@ mod tests {
                     id: session,
                     directory: muxy_protocol::ServerPath(b"/tmp".to_vec()),
                 }],
+                false,
                 cx,
             );
             assert_eq!(model.pane_session(valid), Some(session));
@@ -3518,6 +3527,43 @@ mod tests {
                     .state
                     .pending_discards(ServerId::local())
                     .contains(&session)
+            );
+        });
+    }
+
+    #[gpui::test]
+    fn restore_adopts_unshown_live_sessions_only_for_a_fresh_server(cx: &mut TestAppContext) {
+        let mut state = AppState::bootstrap().expect("state");
+        let project = state
+            .add_project(ServerId::local(), std::env::temp_dir())
+            .expect("project");
+        let sessions: Vec<_> = [8, 9]
+            .into_iter()
+            .map(|id| SessionInfo {
+                project,
+                id: SessionId::new(id).expect("session"),
+                directory: muxy_protocol::ServerPath(b"/tmp".to_vec()),
+            })
+            .collect();
+        let (boot, _requests) = stub_boot(state);
+        let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+        view.update(cx, |model, cx| {
+            model.apply_restore(ServerId::local(), &sessions, false, cx);
+            assert!(
+                model
+                    .state
+                    .project(project)
+                    .expect("project")
+                    .tabs
+                    .is_empty()
+            );
+            model.apply_restore(ServerId::local(), &sessions, true, cx);
+            let tabs = model.state.project(project).expect("project").tabs.len();
+            assert_eq!(tabs, 2);
+            model.apply_restore(ServerId::local(), &sessions, true, cx);
+            assert_eq!(
+                model.state.project(project).expect("project").tabs.len(),
+                tabs
             );
         });
     }

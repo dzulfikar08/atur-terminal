@@ -108,10 +108,11 @@ pub struct ProjectDescriptor {
     pub parent_id: Option<ProjectId>,
 }
 
-/// The colors a new project picks from.
+/// The colors a new project picks from: neutral grays, light to dark, that
+/// stay visible on Atur's dark and light backgrounds.
 pub const PROJECT_COLORS: [&str; 12] = [
-    "#e5484d", "#f76b15", "#f5a623", "#ebcb00", "#9bcd1e", "#30a46c", "#12a594", "#05a2c2",
-    "#3e63dd", "#5b5bd6", "#8e4ec6", "#d6409f",
+    "#f2f2f2", "#e3e3e3", "#d3d3d3", "#c4c4c4", "#b5b5b5", "#a6a6a6", "#969696", "#878787",
+    "#787878", "#696969", "#5a5a5a", "#4a4a4a",
 ];
 
 impl ProjectDescriptor {

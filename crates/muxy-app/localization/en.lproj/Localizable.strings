@@ -142,7 +142,6 @@
 "Also make backgrounds drawn by terminal programs translucent." = "Also make backgrounds drawn by terminal programs translucent.";
 "Also restart the server" = "Also restart the server";
 "Always" = "Always";
-"Amber" = "Amber";
 "An agent is waiting for your attention." = "An agent is waiting for your attention.";
 "An import is ready for the next launch. Quit and reopen Atur Terminal to apply it, or cancel the import here." = "An import is ready for the next launch. Quit and reopen Atur Terminal to apply it, or cancel the import here.";
 "Another update is in progress. Atur Terminal will retry when it finishes." = "Another update is in progress. Atur Terminal will retry when it finishes.";
@@ -164,6 +163,7 @@
 "Apply Layout…" = "Apply Layout…";
 "Apply opacity to colored cells" = "Apply opacity to colored cells";
 "Apply “%@” to “%@”? This replaces all of this project's tabs, including pinned tabs, and runs the layout's commands. Terminals no longer shown by any app will end. Only apply layouts you trust." = "Apply “%@” to “%@”? This replaces all of this project's tabs, including pinned tabs, and runs the layout's commands. Terminals no longer shown by any app will end. Only apply layouts you trust.";
+"Ash" = "Ash";
 "Ask before ending a running command. Detaching never requires confirmation." = "Ask before ending a running command. Detaching never requires confirmation.";
 "Asked when connecting if empty" = "Asked when connecting if empty";
 "Attach" = "Attach";
@@ -240,7 +240,6 @@
 "Block all terminal keystrokes from this extension" = "Block all terminal keystrokes from this extension";
 "Block all terminal output reads from this extension" = "Block all terminal output reads from this extension";
 "Blocked" = "Blocked";
-"Blue" = "Blue";
 "Bold font" = "Bold font";
 "Bold italic font" = "Bold italic font";
 "Both" = "Both";
@@ -278,6 +277,7 @@
 "Change Theme…" = "Change Theme…";
 "Changes apply immediately. Press Return or leave a field to save text." = "Changes apply immediately. Press Return or leave a field to save text.";
 "Character spacing" = "Character spacing";
+"Charcoal" = "Charcoal";
 "Check after import:" = "Check after import:";
 "Check for Updates…" = "Check for Updates…";
 "Check for updates" = "Check for updates";
@@ -534,7 +534,6 @@
 "Custom command" = "Custom command";
 "Custom commands shell terminal shortcuts" = "Custom commands shell terminal shortcuts";
 "Cut" = "Cut";
-"Cyan" = "Cyan";
 "Dark theme" = "Dark theme";
 "Decrease Font Size" = "Decrease Font Size";
 "Decrease font size" = "Decrease font size";
@@ -661,6 +660,7 @@
 "Focus Pane Up" = "Focus Pane Up";
 "Focus Project" = "Focus Project";
 "Focused Project" = "Focused Project";
+"Fog" = "Fog";
 "Folder" = "Folder";
 "Folder is empty" = "Folder is empty";
 "Folder is required." = "Folder is required.";
@@ -682,7 +682,7 @@
 "Global X11 shortcuts cannot cover a Wayland desktop." = "Global X11 shortcuts cannot cover a Wayland desktop.";
 "Global folder: %@" = "Global folder: %@";
 "Global template: %@" = "Global template: %@";
-"Green" = "Green";
+"Graphite" = "Graphite";
 "Has an update" = "Has an update";
 "Height" = "Height";
 "Height in pixels for a new workspace window when no saved bounds exist." = "Height in pixels for a new workspace window when no saved bounds exist.";
@@ -731,7 +731,6 @@
 "Include unstaged changes" = "Include unstaged changes";
 "Increase Font Size" = "Increase Font Size";
 "Increase font size" = "Increase font size";
-"Indigo" = "Indigo";
 "Inline file path" = "Inline file path";
 "Input" = "Input";
 "Insert" = "Insert";
@@ -774,6 +773,7 @@
 "Invalid update checksum" = "Invalid update checksum";
 "Invalid update download size" = "Invalid update download size";
 "Invalid update version" = "Invalid update version";
+"Iron" = "Iron";
 "It changed after you confirmed. Refresh and try again." = "It changed after you confirmed. Refresh and try again.";
 "Italic font" = "Italic font";
 "Items" = "Items";
@@ -793,7 +793,6 @@
 "Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access." = "Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access.";
 "Let the desktop show through the terminal background." = "Let the desktop show through the terminal background.";
 "Light theme" = "Light theme";
-"Lime" = "Lime";
 "Line spacing" = "Line spacing";
 "Line spacing from 1.1 to 2.0." = "Line spacing from 1.1 to 2.0.";
 "List each agent and open its pane, or each project and worktree running agents and open it." = "List each agent and open its pane, or each project and worktree running agents and open it.";
@@ -952,6 +951,7 @@
 "Offline voice model" = "Offline voice model";
 "On" = "On";
 "On-device speech recognition is unavailable for this language. Choose another dictation language." = "On-device speech recognition is unavailable for this language. Choose another dictation language.";
+"Onyx" = "Onyx";
 "Open" = "Open";
 "Open Browser Tab" = "Open Browser Tab";
 "Open Project" = "Open Project";
@@ -982,7 +982,6 @@
 "Option-Return inserts a new line." = "Option-Return inserts a new line.";
 "Optional setup commands: add setup to .atur-terminal/worktree.json in the project or $XDG_CONFIG_HOME/atur-terminal/worktree.json (defaults to ~/.config/atur-terminal/worktree.json)." = "Optional setup commands: add setup to .atur-terminal/worktree.json in the project or $XDG_CONFIG_HOME/atur-terminal/worktree.json (defaults to ~/.config/atur-terminal/worktree.json).";
 "Optional teardown commands (review before enabling):" = "Optional teardown commands (review before enabling):";
-"Orange" = "Orange";
 "Order the worktree switcher by recent use" = "Order the worktree switcher by recent use";
 "Outline" = "Outline";
 "Output changed; search again" = "Output changed; search again";
@@ -1013,9 +1012,9 @@
 "Percent" = "Percent";
 "Permanently delete branch “%@”? Unmerged commits may become unreachable." = "Permanently delete branch “%@”? Unmerged commits may become unreachable.";
 "Permission rules" = "Permission rules";
+"Pewter" = "Pewter";
 "Phones that can connect. Revoking one disconnects it immediately." = "Phones that can connect. Revoking one disconnects it immediately.";
 "Pin Tab" = "Pin Tab";
-"Pink" = "Pink";
 "Pixels" = "Pixels";
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Port" = "Port";
@@ -1076,7 +1075,6 @@
 "Record a shortcut in Settings → Quick Terminal → Shortcut to open a floating Home shell over any app." = "Record a shortcut in Settings → Quick Terminal → Shortcut to open a floating Home shell over any app.";
 "Record a system-wide shortcut to open Quick Terminal." = "Record a system-wide shortcut to open Quick Terminal.";
 "Record shortcut" = "Record shortcut";
-"Red" = "Red";
 "Refresh" = "Refresh";
 "Refresh the pull request status before trying again." = "Refresh the pull request status before trying again.";
 "Regex" = "Regex";
@@ -1280,7 +1278,9 @@
 "Shown in the sidebar" = "Shown in the sidebar";
 "Sidebar vibrancy" = "Sidebar vibrancy";
 "Sidebar vibrancy level" = "Sidebar vibrancy level";
+"Silver" = "Silver";
 "Size" = "Size";
+"Slate" = "Slate";
 "Space" = "Space";
 "Speech permission request did not complete. Try again." = "Speech permission request did not complete. Try again.";
 "Speech recognition access is disabled. Enable Atur Terminal in System Settings → Privacy & Security → Speech Recognition." = "Speech recognition access is disabled. Enable Atur Terminal in System Settings → Privacy & Security → Speech Recognition.";
@@ -1298,7 +1298,9 @@
 "Starting" = "Starting";
 "Starting the server and reconnecting to Atur Terminal." = "Starting the server and reconnecting to Atur Terminal.";
 "Status" = "Status";
+"Steel" = "Steel";
 "Still connecting to %@. Try again in a moment." = "Still connecting to %@. Try again in a moment.";
+"Stone" = "Stone";
 "Stop" = "Stop";
 "Stop Server" = "Stop Server";
 "Stop Server?" = "Stop Server?";
@@ -1319,7 +1321,6 @@
 "Tab closed; server cleanup is pending: %@" = "Tab closed; server cleanup is pending: %@";
 "Tab type: %@" = "Tab type: %@";
 "Tabs, workspaces, and servers from your earlier install were not imported. %@" = "Tabs, workspaces, and servers from your earlier install were not imported. %@";
-"Teal" = "Teal";
 "Teardown hooks could not be loaded: %@\nContinuing will remove without hooks." = "Teardown hooks could not be loaded: %@\nContinuing will remove without hooks.";
 "Template" = "Template";
 "Templates must include {branch}. Relative paths start from the project folder." = "Templates must include {branch}. Relative paths start from the project folder.";
@@ -1525,7 +1526,6 @@
 "Vertical padding (points)" = "Vertical padding (points)";
 "Vibrancy of the glass background." = "Vibrancy of the glass background.";
 "View" = "View";
-"Violet" = "Violet";
 "Voice" = "Voice";
 "Voice input is not available on this platform yet." = "Voice input is not available on this platform yet.";
 "Wait for the AI repository action to finish" = "Wait for the AI repository action to finish";
@@ -1538,6 +1538,7 @@
 "Web content process terminated" = "Web content process terminated";
 "When closing tabs or panes" = "When closing tabs or panes";
 "Whether phones can reach this device right now." = "Whether phones can reach this device right now.";
+"White" = "White";
 "Whole word" = "Whole word";
 "Width" = "Width";
 "Width 480–1200; height 280–800 pixels." = "Width 480–1200; height 280–800 pixels.";
@@ -1557,7 +1558,6 @@
 "Writing PR" = "Writing PR";
 "Writing message" = "Writing message";
 "X11 returned an empty keyboard map." = "X11 returned an empty keyboard map.";
-"Yellow" = "Yellow";
 "You can show tips again in Settings → Appearance → Interface by turning on Show tips." = "You can show tips again in Settings → Appearance → Interface by turning on Show tips.";
 "You’re running the latest version of %@." = "You’re running the latest version of %@.";
 "Zoom" = "Zoom";

@@ -149,6 +149,9 @@ impl AppModel {
             return;
         }
         let first = self.state.server_identity(server).is_none();
+        if first && let Some(runtime) = self.servers.get_mut(server) {
+            runtime.catalog.adopt = true;
+        }
         let previous = self.state.clone();
         if let Err(error) = self.state.apply_catalog(server, &page) {
             self.server_failed(server, &error, cx);
@@ -175,7 +178,11 @@ impl AppModel {
             .get_mut(server)
             .and_then(|runtime| runtime.catalog.restore.take())
         {
-            self.apply_restore(server, &sessions, cx);
+            let adopt = self
+                .servers
+                .get_mut(server)
+                .is_some_and(|runtime| std::mem::take(&mut runtime.catalog.adopt));
+            self.apply_restore(server, &sessions, adopt, cx);
             if server.is_local() {
                 self.resume_update_attaches(cx);
             }
@@ -225,6 +232,9 @@ pub(super) struct Synchronization {
     pub(super) pending: bool,
     pub(super) dirty: u64,
     pub(super) restore: Option<Vec<muxy_protocol::SessionInfo>>,
+    /// The client never had a layout for this server, so its live sessions
+    /// open as tabs once, with the next restore.
+    pub(super) adopt: bool,
     /// This connection's catalog showed the server the app knew.
     pub(super) identified: bool,
     pub(super) replaying: bool,

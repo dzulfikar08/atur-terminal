@@ -76,3 +76,63 @@ fn mixed_restore_identifies_dead_panes_without_mutating_selection() -> TestResul
     assert_eq!(state.home().tabs.len(), 3);
     Ok(())
 }
+
+fn live(project: ProjectId, id: u64) -> Result<SessionInfo, Box<dyn Error>> {
+    Ok(SessionInfo {
+        project,
+        id: SessionId::new(id).ok_or("zero ID")?,
+        directory: ServerPath(b"/tmp".to_vec()),
+    })
+}
+
+#[test]
+fn fresh_client_opens_one_tab_per_live_session_once() -> TestResult {
+    let mut state = AppState::bootstrap()?;
+    let project = state.add_project(ServerId::local(), std::env::temp_dir())?;
+    let sessions = [live(project, 7)?, live(project, 3)?];
+    let current = state.window().current_project;
+    assert_eq!(state.adopt_live_sessions(ServerId::local(), &sessions)?, 2);
+    let tabs = &state.project(project).ok_or("project")?.tabs;
+    let shown: Vec<_> = tabs
+        .iter()
+        .map(|tab| match tab.panes[0].content {
+            muxy_app_core::PaneContent::Terminal { session } => session,
+            _ => None,
+        })
+        .collect();
+    assert_eq!(shown, vec![Some(sessions[1].id), Some(sessions[0].id)]);
+    assert_eq!(state.window().selected_tab.get(&project), Some(&tabs[0].id));
+    assert_eq!(state.window().current_project, current);
+    assert_eq!(state.adopt_live_sessions(ServerId::local(), &sessions)?, 0);
+    assert_eq!(state.project(project).ok_or("project")?.tabs.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn sessions_already_in_a_tab_are_not_duplicated() -> TestResult {
+    let mut state = AppState::bootstrap()?;
+    let tabbed = state.add_project(ServerId::local(), std::env::temp_dir())?;
+    let empty = state.add_project(ServerId::local(), std::env::temp_dir().join("."))?;
+    state.open_terminal_tab(tabbed)?;
+    let pane = state.project(tabbed).ok_or("project")?.tabs[0].panes[0].id;
+    let shown = live(tabbed, 1)?;
+    state.set_pane_session(pane, Some(shown.id))?;
+    let sessions = [shown, live(tabbed, 2)?, live(empty, 3)?];
+    assert_eq!(state.adopt_live_sessions(ServerId::local(), &sessions)?, 1);
+    assert_eq!(state.project(tabbed).ok_or("project")?.tabs.len(), 1);
+    assert_eq!(state.project(empty).ok_or("project")?.tabs.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn projects_with_tabs_and_other_servers_are_untouched() -> TestResult {
+    let mut state = AppState::bootstrap()?;
+    let project = state.add_project(ServerId::local(), std::env::temp_dir())?;
+    let sessions = [live(project, 5)?];
+    state.open_terminal_tab(project)?;
+    assert_eq!(state.adopt_live_sessions(ServerId::local(), &sessions)?, 0);
+    assert_eq!(state.project(project).ok_or("project")?.tabs.len(), 1);
+    let other = ServerId::new();
+    assert_eq!(state.adopt_live_sessions(other, &sessions)?, 0);
+    Ok(())
+}

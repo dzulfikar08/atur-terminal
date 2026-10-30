@@ -99,18 +99,18 @@ pub enum ProjectStatus {
 /// The shared palette, by name. Names are English keys, translated where
 /// shown.
 pub const PROJECT_COLORS: [(&str, &str); 12] = [
-    (tr_key!("Red"), PALETTE[0]),
-    (tr_key!("Orange"), PALETTE[1]),
-    (tr_key!("Amber"), PALETTE[2]),
-    (tr_key!("Yellow"), PALETTE[3]),
-    (tr_key!("Lime"), PALETTE[4]),
-    (tr_key!("Green"), PALETTE[5]),
-    (tr_key!("Teal"), PALETTE[6]),
-    (tr_key!("Cyan"), PALETTE[7]),
-    (tr_key!("Blue"), PALETTE[8]),
-    (tr_key!("Indigo"), PALETTE[9]),
-    (tr_key!("Violet"), PALETTE[10]),
-    (tr_key!("Pink"), PALETTE[11]),
+    (tr_key!("White"), PALETTE[0]),
+    (tr_key!("Silver"), PALETTE[1]),
+    (tr_key!("Fog"), PALETTE[2]),
+    (tr_key!("Ash"), PALETTE[3]),
+    (tr_key!("Stone"), PALETTE[4]),
+    (tr_key!("Steel"), PALETTE[5]),
+    (tr_key!("Pewter"), PALETTE[6]),
+    (tr_key!("Slate"), PALETTE[7]),
+    (tr_key!("Graphite"), PALETTE[8]),
+    (tr_key!("Iron"), PALETTE[9]),
+    (tr_key!("Charcoal"), PALETTE[10]),
+    (tr_key!("Onyx"), PALETTE[11]),
 ];
 
 impl Project {

@@ -9,6 +9,9 @@ pub struct ColorScheme {
     pub cursor_text: Option<CellColor>,
     pub selection_foreground: Option<CellColor>,
     pub selection_background: Option<CellColor>,
+    /// Atur's own key: the interface accent, where the palette's blue is an
+    /// ANSI color and not the brand.
+    pub accent: Option<Rgba>,
     pub palette: HashMap<usize, Rgba>,
 }
 
@@ -45,6 +48,7 @@ impl ColorScheme {
                 "cursor-text" => theme.cursor_text = CellColor::parse(value),
                 "selection-foreground" => theme.selection_foreground = CellColor::parse(value),
                 "selection-background" => theme.selection_background = CellColor::parse(value),
+                "atur-accent" => theme.accent = parse_hex(value),
                 "palette" => {
                     let Some((index, color)) = value.split_once('=') else {
                         continue;

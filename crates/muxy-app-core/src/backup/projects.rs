@@ -7,8 +7,8 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::{ImportReport, Result};
 use crate::{
-    AppState, Axis, Color, Layout, PROJECT_COLORS, Pane, PaneContent, PaneId, Project, ProjectId,
-    ProjectStatus, ServerId, Tab, TabId, Workspace,
+    AppState, Axis, Color, Layout, Pane, PaneContent, PaneId, Project, ProjectId, ProjectStatus,
+    ServerId, Tab, TabId, Workspace,
 };
 
 impl AppState {
@@ -547,10 +547,26 @@ fn legacy_icon(icon: &str) -> String {
     }
 }
 
+/// The 1.x palette, which saved names such as `indigo` point into.
+const LEGACY_COLORS: [(&str, &str); 12] = [
+    ("Red", "#e5484d"),
+    ("Orange", "#f76b15"),
+    ("Amber", "#f5a623"),
+    ("Yellow", "#ebcb00"),
+    ("Lime", "#9bcd1e"),
+    ("Green", "#30a46c"),
+    ("Teal", "#12a594"),
+    ("Cyan", "#05a2c2"),
+    ("Blue", "#3e63dd"),
+    ("Indigo", "#5b5bd6"),
+    ("Violet", "#8e4ec6"),
+    ("Pink", "#d6409f"),
+];
+
 /// 1.x saved palette names, such as `indigo`, or hex colors.
 fn legacy_color(value: &str) -> Option<Color> {
     value.parse().ok().or_else(|| {
-        PROJECT_COLORS
+        LEGACY_COLORS
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case(value))
             .and_then(|(_, hex)| hex.parse().ok())
