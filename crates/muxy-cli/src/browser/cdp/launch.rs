@@ -31,7 +31,7 @@ pub(super) struct Browser {
 
 /// What decides which browser is driven and where it keeps its profile.
 #[derive(Debug)]
-pub(super) struct Config {
+pub(in crate::browser) struct Config {
     pub(super) engine: BrowserEngine,
     /// The browser's executable, if not to be found.
     pub(super) path: Option<PathBuf>,
@@ -48,7 +48,11 @@ pub(super) struct Config {
 impl Config {
     /// The configuration for `engine` from the environment and the `path`
     /// setting; the environment wins.
-    pub(super) fn new(engine: BrowserEngine, path: &str, restart: bool) -> Result<Self, String> {
+    pub(in crate::browser) fn new(
+        engine: BrowserEngine,
+        path: &str,
+        restart: bool,
+    ) -> Result<Self, String> {
         let var = |name: &str| muxy_core::env::var(name).filter(|value| !value.trim().is_empty());
         let path = var("ATUR_TERM_BROWSER_PATH")
             .or_else(|| Some(path.to_owned()).filter(|path| !path.trim().is_empty()))

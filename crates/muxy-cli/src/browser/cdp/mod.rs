@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 
 use client::{Connection, Transport};
 use launch::Browser;
-pub(super) use launch::Config;
+pub(in crate::browser) use launch::Config;
 use state::Store;
 
 /// How long a tab opened from another tab has to appear.
