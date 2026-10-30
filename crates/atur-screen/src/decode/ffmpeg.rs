@@ -50,6 +50,33 @@ static FFMPEG_AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
     }
 });
 
+/// The output option that stops ffmpeg from dropping or repeating pictures to fit the
+/// timestamps it invents for a raw stream. Without it a burst of units loses a picture.
+/// It is `-fps_mode passthrough` from ffmpeg 5.1 and `-vsync 0` before, so each is tried.
+static PASSTHROUGH: LazyLock<[&'static str; 2]> = LazyLock::new(|| {
+    if accepts(["-fps_mode", "passthrough"]) {
+        ["-fps_mode", "passthrough"]
+    } else {
+        ["-vsync", "0"]
+    }
+});
+
+/// Whether this ffmpeg takes the output option `option` (it encodes one frame of a
+/// generated picture to nowhere).
+fn accepts(option: [&str; 2]) -> bool {
+    Command::new("ffmpeg")
+        .args(["-hide_banner", "-loglevel", "error"])
+        .args(["-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1"])
+        .args(["-frames:v", "1"])
+        .args(option)
+        .args(["-f", "null", "-"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
 /// The first DRM render node, which VA-API opens.
 fn find_render_node() -> Option<PathBuf> {
     let mut nodes: Vec<PathBuf> = std::fs::read_dir("/dev/dri")
@@ -131,8 +158,9 @@ impl Process {
             "1",
             "-flush_packets",
             "1",
-            "pipe:1",
         ]);
+        command.args(PASSTHROUGH.iter());
+        command.arg("pipe:1");
         command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

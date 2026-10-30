@@ -125,7 +125,7 @@ impl Fixture {
                     Message::HelloReply {
                         versions: SUPPORTED.to_vec(),
                         server: muxy_protocol::ServerInfo::current(),
-                        features: muxy_protocol::FEATURES.to_vec(),
+                        features: features(),
                     }
                 )
             );
@@ -821,4 +821,13 @@ fn clients_from_before_v2_are_told_to_update_in_their_own_framing() -> TestResul
     assert_eq!(reply, muxy_protocol::wire::legacy_version_unsupported());
     serving.join().map_err(|_| "server thread panicked")??;
     Ok(())
+}
+
+/// What a server on this platform lists: mirroring a desktop only where `wayvnc` could run.
+fn features() -> Vec<muxy_protocol::Feature> {
+    let mut features = muxy_protocol::FEATURES.to_vec();
+    if cfg!(target_os = "linux") {
+        features.push(muxy_protocol::Feature::SCREEN);
+    }
+    features
 }

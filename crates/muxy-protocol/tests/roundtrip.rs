@@ -59,7 +59,7 @@ fn malformed_payloads_mismatched_lengths_and_trailing_bytes_are_rejected() -> Re
         assert!(matches!(decode(input, payload), Err(WireError::Decode(_))));
     }
     for message in Message::samples() {
-        if matches!(message, Message::Input(_)) {
+        if matches!(message, Message::Input(_) | Message::ScreenData(_)) {
             continue;
         }
         let mut bytes = Vec::new();

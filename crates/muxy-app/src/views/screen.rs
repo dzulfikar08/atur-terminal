@@ -600,6 +600,13 @@ fn connect_message(error: &muxy_client::ClientError) -> String {
 fn texture(frame: &atur_screen::Frame) -> Option<Arc<RenderImage>> {
     match &frame.pixels {
         atur_screen::Pixels::Bgra(bytes) => {
+            let expected = usize::try_from(frame.width)
+                .ok()?
+                .checked_mul(usize::try_from(frame.height).ok()?)?
+                .checked_mul(4)?;
+            if bytes.len() != expected {
+                return None;
+            }
             let buffer = image::RgbaImage::from_raw(frame.width, frame.height, bytes.to_vec())?;
             Some(Arc::new(RenderImage::new([image::Frame::new(buffer)])))
         }

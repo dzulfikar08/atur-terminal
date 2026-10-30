@@ -143,7 +143,7 @@ jobs:
       # does not hold it cannot even start the program.
       options: --cap-add=SYS_NICE
     steps:
-      - run: pacman -Syu --noconfirm sway wayvnc wev wl-clipboard python procps-ng git
+      - run: pacman -Syu --noconfirm sway swaybg wayvnc wev wl-clipboard python procps-ng git
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
