@@ -19,4 +19,4 @@ jobs:
           git add crates/muxy-protocol/tests/fixtures
           git status --short
           git commit -m "Add protocol fixtures for ranged and chunked file messages" || exit 0
-          git push origin HEAD:atur-terminal
+          git push origin HEAD:gen-fixtures
