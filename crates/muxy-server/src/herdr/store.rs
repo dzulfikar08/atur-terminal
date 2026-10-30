@@ -9,6 +9,8 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use muxy_protocol::{ProjectId, SessionId};
 use serde::{Deserialize, Serialize};
 
+use crate::session::SavedMark;
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(super) struct Entry {
     pub(super) terminal: String,
@@ -18,6 +20,9 @@ pub(super) struct Entry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) pane: Option<String>,
     pub(super) project: ProjectId,
+    /// The prompt marks the session owner found, so a restart keeps them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) marks: Vec<SavedMark>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -83,15 +88,43 @@ impl Store {
         pane: Option<&str>,
     ) {
         let mut data = self.lock();
+        let key = session.get().to_string();
+        // Adoption rewrites the ids of a session that keeps its marks.
+        let marks = data
+            .sessions
+            .get(&key)
+            .map(|entry| entry.marks.clone())
+            .unwrap_or_default();
         data.sessions.insert(
-            session.get().to_string(),
+            key,
             Entry {
                 terminal: terminal.to_owned(),
                 pane: pane.map(str::to_owned),
                 project,
+                marks,
             },
         );
         self.save(&mut data);
+    }
+
+    pub(super) fn marks(&self, session: SessionId) -> Vec<SavedMark> {
+        self.lock()
+            .sessions
+            .get(&session.get().to_string())
+            .map(|entry| entry.marks.clone())
+            .unwrap_or_default()
+    }
+
+    /// Stores the marks of a known session; an unknown one has no entry to hold them.
+    pub(super) fn set_marks(&self, session: SessionId, marks: &[SavedMark]) {
+        let mut data = self.lock();
+        let Some(entry) = data.sessions.get_mut(&session.get().to_string()) else {
+            return;
+        };
+        if entry.marks != marks {
+            entry.marks = marks.to_vec();
+            self.save(&mut data);
+        }
     }
 
     pub(super) fn remove_session(&self, session: SessionId) {
@@ -128,6 +161,10 @@ mod tests {
         let store = Store::open(&dir).expect("open");
         store.set_session(session, project, "term_a", Some("w3:p1"));
         store.set_workspace(project, "w3");
+        let marks = vec![SavedMark::new(41, "fix the login", "fix the l", 1)];
+        store.set_marks(session, &marks);
+        // New ids keep the marks of the session.
+        store.set_session(session, project, "term_a", Some("w3:p1"));
         drop(store);
         let store = Store::open(&dir).expect("reopen");
         assert_eq!(
@@ -137,7 +174,8 @@ mod tests {
                 Entry {
                     terminal: "term_a".into(),
                     pane: Some("w3:p1".into()),
-                    project
+                    project,
+                    marks: marks.clone(),
                 }
             )]
         );

@@ -7,7 +7,7 @@
 //!                  `swaymsg`, and report how long each flip took to show in the frame.
 //!   expect R G B   Wait until the centre of the picture has this colour.
 //!   input          Move the pointer to the centre, click, and type "a" and "B".
-//!   clipboard-out TEXT
+//!   clipboard-out TEXT [HOLD_SECONDS]
 //!                  Send TEXT as the local clipboard.
 //!   clipboard-in TEXT
 //!                  Wait until the remote clipboard becomes TEXT.
@@ -140,7 +140,10 @@ fn main() -> Result {
         }
         "clipboard-out" => {
             screen.send_clipboard(rest.first().ok_or("text required")?);
-            thread::sleep(Duration::from_secs(1));
+            // wayvnc owns the desktop's selection for as long as this client stays
+            // connected: the caller reads it from the desktop while we hold on.
+            let hold = rest.get(1).map_or(Ok(1), |seconds| seconds.parse())?;
+            thread::sleep(Duration::from_secs(hold));
             format!("{{\"via\":\"{via}\",\"command\":\"clipboard-out\"}}")
         }
         "clipboard-in" => {

@@ -41,7 +41,7 @@ their `clear` functions.
 | `tabs.list()` | `[{ index, id, kind, title, isActive }]` for the current project |
 | `tabs.switchTo(indexOrIdOrTitle)`, `new()`, `next()`, `previous()` | |
 | `tabs.open(request)` | The new tab's ID. See [Tabs](tabs.md#opening-tabs) |
-| `panes.list()` | `[{ id, title, workingDirectory, isFocused }]` across projects |
+| `panes.list()` | `[{ id, title, workingDirectory, isFocused, sessionID, serverID }]` across projects. `sessionID` is the server session's id as a decimal string, the value in the shell's `ATUR_TERM_SESSION_ID` (null until the terminal has a session); `serverID` is the server the pane lives on |
 | `panes.send(id, text)`, `sendKeys(id, key)` | |
 | `panes.readScreen(id, lines = 50)` | The last rows of the screen as text, up to 500 |
 | `panes.close(id)`, `rename(id, title)` | |

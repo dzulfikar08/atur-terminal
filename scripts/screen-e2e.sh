@@ -105,34 +105,33 @@ grep -E "wl_pointer\] button: .*state: 1" "$WORK/wev.log"
 grep -E "wl_pointer\] axis" "$WORK/wev.log"
 
 echo "== the clipboard, both ways"
-clipboard_failed=0
+# wayvnc holds the desktop's selection for the client that set it and drops it
+# when that client disconnects, so the client stays connected while the desktop is read.
 paste() { wl-paste --no-newline 2>"$WORK/wl-paste.err" || true; }
 for via in SERVER DIRECT; do
   declare -n target=$via
-  probe "${target[@]}" clipboard-out "héllo wörld via $via"
+  wanted="héllo wörld via $via"
+  (probe "${target[@]}" clipboard-out "$wanted" 8 >"$WORK/clipboard-out.json") &
+  sender=$!
   for _ in $(seq 1 50); do
-    [[ "$(paste)" == "héllo wörld via $via" ]] && break
+    [[ "$(paste)" == "$wanted" ]] && break
     sleep 0.1
   done
-  if [[ "$(paste)" != "héllo wörld via $via" ]]; then
-    echo "::warning::the desktop clipboard did not receive the client's text ($via): '$(paste)' $(cat "$WORK/wl-paste.err")"
-    clipboard_failed=1
+  if [[ "$(paste)" != "$wanted" ]]; then
+    echo "the desktop clipboard did not receive the client's text ($via): '$(paste)' $(cat "$WORK/wl-paste.err")" >&2
+    echo "::group::wayvnc (direct) log"; tail -150 "$WORK/wayvnc-direct.log"; echo "::endgroup::"
+    echo "::group::the server's own log"; tail -50 "$WORK/srv/server.log"; echo "::endgroup::"
+    exit 1
   fi
+  echo "viewer to desktop ($via): ok"
+  wait "$sender"
   (probe "${target[@]}" clipboard-in "from the desktop via $via" >"$WORK/clipboard-in.json") &
   reader=$!
   sleep 2
   printf 'from the desktop via %s' "$via" | wl-copy
-  if ! wait "$reader"; then
-    echo "::warning::the client did not receive the desktop's clipboard text ($via)"
-    clipboard_failed=1
-  fi
+  wait "$reader"
+  echo "desktop to viewer ($via): ok"
 done
-echo "clipboard exchange failed: $clipboard_failed"
-if [[ $clipboard_failed -ne 0 ]]; then
-  echo "::group::wayvnc (direct) log"; tail -150 "$WORK/wayvnc-direct.log"; echo "::endgroup::"
-  echo "::group::the server's own log"; tail -50 "$WORK/srv/server.log"; echo "::endgroup::"
-  echo "::group::wl-paste types"; wl-paste --list-types 2>&1 || true; echo "::endgroup::"
-fi
 
 echo "== the capture stops with the last viewer, and with the server"
 pgrep -f "wayvnc .*atur-term-screen" >/dev/null

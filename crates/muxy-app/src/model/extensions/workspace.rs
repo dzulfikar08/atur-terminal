@@ -10,6 +10,27 @@ use muxy_app_core::{
 };
 use serde_json::{Value, json};
 
+/// One entry of `panes.list`. `sessionID` is the server's session id as a decimal
+/// string, the value its shell has in `ATUR_TERM_SESSION_ID`; null until the
+/// terminal has a session.
+pub(super) fn pane_entry(
+    id: PaneId,
+    title: &str,
+    directory: &str,
+    focused: bool,
+    session: Option<muxy_protocol::SessionId>,
+    server: Option<muxy_app_core::ServerId>,
+) -> Value {
+    json!({
+        "id": id.to_string(),
+        "title": title,
+        "workingDirectory": directory,
+        "isFocused": focused,
+        "sessionID": session.map(|session| session.get().to_string()),
+        "serverID": server.map(|server| server.to_string()),
+    })
+}
+
 use super::{AppModel, Call};
 
 /// Expands `~` and resolves `.`/`..` lexically, like `standardizedFileURL`.
@@ -710,18 +731,24 @@ impl AppModel {
                     .flat_map(|(project, tab)| {
                         tab.panes.iter().map(move |pane| (project, tab, pane))
                     })
-                    .filter(|(_, _, pane)| matches!(pane.content, PaneContent::Terminal { .. }))
-                    .map(|(project, tab, pane)| {
+                    .filter_map(|(project, tab, pane)| {
+                        let PaneContent::Terminal { session } = pane.content else {
+                            return None;
+                        };
                         let directory = self
                             .terminal(&pane.id)
                             .and_then(|view| view.view.read(cx).directory())
                             .unwrap_or_else(|| project.directory.clone());
-                        json!({
-                            "id": pane.id.to_string(),
-                            "title": tab.custom_title.clone().unwrap_or_else(|| pane.title.clone()),
-                            "workingDirectory": directory.display().to_string(),
-                            "isFocused": Some(pane.id) == active,
-                        })
+                        Some(pane_entry(
+                            pane.id,
+                            &tab.custom_title
+                                .clone()
+                                .unwrap_or_else(|| pane.title.clone()),
+                            &directory.display().to_string(),
+                            Some(pane.id) == active,
+                            session,
+                            self.state.pane_server(pane.id),
+                        ))
                     })
                     .collect(),
             ));

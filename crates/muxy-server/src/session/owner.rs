@@ -210,6 +210,16 @@ pub(crate) fn start(
             let _ = ready_sender.send(Ok(()));
             let checkpoints = !pty.persists_content();
             let detect_prompts = pty.drops_prompt_marks();
+            let mut marks = PromptMarks::default();
+            if detect_prompts {
+                let total = pty
+                    .history_rows_now()
+                    .map_or(0, |history| history.saturating_add(usize::from(size.rows)));
+                marks.restore(
+                    pty.saved_prompt_marks(session.id),
+                    u64::try_from(total).unwrap_or(u64::MAX),
+                );
+            }
             let owner = Owner {
                 metadata: Metadata::new(session.directory.clone()),
                 progress: session_progress,
@@ -246,7 +256,7 @@ pub(crate) fn start(
                 graphics: muxy_protocol::Graphics::default(),
                 prompts: Vec::new(),
                 detect_prompts,
-                marks: PromptMarks::default(),
+                marks,
                 frame_state: None,
                 next_tick: None,
                 last_tick: None,
@@ -660,6 +670,7 @@ impl Owner {
     fn clear_screen(&mut self) -> Result<(), Fault> {
         if self.terminal.clear_screen()? {
             self.marks.clear();
+            self.persist_marks();
             self.resize_pending = true;
             self.output_pending = true;
             self.detection_dirty = true;
@@ -732,6 +743,14 @@ impl Owner {
         {
             self.output_pending = true;
         }
+        self.persist_marks();
+    }
+
+    /// Hands changed marks to the backing, which keeps them across a restart.
+    fn persist_marks(&mut self) {
+        if let Some(marks) = self.marks.take_changed() {
+            self.pty.save_prompt_marks(self.info.id, &marks);
+        }
     }
 
     /// The screen rows where a prompt starts: those the terminal saw marked and,
@@ -766,6 +785,7 @@ impl Owner {
             // The rows moved under scrollback counted a moment ago: count it afresh.
             let base = self.pty.history_rows_now().unwrap_or(history);
             self.marks.reanchor(base, &texts);
+            self.persist_marks();
         }
     }
 
@@ -774,6 +794,7 @@ impl Owner {
         self.terminal.resize(size)?;
         if size.cols != self.size.cols {
             self.marks.clear();
+            self.persist_marks();
         }
         self.size = size;
         self.resize_pending = true;

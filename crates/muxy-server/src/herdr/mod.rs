@@ -38,7 +38,7 @@ use target::Target;
 
 use crate::error::ServerError;
 use crate::session::backing::Fault;
-use crate::session::{Backing, OwnerEvent};
+use crate::session::{Backing, OwnerEvent, SavedMark};
 
 /// Where herdr lives; defaults come from the environment, like herdr's own CLI.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -534,6 +534,14 @@ impl Backing for HerdrBacking {
 
     fn drops_prompt_marks(&self) -> bool {
         true
+    }
+
+    fn saved_prompt_marks(&self, session: SessionId) -> Vec<SavedMark> {
+        self.herdr.store.marks(session)
+    }
+
+    fn save_prompt_marks(&self, session: SessionId, marks: &[SavedMark]) {
+        self.herdr.store.set_marks(session, marks);
     }
 
     fn history(&self, range: std::ops::Range<usize>, cols: u16) -> Result<Vec<Row>, Fault> {

@@ -14,6 +14,7 @@ use std::ops::Range;
 use std::time::{Duration, Instant};
 
 use muxy_terminal::Row;
+use serde::{Deserialize, Serialize};
 
 /// How long after the screen first changed the submitted text is looked for.
 const SETTLE: Duration = Duration::from_millis(120);
@@ -224,15 +225,77 @@ struct Mark {
     offset: usize,
 }
 
+/// A mark as stored with its session, so that a restart of the server keeps it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct SavedMark {
+    row: u64,
+    long: String,
+    short: String,
+    #[serde(default)]
+    offset: usize,
+}
+
+impl SavedMark {
+    #[cfg(test)]
+    pub(crate) fn new(row: u64, long: &str, short: &str, offset: usize) -> Self {
+        Self {
+            row,
+            long: long.to_owned(),
+            short: short.to_owned(),
+            offset,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(super) struct PromptMarks {
     typed: Typed,
     pending: Option<Pending>,
     rows: BTreeMap<u64, Mark>,
     checked: Option<Instant>,
+    /// Whether the marks changed since they were last taken for storing.
+    dirty: bool,
 }
 
 impl PromptMarks {
+    /// Takes the marks as they are to be stored, when they changed since last taken.
+    pub(super) fn take_changed(&mut self) -> Option<Vec<SavedMark>> {
+        if !std::mem::take(&mut self.dirty) {
+            return None;
+        }
+        Some(
+            self.rows
+                .iter()
+                .map(|(row, mark)| SavedMark {
+                    row: *row,
+                    long: mark.needle.long.clone(),
+                    short: mark.needle.short.clone(),
+                    offset: mark.offset,
+                })
+                .collect(),
+        )
+    }
+
+    /// Takes up marks stored by an earlier run, keeping those inside the `total`
+    /// rows the content has now. They are checked against the screen as it shows.
+    pub(super) fn restore(&mut self, saved: Vec<SavedMark>, total: u64) {
+        for mark in saved.into_iter().filter(|mark| mark.row < total) {
+            self.rows.insert(
+                mark.row,
+                Mark {
+                    needle: Needle {
+                        long: mark.long,
+                        short: mark.short,
+                    },
+                    offset: mark.offset,
+                },
+            );
+        }
+        if self.rows.len() > MAX_MARKS {
+            self.rows.pop_first();
+        }
+    }
+
     /// The text of each screen row, for matching.
     pub(super) fn texts(screen: &[Row]) -> Vec<String> {
         screen.iter().map(row_text).collect()
@@ -314,6 +377,7 @@ impl PromptMarks {
         if self.rows.len() > MAX_MARKS {
             self.rows.pop_first();
         }
+        self.dirty = true;
         true
     }
 
@@ -324,13 +388,16 @@ impl PromptMarks {
 
     /// Forgets every mark: the rows they point at are gone or moved.
     pub(super) fn clear(&mut self) {
+        self.dirty |= !self.rows.is_empty();
         self.rows.clear();
         self.pending = None;
     }
 
     /// Forgets marks at or below row `total`, after the content shrank.
     pub(super) fn prune(&mut self, total: u64) {
+        let before = self.rows.len();
         self.rows.retain(|row, _| *row < total);
+        self.dirty |= self.rows.len() != before;
     }
 
     /// Whether the marks on a screen of `rows` rows under `history` rows of
@@ -377,6 +444,7 @@ impl PromptMarks {
                 .ok()
                 .map(|row| row.saturating_add(offset))
         };
+        self.dirty = true;
         let mut claimed = BTreeSet::new();
         let mut lost = Vec::new();
         for key in keys {
@@ -601,6 +669,27 @@ mod tests {
         submit(&mut marks, "fix the login redirect", pad, now);
         assert!(marks.resolve(now + SETTLE, &screen(lines), cursor, base));
         marks
+    }
+
+    #[test]
+    fn marks_taken_for_storing_come_back_after_a_restart() {
+        let mut marks = marked(&["", "fix the login redirect", "", "> "], true, 40, 3);
+        let saved = marks.take_changed().expect("changed");
+        assert_eq!(saved.len(), 1);
+        assert!(marks.take_changed().is_none());
+        let json = serde_json::to_string(&saved).expect("serialize");
+        let saved: Vec<SavedMark> = serde_json::from_str(&json).expect("deserialize");
+
+        let mut fresh = PromptMarks::default();
+        // Row 99 is beyond the 44 rows of content left; row 40 is inside them.
+        let mut outside = saved.clone();
+        outside.push(SavedMark::new(99, "gone", "gone", 0));
+        fresh.restore(outside, 44);
+        assert_eq!(fresh.history_rows(&(0..60)), [40]);
+        assert_eq!(fresh.screen_rows(40, 4), [0]);
+        let texts = PromptMarks::texts(&screen(&["", "fix the login redirect", "", "> "]));
+        assert!(!fresh.stale(40, &texts));
+        assert!(fresh.take_changed().is_none());
     }
 
     #[test]
