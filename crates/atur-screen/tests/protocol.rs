@@ -162,9 +162,14 @@ fn copy_rect_and_desktop_size() {
         assert_eq!(row0, [1, 1, 2, 3]);
         assert_eq!(row1, [5, 5, 6, 7]);
 
-        harness
-            .server
-            .push(&update(&[rect_header(0, 0, 8, 6, -223)]), chunking);
+        // A resize comes with the repaint of the new screen, as neatvnc sends it.
+        harness.server.push(
+            &update(&[
+                rect_header(0, 0, 8, 6, -223),
+                raw_rect(0, 0, 8, 6, &[[9, 9, 9, 0]; 48]),
+            ]),
+            chunking,
+        );
         let frame = wait_frame(&harness.screen, |frame| frame.width == 8);
         assert_eq!((frame.width, frame.height), (8, 6));
         assert_eq!(bgra(&frame).len(), 8 * 6 * 4);
@@ -206,9 +211,13 @@ fn continuous_updates_and_fences() {
         // No incremental request after an update: the server streams on its own.
         assert!(harness.server.settle().is_empty());
 
-        harness
-            .server
-            .push(&update(&[rect_header(0, 0, 20, 10, -223)]), chunking);
+        harness.server.push(
+            &update(&[
+                rect_header(0, 0, 20, 10, -223),
+                raw_rect(0, 0, 20, 10, &[[1, 2, 3, 0]; 200]),
+            ]),
+            chunking,
+        );
         wait_frame(&harness.screen, |frame| frame.width == 20);
         let mut expected = update_request(false, 20, 10);
         expected.extend_from_slice(&enable_continuous(20, 10));
@@ -222,7 +231,10 @@ fn extended_desktop_size_resizes() {
     let mut rect = rect_header(0, 0, 6, 5, -308);
     rect.extend_from_slice(&[1, 0, 0, 0]);
     rect.extend_from_slice(&[0; 16]);
-    harness.server.push(&update(&[rect]), Chunking::Each(5));
+    harness.server.push(
+        &update(&[rect, raw_rect(0, 0, 6, 5, &[[4, 5, 6, 0]; 30])]),
+        Chunking::Each(5),
+    );
     let frame = wait_frame(&harness.screen, |frame| frame.width == 6);
     assert_eq!(frame.height, 5);
 }

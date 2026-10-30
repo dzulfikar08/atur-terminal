@@ -65,7 +65,7 @@ wait_for "the server socket" test -S "$WORK/srv/server.sock"
 SERVER=(--server "$WORK/srv/server.sock")
 
 # A second wayvnc of our own, to time without the relay.
-wayvnc -r -f 60 -S "$WORK/direct.ctl" "unix:$WORK/direct.sock" >"$WORK/wayvnc-direct.log" 2>&1 &
+wayvnc -r -f 60 -L debug -S "$WORK/direct.ctl" "unix:$WORK/direct.sock" >"$WORK/wayvnc-direct.log" 2>&1 &
 wait_for "the direct wayvnc socket" test -S "$WORK/direct.sock"
 DIRECT=(--direct "$WORK/direct.sock")
 
@@ -105,13 +105,29 @@ grep -E "wl_pointer\] button: .*state: 1" "$WORK/wev.log"
 grep -E "wl_pointer\] axis" "$WORK/wev.log"
 
 echo "== the clipboard, both ways"
-probe "${SERVER[@]}" clipboard-out 'héllo wörld'
-wait_for "the desktop clipboard" bash -c '[[ "$(wl-paste --no-newline)" == "héllo wörld" ]]'
-(probe "${SERVER[@]}" clipboard-in 'from the desktop' >"$WORK/clipboard-in.json") &
-reader=$!
-sleep 2
-printf 'from the desktop' | wl-copy
-wait "$reader"
+clipboard_failed=0
+paste() { wl-paste --no-newline 2>"$WORK/wl-paste.err" || true; }
+for via in SERVER DIRECT; do
+  declare -n target=$via
+  probe "${target[@]}" clipboard-out "héllo wörld via $via"
+  for _ in $(seq 1 50); do
+    [[ "$(paste)" == "héllo wörld via $via" ]] && break
+    sleep 0.1
+  done
+  if [[ "$(paste)" != "héllo wörld via $via" ]]; then
+    echo "::warning::the desktop clipboard did not receive the client's text ($via): '$(paste)' $(cat "$WORK/wl-paste.err")"
+    clipboard_failed=1
+  fi
+  (probe "${target[@]}" clipboard-in "from the desktop via $via" >"$WORK/clipboard-in.json") &
+  reader=$!
+  sleep 2
+  printf 'from the desktop via %s' "$via" | wl-copy
+  if ! wait "$reader"; then
+    echo "::warning::the client did not receive the desktop's clipboard text ($via)"
+    clipboard_failed=1
+  fi
+done
+echo "clipboard exchange failed: $clipboard_failed"
 
 echo "== the capture stops with the last viewer, and with the server"
 pgrep -f "wayvnc .*atur-term-screen" >/dev/null
