@@ -92,7 +92,7 @@ pub(super) fn typed(keystroke: &Keystroke) -> Option<&str> {
 }
 
 /// Whether letting go of the remote Control also lets go of the keys pressed
-/// with it. On a Mac, AppKit sends no key release for a key pressed while
+/// with it. On a Mac, `AppKit` sends no key release for a key pressed while
 /// Command is held, so Command+C would leave `c` down on the remote computer.
 pub(super) fn drops_keys(changes: &[(u32, bool)], mac: bool) -> bool {
     mac && changes.contains(&(CONTROL_L, false))
