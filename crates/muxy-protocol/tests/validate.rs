@@ -113,6 +113,23 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 ..
             } => ("RevokeDevice", ChannelKind::Control),
             Message::Request {
+                body: RequestBody::OpenScreen,
+                ..
+            } => ("OpenScreen", ChannelKind::Control),
+            Message::Reply {
+                body: ReplyBody::ScreenOpened(_),
+                ..
+            } => ("ScreenOpened", ChannelKind::Control),
+            Message::ScreenData(bytes) => (
+                if bytes.is_empty() {
+                    "ScreenDataEmpty"
+                } else {
+                    "ScreenData"
+                },
+                ChannelKind::Session,
+            ),
+            Message::ScreenClosed(_) => ("ScreenClosed", ChannelKind::Session),
+            Message::Request {
                 body: RequestBody::OfferUdp,
                 ..
             } => ("OfferUdp", ChannelKind::Control),
@@ -566,6 +583,11 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "Folders",
             "Upload",
             "Uploaded",
+            "OpenScreen",
+            "ScreenOpened",
+            "ScreenData",
+            "ScreenDataEmpty",
+            "ScreenClosed",
             "OfferUdp",
             "UdpOffer",
             "ReadAddresses",

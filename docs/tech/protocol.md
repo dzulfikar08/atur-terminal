@@ -68,6 +68,50 @@ window also keeps a link with a long round trip busy, where one frame per ack
 would cap the frame rate at one per round trip. Control messages are always
 written first. Wire compression is planned but not built yet.
 
+## Screen channel
+
+A server on Linux with a Wayland desktop can mirror that desktop to a client over
+the connection it already has, whether that is ssh, [UDP](./udp-transport.md) or a
+local socket. It is a separate feature, `Feature::SCREEN` (4), listed in the
+handshake only by servers that can do it.
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant Server
+    participant W as wayvnc
+    App->>Server: OpenScreen
+    Server->>W: start if not running, connect
+    Server-->>App: ScreenOpened(channel)
+    W-->>Server: RFB bytes
+    Server-->>App: ScreenData (16 KiB at most)
+    App-->>Server: FrameAck(channel, bytes handled so far)
+    App->>Server: ScreenData (keys, pointer, clipboard)
+    Server->>W: the same bytes
+    App->>Server: Detach(channel)
+```
+
+- `OpenScreen` (request 46, no fields) answers `ScreenOpened` (reply 41, the new
+  channel) or an error whose message says why the desktop can't be mirrored: no
+  Wayland session, `wayvnc` not installed, not Linux. Paired phones may not ask.
+- `ScreenData` (message 24) is raw bytes, like `Input`, in both directions: the
+  RFB conversation of one viewer. The server never interprets it. `ScreenClosed`
+  (message 25, a reason that is empty for a normal end) follows the last bytes
+  when `wayvnc` ends or stops reading.
+- **Flow control.** The server queues at most 512 KiB of a viewer's bytes, counting
+  bytes on the wire that the client has not reported. The client reports with
+  `FrameAck`, whose `seq` for a screen channel is the total bytes it has handled,
+  and sends it after it has decoded what it received, not when it arrived. Beyond
+  the window the server stops reading `wayvnc`, whose own socket then fills and
+  makes it send only the newest picture when the client catches up. Nothing is
+  ever dropped from the byte stream, so the RFB messages inside stay whole, and
+  there is never more than a fraction of a second of video in flight.
+- `Detach(channel)` ends a viewer; a connection that closes ends all of its viewers.
+- `wayvnc` starts for the first viewer and stops 15 seconds after the last one.
+  It listens on a Unix socket in a private (mode 0700) folder of the runtime
+  directory, or on 127.0.0.1 for a `wayvnc` too old for sockets, and never on
+  another address. Several viewers share one `wayvnc`.
+
 ## Versions
 
 Two builds can talk when they share a protocol version, currently V2. Only a

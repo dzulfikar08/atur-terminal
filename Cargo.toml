@@ -32,7 +32,7 @@ atur-screen = []
 [workspace.metadata.architecture.allowed-dev-dependencies]
 muxy-app = ["muxy-server", "muxy-terminal"]
 muxy-client = ["muxy-server"]
-muxy-cli = ["muxy-terminal"]
+muxy-cli = ["muxy-terminal", "atur-screen"]
 atur-mobile = ["muxy-server"]
 
 [workspace.package]

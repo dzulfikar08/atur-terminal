@@ -27,6 +27,8 @@ pub enum MessageKind {
     FilesChanged = 21,
     // 22 is retired; see `Changed`.
     TerminalInput = 23,
+    ScreenData = 24,
+    ScreenClosed = 25,
 }
 
 impl MessageKind {
@@ -56,6 +58,8 @@ impl MessageKind {
             20 => Self::SessionMetadata,
             21 => Self::FilesChanged,
             23 => Self::TerminalInput,
+            24 => Self::ScreenData,
+            25 => Self::ScreenClosed,
             _ => return Ok(None),
         }))
     }
@@ -82,6 +86,8 @@ impl From<&Message> for MessageKind {
             Message::Frame(_) => Self::Frame,
             Message::Metadata(_) => Self::Metadata,
             Message::Mouse(_) => Self::Mouse,
+            Message::ScreenData(_) => Self::ScreenData,
+            Message::ScreenClosed(_) => Self::ScreenClosed,
             Message::CellSize(_) => Self::CellSize,
             Message::ServerRestarting => Self::ServerRestarting,
         }

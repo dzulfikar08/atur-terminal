@@ -129,5 +129,7 @@ fn kind_name(kind: MessageKind) -> &'static str {
         MessageKind::Progress => "progress",
         MessageKind::SessionMetadata => "session_metadata",
         MessageKind::FilesChanged => "files_changed",
+        MessageKind::ScreenData => "screen_data",
+        MessageKind::ScreenClosed => "screen_closed",
     }
 }

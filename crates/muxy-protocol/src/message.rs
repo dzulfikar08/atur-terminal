@@ -86,6 +86,11 @@ pub enum Message {
     GitChanged {
         project: crate::ProjectId,
     },
+    /// Bytes of a screen stream's RFB conversation, in either direction. The
+    /// receiver acknowledges the total it has handled with `FrameAck`.
+    ScreenData(Vec<u8>),
+    /// The server ended a screen stream; the reason is empty when the client asked.
+    ScreenClosed(String),
 }
 
 impl Message {
@@ -112,6 +117,8 @@ impl Message {
             | Self::Frame(_)
             | Self::Metadata(_)
             | Self::Mouse(_)
+            | Self::ScreenData(_)
+            | Self::ScreenClosed(_)
             | Self::CellSize(_) => ChannelKind::Session,
         }
     }

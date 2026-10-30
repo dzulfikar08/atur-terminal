@@ -40,6 +40,7 @@ On Linux hosts that end your processes when you log out, run
   the server changes.
 - The status bar shows the current project's server, with connect, restart, and
   stop.
+- A connected server on a Linux desktop can show its screen. See [Screen](screen.md).
 
 ### Custom SSH commands
 

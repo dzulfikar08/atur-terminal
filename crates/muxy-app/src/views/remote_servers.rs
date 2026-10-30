@@ -450,6 +450,19 @@ fn server_command(server: &RemoteServer, model: gpui::WeakEntity<AppModel>) -> C
             )
             .keywords("Pair a Phone mobile qr code"),
         );
+        if model
+            .upgrade()
+            .is_some_and(|model| model.read(cx).screen_available(id))
+        {
+            actions.register(
+                Command::new(
+                    "view-screen",
+                    tr!("View Screen"),
+                    handler(|model, id, window, cx| model.open_screen(id, window, cx)),
+                )
+                .keywords("View Screen Remote Desktop Mirror"),
+            );
+        }
         if server.missing && crate::model::released_version().is_some() {
             actions.register(
                 Command::new(

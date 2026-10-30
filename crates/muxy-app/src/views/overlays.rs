@@ -37,6 +37,8 @@ pub(crate) enum Overlay {
     Agents,
     ServerForm(Box<super::remote_servers::ServerForm>),
     Password(Box<super::remote_servers::PasswordPrompt>),
+    /// Another computer's desktop over the whole window.
+    Screen(Entity<super::screen::ScreenView>),
 }
 
 impl Overlay {
@@ -81,7 +83,11 @@ impl AppModel {
         if matches!(self.overlay, Some(Overlay::Password(_))) {
             self.pending_remote = None;
         }
-        self.focus_return = match self.overlay.take() {
+        let overlay = self.overlay.take();
+        if let Some(Overlay::Screen(view)) = &overlay {
+            view.update(cx, |view, cx| view.shutdown(cx));
+        }
+        self.focus_return = match overlay {
             Some(Overlay::Menu(menu)) => menu.returns_focus_to,
             _ => None,
         };
@@ -250,6 +256,7 @@ pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel
         Some(Overlay::Layouts(picker)) => picker.picker.clone().into_any_element(),
         Some(Overlay::Projects(picker)) => picker.clone().into_any_element(),
         Some(Overlay::Commands { palette, .. }) => palette.clone().into_any_element(),
+        Some(Overlay::Screen(view)) => view.clone().into_any_element(),
     };
     div()
         .absolute()

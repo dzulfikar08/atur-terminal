@@ -893,6 +893,7 @@ impl AppModel {
 impl AppModel {
     fn prepare_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let _span = crate::profiler::span(crate::profiler::Metric::WorkspacePrepare);
+        self.sync_screen(cx);
         if self.overlay.is_none()
             && (self.focus_requested
                 || (self.active_pane().is_none()

@@ -69,6 +69,15 @@ A line feed is a new line in many AI tools, but shells treat it like Return.
 In a browser, `Cmd+[` and `Cmd+]` go back and forward instead of switching
 tabs.
 
+## Screen
+
+While a [Screen](../features/screen.md) view has the focus, every key goes to the
+remote computer. One chord is kept for the view.
+
+| Action | Shortcut |
+| --- | --- |
+| Show / hide the Screen toolbar | `Ctrl+Opt+G` (Linux: `Ctrl+Alt+G`) |
+
 ## Composer and dictation
 
 | Action | Shortcut |

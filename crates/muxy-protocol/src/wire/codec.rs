@@ -14,8 +14,8 @@ pub fn encode(
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
     output.clear();
-    if let Message::Input(bytes) = message {
-        Header::new(bytes.len(), channel, MessageKind::Input)?;
+    if let Message::Input(bytes) | Message::ScreenData(bytes) = message {
+        Header::new(bytes.len(), channel, MessageKind::from(message))?;
     }
     output.resize(HEADER_LEN, 0);
     fields(message, &mut Encoder::new(&mut *output))?;
@@ -98,7 +98,10 @@ fn fields(
         Message::CellSize(cell) => {
             encoder.array(1)?.encode(cell)?;
         }
-        Message::Input(bytes) => {
+        Message::ScreenClosed(reason) => {
+            encoder.array(1)?.encode(reason)?;
+        }
+        Message::Input(bytes) | Message::ScreenData(bytes) => {
             encoder.writer_mut().extend_from_slice(bytes);
         }
     }
@@ -118,6 +121,9 @@ pub fn decode(header: Header, payload: &[u8]) -> Result<Option<(ChannelId, Messa
     let channel = ChannelId(header.channel);
     if kind == MessageKind::Input {
         return Ok(Some((channel, Message::Input(payload.to_vec()))));
+    }
+    if kind == MessageKind::ScreenData {
+        return Ok(Some((channel, Message::ScreenData(payload.to_vec()))));
     }
     let mut decoder = Decoder::new(payload);
     let mut fields = Fields::new(&mut decoder)?;
@@ -205,7 +211,10 @@ fn message(kind: MessageKind, fields: &mut Fields<'_, '_>) -> Result<Message, De
         MessageKind::Mouse => Message::Mouse(fields.next()?),
         MessageKind::TerminalInput => Message::TerminalInput(fields.next()?),
         MessageKind::CellSize => Message::CellSize(fields.next()?),
-        MessageKind::Input => return Err(DecodeError::message("input is raw bytes, not CBOR")),
+        MessageKind::ScreenClosed => Message::ScreenClosed(fields.next()?),
+        MessageKind::Input | MessageKind::ScreenData => {
+            return Err(DecodeError::message("this message is raw bytes, not CBOR"));
+        }
     })
 }
 

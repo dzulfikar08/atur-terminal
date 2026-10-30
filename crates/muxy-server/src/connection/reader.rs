@@ -18,7 +18,8 @@ use muxy_protocol::{
 use crate::archive::SearchCache;
 use crate::{AttachmentId, AttachmentSink, Registry, ServerError, SessionCommand};
 
-use super::{OutboxSink, handshake::fatal, outbox::Outbox, policy};
+use super::outbox::ScreenInput;
+use super::{OutboxSink, handshake::fatal, outbox::Outbox, policy, screen};
 
 static NEXT_ATTACHMENT: AtomicU64 = AtomicU64::new(1);
 
@@ -46,6 +47,7 @@ pub(super) fn run(
         git_watch: Arc::new(Mutex::new(None)),
         files_workers: WorkerPool::new("connection-files", 1, 16)?,
         files_readers: WorkerPool::new("connection-files-read", 4, 32)?,
+        screen_workers: WorkerPool::new("connection-screen", 1, 4)?,
         files_watch: Arc::new(Mutex::new(crate::files::watch::Subscriptions::default())),
         search_cache: Arc::new(Mutex::new(SearchCache::default())),
         last_channel: Arc::new(AtomicU32::new(0)),
@@ -125,6 +127,17 @@ pub(super) fn run(
                     let _ = handle.send(SessionCommand::CellSize(cell));
                 }
             }
+            (channel, Message::ScreenData(bytes))
+                if channel.0 > 0 && channel.0 <= requests.last_channel.load(Ordering::Acquire) =>
+            {
+                if validation.is_err() {
+                    outbox.close_with(fatal("screen data exceeds the limit"));
+                    return Ok(Exit::Fatal);
+                }
+                if matches!(outbox.screen_input(channel, bytes), ScreenInput::Stalled) {
+                    log::warn!("a screen viewer stopped reading input and was closed");
+                }
+            }
             (channel, Message::Mouse(event))
                 if channel.0 > 0 && channel.0 <= requests.last_channel.load(Ordering::Acquire) =>
             {
@@ -154,6 +167,7 @@ struct Requests {
     git_readers: WorkerPool,
     files_workers: WorkerPool,
     files_readers: WorkerPool,
+    screen_workers: WorkerPool,
     files_watch: Arc<Mutex<crate::files::watch::Subscriptions>>,
     git_watch: Arc<Mutex<Option<crate::git::watch::RepositoryWatch>>>,
     search_cache: Arc<Mutex<SearchCache>>,
@@ -175,6 +189,23 @@ impl Requests {
             }
             RequestBody::ReadAddresses => {
                 Ok(Some(ReplyBody::Addresses(self.registry.remote.addresses())))
+            }
+            RequestBody::OpenScreen => {
+                let output = Arc::clone(outbox);
+                let last_channel = Arc::clone(&self.last_channel);
+                self.screen_workers
+                    .try_spawn(move || {
+                        if output.is_closed() {
+                            return;
+                        }
+                        let body = match screen::open(&output, &last_channel) {
+                            Ok(channel) => ReplyBody::ScreenOpened(channel),
+                            Err(error) => ReplyBody::Error(error.to_reply()),
+                        };
+                        output.push_control(Message::Reply { id, body });
+                    })
+                    .map_err(|error| ServerError::new(ErrorCode::BadRequest, error.to_string()))?;
+                Ok(None)
             }
             RequestBody::Exec(request) => {
                 self.commands
@@ -409,6 +440,12 @@ fn ordered_request(
                 "UDP offers are answered by the connection",
             ));
         }
+        RequestBody::OpenScreen => {
+            return Err(ServerError::new(
+                ErrorCode::BadRequest,
+                "screens are opened by the connection",
+            ));
+        }
         RequestBody::ReadAddresses => {
             return Err(ServerError::new(
                 ErrorCode::BadRequest,
@@ -619,9 +656,11 @@ fn attach(
         .ok_or_else(|| ServerError::unknown_session(session))?;
     let channel = ChannelId(
         last_channel
-            .load(Ordering::Relaxed)
-            .checked_add(1)
-            .ok_or_else(|| ServerError::new(ErrorCode::BadRequest, "channel IDs exhausted"))?,
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |last| {
+                last.checked_add(1)
+            })
+            .map_err(|_| ServerError::new(ErrorCode::BadRequest, "channel IDs exhausted"))?
+            + 1,
     );
     let id = AttachmentId(
         NEXT_ATTACHMENT
@@ -629,8 +668,7 @@ fn attach(
             .map_err(|_| ServerError::new(ErrorCode::BadRequest, "attachment IDs exhausted"))?,
     );
     // The session replies straight to the outbox, and the client may use the
-    // channel as soon as it reads that reply.
-    last_channel.store(channel.0, Ordering::Release);
+    // channel as soon as it reads that reply; `last_channel` already counts it.
     let sink = AttachmentSink::outbox(OutboxSink::new(outbox, channel, session));
     outbox.attach(
         channel,

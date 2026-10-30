@@ -55,6 +55,49 @@ struct Watches {
 const WINDOW_FRAMES: usize = 8;
 const WINDOW_BYTES: usize = 256 * 1024;
 
+/// Most bytes of a screen stream that may be queued or on the wire unreported
+/// by the client. At 20 Mbit/s this is a fifth of a second of video; a client
+/// further behind makes the capture program wait instead.
+const SCREEN_WINDOW: usize = 512 * 1024;
+
+/// One screen viewer's way out: bytes of the capture program's conversation
+/// waiting for the writer, and how many the client has reported handled.
+struct ScreenStream {
+    queue: VecDeque<Vec<u8>>,
+    queued: usize,
+    sent: u64,
+    acked: u64,
+    /// Set when the stream ended; `ScreenClosed` follows the queued bytes.
+    ending: Option<String>,
+    viewer: Option<crate::screen::Viewer>,
+}
+
+impl ScreenStream {
+    fn new() -> Self {
+        Self {
+            queue: VecDeque::new(),
+            queued: 0,
+            sent: 0,
+            acked: 0,
+            ending: None,
+            viewer: None,
+        }
+    }
+
+    /// Bytes queued or sent and not yet reported handled.
+    fn unhandled(&self) -> usize {
+        self.queued + usize::try_from(self.sent - self.acked).unwrap_or(usize::MAX)
+    }
+}
+
+/// What became of bytes a client sent to a screen stream.
+pub(super) enum ScreenInput {
+    Delivered,
+    Unknown,
+    /// The capture program is not reading; the stream was ended.
+    Stalled,
+}
+
 #[derive(Default)]
 struct Window {
     in_flight: VecDeque<(u64, usize)>,
@@ -111,12 +154,15 @@ struct State {
     metadata: HashMap<ChannelId, Vec<MetadataEvent>>,
     window: HashMap<ChannelId, Window>,
     attachments: HashMap<ChannelId, Attachment>,
+    screens: HashMap<ChannelId, ScreenStream>,
     closed: bool,
 }
 
 pub(crate) struct Outbox {
     state: Mutex<State>,
     ready: Condvar,
+    /// Wakes screen relays waiting for the client to report handled bytes.
+    space: Condvar,
 }
 
 impl Outbox {
@@ -127,6 +173,7 @@ impl Outbox {
                 ..State::default()
             }),
             ready: Condvar::default(),
+            space: Condvar::default(),
         }
     }
 
@@ -450,6 +497,12 @@ impl Outbox {
 
     pub(super) fn detach(&self, channel: ChannelId) -> Result<(), ServerError> {
         let mut state = self.lock();
+        if let Some(stream) = state.screens.remove(&channel) {
+            drop(state);
+            drop(stream);
+            self.space.notify_all();
+            return Ok(());
+        }
         if !state.attachments.contains_key(&channel) {
             return Err(ServerError::new(
                 ErrorCode::UnknownChannel,
@@ -530,11 +583,101 @@ impl Outbox {
 
     pub(super) fn ack(&self, channel: ChannelId, seq: u64) {
         let mut state = self.lock();
+        if let Some(stream) = state.screens.get_mut(&channel) {
+            // A client cannot have handled more than was sent.
+            stream.acked = stream.acked.max(seq.min(stream.sent));
+            self.space.notify_all();
+            return;
+        }
         if let Some(window) = state.window.get_mut(&channel)
             && window.ack(seq)
         {
             self.ready.notify_one();
         }
+    }
+
+    /// Makes `channel` a screen stream, before any of its bytes can arrive.
+    pub(super) fn reserve_screen(&self, channel: ChannelId) -> bool {
+        let mut state = self.lock();
+        if state.closed {
+            return false;
+        }
+        state.screens.insert(channel, ScreenStream::new());
+        true
+    }
+
+    /// Gives a reserved stream its capture link; a stream that ended meanwhile
+    /// just drops it, which ends the viewer.
+    pub(super) fn attach_viewer(&self, channel: ChannelId, viewer: crate::screen::Viewer) {
+        let mut state = self.lock();
+        if let Some(stream) = state.screens.get_mut(&channel) {
+            stream.viewer = Some(viewer);
+        }
+    }
+
+    /// Forgets a stream that never started.
+    pub(super) fn release_screen(&self, channel: ChannelId) {
+        let removed = self.lock().screens.remove(&channel);
+        drop(removed);
+    }
+
+    /// Queues bytes for the client, waiting while it has not handled the
+    /// window already sent. `false` once the stream or the connection is gone.
+    pub(super) fn push_screen(&self, channel: ChannelId, bytes: Vec<u8>) -> bool {
+        let mut state = self.lock();
+        loop {
+            if state.closed {
+                return false;
+            }
+            let Some(stream) = state.screens.get_mut(&channel) else {
+                return false;
+            };
+            if stream.ending.is_some() {
+                return false;
+            }
+            let unhandled = stream.unhandled();
+            if unhandled == 0 || unhandled + bytes.len() <= SCREEN_WINDOW {
+                stream.queued += bytes.len();
+                stream.queue.push_back(bytes);
+                self.ready.notify_one();
+                return true;
+            }
+            state = self
+                .space
+                .wait(state)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    /// The capture ended: after the queued bytes the client is told, and the
+    /// stream is gone.
+    pub(super) fn finish_screen(&self, channel: ChannelId, reason: String) {
+        let mut state = self.lock();
+        if let Some(stream) = state.screens.get_mut(&channel)
+            && stream.ending.is_none()
+        {
+            stream.ending = Some(reason);
+            self.ready.notify_one();
+        }
+    }
+
+    /// Passes the client's bytes on to the capture program.
+    pub(super) fn screen_input(&self, channel: ChannelId, bytes: Vec<u8>) -> ScreenInput {
+        let mut state = self.lock();
+        let Some(stream) = state.screens.get_mut(&channel) else {
+            return ScreenInput::Unknown;
+        };
+        let Some(viewer) = &stream.viewer else {
+            return ScreenInput::Delivered;
+        };
+        if viewer.write(bytes) {
+            return ScreenInput::Delivered;
+        }
+        stream.viewer = None;
+        stream.ending = Some("The screen sharing program stopped reading input.".into());
+        self.ready.notify_one();
+        self.space.notify_all();
+        ScreenInput::Stalled
     }
 
     pub(super) fn next(&self) -> Option<(ChannelId, Message)> {
@@ -572,6 +715,24 @@ impl Outbox {
                 window.send(frame.seq, weight(&frame));
                 return Some((channel, Message::Frame(frame)));
             }
+            let screen = state
+                .screens
+                .iter()
+                .find(|(_, stream)| !stream.queue.is_empty() || stream.ending.is_some())
+                .map(|(channel, _)| *channel);
+            if let Some(channel) = screen
+                && let Some(stream) = state.screens.get_mut(&channel)
+            {
+                if let Some(chunk) = stream.queue.pop_front() {
+                    stream.queued -= chunk.len();
+                    stream.sent += chunk.len() as u64;
+                    return Some((channel, Message::ScreenData(chunk)));
+                }
+                if let Some(reason) = stream.ending.take() {
+                    state.screens.remove(&channel);
+                    return Some((channel, Message::ScreenClosed(reason)));
+                }
+            }
             state = self
                 .ready
                 .wait(state)
@@ -589,12 +750,14 @@ impl Outbox {
             state.control.push_back(message);
             state.close();
             self.ready.notify_all();
+            self.space.notify_all();
         }
     }
 
     pub(crate) fn close(&self) {
         self.lock().close();
         self.ready.notify_all();
+        self.space.notify_all();
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -643,6 +806,7 @@ impl State {
         self.progress.clear();
         self.metadata.clear();
         self.window.clear();
+        self.screens.clear();
     }
 
     fn retire(&mut self, channel: ChannelId, error: &ServerError) {
@@ -673,6 +837,68 @@ mod tests {
     use muxy_protocol::{Cursor, Modes, Row};
 
     use super::*;
+
+    #[test]
+    fn a_screen_stream_waits_for_the_client_beyond_its_window() {
+        let outbox = Arc::new(Outbox::new(Arc::default()));
+        let channel = ChannelId(3);
+        assert!(outbox.reserve_screen(channel));
+        let chunk = 16 * 1024;
+        for _ in 0..SCREEN_WINDOW / chunk {
+            assert!(outbox.push_screen(channel, vec![7; chunk]));
+        }
+        let (done, finished) = std::sync::mpsc::channel();
+        let pusher = Arc::clone(&outbox);
+        let blocked = thread::spawn(move || {
+            let accepted = pusher.push_screen(channel, vec![8; chunk]);
+            let _ = done.send(accepted);
+        });
+        assert!(finished.recv_timeout(Duration::from_millis(150)).is_err());
+        // Sending is not handling: the window opens when the client reports it.
+        assert_eq!(
+            outbox.next(),
+            Some((channel, Message::ScreenData(vec![7; chunk])))
+        );
+        assert!(finished.recv_timeout(Duration::from_millis(150)).is_err());
+        outbox.ack(channel, chunk as u64);
+        assert_eq!(finished.recv_timeout(Duration::from_secs(5)), Ok(true));
+        let _ = blocked.join();
+        // An acknowledgement beyond what was sent counts only what was sent.
+        outbox.ack(channel, u64::MAX);
+        assert_eq!(outbox.lock().screens[&channel].acked, chunk as u64);
+    }
+
+    #[test]
+    fn a_finished_screen_stream_closes_after_its_queued_bytes() {
+        let outbox = Outbox::new(Arc::default());
+        let channel = ChannelId(2);
+        assert!(outbox.reserve_screen(channel));
+        assert!(outbox.push_screen(channel, b"last".to_vec()));
+        outbox.finish_screen(channel, "gone".into());
+        assert!(!outbox.push_screen(channel, b"late".to_vec()));
+        assert_eq!(
+            outbox.next(),
+            Some((channel, Message::ScreenData(b"last".to_vec())))
+        );
+        assert_eq!(
+            outbox.next(),
+            Some((channel, Message::ScreenClosed("gone".into())))
+        );
+        assert!(outbox.detach(channel).is_err());
+    }
+
+    #[test]
+    fn detaching_a_screen_stream_ends_it_and_frees_a_waiting_relay() {
+        let outbox = Arc::new(Outbox::new(Arc::default()));
+        let channel = ChannelId(4);
+        assert!(outbox.reserve_screen(channel));
+        assert!(outbox.push_screen(channel, vec![1; SCREEN_WINDOW]));
+        let pusher = Arc::clone(&outbox);
+        let waiting = thread::spawn(move || pusher.push_screen(channel, vec![2; 1024]));
+        thread::sleep(Duration::from_millis(100));
+        assert!(outbox.detach(channel).is_ok());
+        assert_eq!(waiting.join().ok(), Some(false));
+    }
 
     #[test]
     fn file_changes_coalesce_and_rescan_for_slow_consumers() {

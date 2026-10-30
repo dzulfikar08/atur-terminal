@@ -186,6 +186,11 @@ pub enum RequestBody {
     /// `Feature::SERVER_ADDRESSES` know it.
     #[n(45)]
     ReadAddresses,
+    /// Starts mirroring the server's desktop on a new channel: raw RFB bytes
+    /// both ways in `Message::ScreenData`. Only local and ssh connections may
+    /// ask, and only servers that list `Feature::SCREEN` know it.
+    #[n(46)]
+    OpenScreen,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -305,6 +310,9 @@ pub enum ReplyBody {
     /// The server's addresses, as `ReadAddresses` asked.
     #[n(40)]
     Addresses(#[n(0)] crate::ServerAddresses),
+    /// The channel of the screen stream that `OpenScreen` asked for.
+    #[n(41)]
+    ScreenOpened(#[n(0)] ChannelId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

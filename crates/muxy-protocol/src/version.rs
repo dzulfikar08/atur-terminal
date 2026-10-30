@@ -35,6 +35,10 @@ impl Feature {
     pub const UDP_OFFER: Self = Self(2);
     /// `RequestBody::ReadAddresses`: a paired connection can ask for the server's current addresses.
     pub const SERVER_ADDRESSES: Self = Self(3);
+    /// `RequestBody::OpenScreen`: a local or ssh connection can mirror the server's desktop.
+    /// Only servers that can capture a Wayland desktop list it, and they list it
+    /// from the handshake, not in [`FEATURES`].
+    pub const SCREEN: Self = Self(4);
 }
 
 /// Features this build's server supports.

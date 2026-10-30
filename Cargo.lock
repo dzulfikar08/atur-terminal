@@ -605,6 +605,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "atur-screen"
+version = "2.0.0-beta-0"
+dependencies = [
+ "core-foundation 0.10.0",
+ "core-video",
+ "flate2",
+ "log",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4583,6 +4593,7 @@ name = "muxy-app"
 version = "2.0.0-beta-0"
 dependencies = [
  "async-channel 2.5.0",
+ "atur-screen",
  "gpui",
  "image",
  "muxy-app-core",
@@ -4626,6 +4637,7 @@ dependencies = [
 name = "muxy-cli"
 version = "2.0.0-beta-0"
 dependencies = [
+ "atur-screen",
  "muxy-app-core",
  "muxy-client",
  "muxy-core",

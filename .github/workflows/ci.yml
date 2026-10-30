@@ -5,7 +5,7 @@ name: ci
 # releases do not ship them.
 on:
   push:
-    branches: [main, atur-terminal, feat/herdr-backend]
+    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror]
   pull_request:
   workflow_call:
 
@@ -58,7 +58,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config zsh fish binutils vim-tiny less
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config zsh fish binutils vim-tiny less ffmpeg
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.92.0
@@ -88,7 +88,7 @@ jobs:
           build-essential pkg-config clang cmake libssl-dev libfontconfig1-dev libfreetype-dev
           libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libvulkan-dev
           libwebkit2gtk-4.1-0 xvfb
-          zsh fish binutils vim-tiny less unzip
+          zsh fish binutils vim-tiny less unzip ffmpeg
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.92.0
@@ -101,3 +101,50 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' }}
       - run: xvfb-run -a python3 scripts/check-desktop-linux.py --target "${{ matrix.target }}"
+
+  # The screen mirroring check needs a Wayland compositor and the current
+  # wayvnc, which Arch ships and Ubuntu's packages are too old for. The
+  # binaries are built on Ubuntu 22.04, like the release, and run there.
+  screen-build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: screen-e2e
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' || github.ref == 'refs/heads/feat/screen-mirror' }}
+      - run: >-
+          cargo build --locked --release -p muxy-server -p muxy-cli --example screen_probe
+      - run: |
+          mkdir bin
+          cp target/release/atur-term-server target/release/examples/screen_probe bin/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screen-e2e-bin
+          path: bin
+          retention-days: 3
+
+  screen-e2e:
+    needs: screen-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: archlinux:latest
+    steps:
+      - run: pacman -Syu --noconfirm sway wayvnc wev wl-clipboard python procps-ng git
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-e2e-bin
+          path: bin
+      - run: chmod +x bin/*
+      - run: bash scripts/screen-e2e.sh bin

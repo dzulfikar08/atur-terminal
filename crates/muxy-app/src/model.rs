@@ -22,6 +22,7 @@ pub(crate) use remote_servers::{
     ConnectionTest, DeviceForm, Install, PendingRemote, RemoteIntent, RemoteServer,
     join_destination, released_version, split_destination,
 };
+mod screen;
 mod server_status;
 mod servers;
 pub(crate) use server_status::ServerStatus;

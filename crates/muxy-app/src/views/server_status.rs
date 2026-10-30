@@ -197,6 +197,22 @@ fn actions(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
             )
             .debug_selector(|| "pair-phone-server".into()),
         );
+        if model.screen_available(model.status_server()) {
+            actions = actions.child(
+                controls::button(
+                    Style { theme, metrics: &m },
+                    "view-screen-server",
+                    &tr!("View screen"),
+                    model.server_control_enabled(),
+                    cx.listener(|model, _, window, cx| {
+                        let server = model.status_server();
+                        model.dismiss_overlay(cx);
+                        model.open_screen(server, window, cx);
+                    }),
+                )
+                .debug_selector(|| "view-screen-server".into()),
+            );
+        }
         for (restart, id, label) in [
             (true, "restart-project-server", tr!("Restart server…")),
             (false, "stop-project-server", tr!("Stop server…")),

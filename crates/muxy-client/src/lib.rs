@@ -16,6 +16,7 @@ mod grid;
 mod handshake;
 mod predict;
 mod requests;
+mod screen;
 mod ssh;
 mod udp;
 
@@ -25,6 +26,7 @@ pub use error::{ClientError, RemoteReason};
 pub use events::{ClientEvent, ClipboardWrite};
 pub use grid::{RunGrid, ScreenLinks, ScreenPrompts};
 pub use predict::{PredictMode, PredictStats, PredictedCell, Predictor, UNDERLINE_AFTER};
+pub use screen::{ScreenEvent, ScreenLink};
 pub use ssh::{Askpass, SshTarget};
 pub use udp::{UdpRelay, UdpSettings, parse_ports};
 

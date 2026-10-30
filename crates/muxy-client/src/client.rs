@@ -17,6 +17,7 @@ use muxy_protocol::{
 use crate::events::{self, ClientEvent};
 use crate::handshake;
 use crate::requests::Pending;
+use crate::screen::ScreenRoutes;
 use crate::{ClientError, RunGrid};
 
 const RTT_MAX_AGE: Duration = Duration::from_secs(15);
@@ -38,6 +39,7 @@ struct Shared {
     asynchronous: mpsc::SyncSender<(muxy_protocol::RequestId, RequestBody)>,
     pending: Arc<Pending>,
     events: Mutex<Option<Receiver<ClientEvent>>>,
+    screens: Arc<ScreenRoutes>,
     cancellation: Arc<dyn StreamCancellation>,
     server: muxy_protocol::ServerInfo,
     features: Vec<Feature>,
@@ -111,12 +113,15 @@ impl Client {
         let (connected, accepted) = mpsc::channel();
         let pending = Arc::new(Pending::default());
         let routed = Arc::clone(&pending);
+        let screens = Arc::new(ScreenRoutes::default());
+        let routed_screens = Arc::clone(&screens);
         thread::Builder::new()
             .name("atur-client-reader".into())
             .spawn(move || {
                 events::route(
                     &mut decoder,
                     &routed,
+                    &routed_screens,
                     &events,
                     &connected,
                     reader_cancellation.as_ref(),
@@ -144,6 +149,7 @@ impl Client {
             asynchronous,
             pending,
             events: Mutex::new(Some(receiver)),
+            screens,
             cancellation,
             server,
             features,
@@ -598,6 +604,18 @@ impl Client {
             }
             Err(RecvTimeoutError::Disconnected) => Err(ClientError::Disconnected),
         }
+    }
+
+    pub(crate) fn screen_routes(&self) -> &ScreenRoutes {
+        &self.shared.screens
+    }
+
+    pub(crate) fn send_message(
+        &self,
+        channel: ChannelId,
+        message: &Message,
+    ) -> Result<(), ClientError> {
+        self.send(channel, message)
     }
 
     fn send(&self, channel: ChannelId, message: &Message) -> Result<(), ClientError> {

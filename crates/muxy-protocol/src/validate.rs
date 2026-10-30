@@ -11,6 +11,12 @@ pub const MAX_CLIPBOARD_TEXT: usize = 1024 * 1024;
 
 pub const MAX_INPUT: usize = 1024 * 1024;
 
+/// The most bytes one `ScreenData` message may carry.
+pub const MAX_SCREEN_CHUNK: usize = 64 * 1024;
+
+/// The longest reason a `ScreenClosed` message may give.
+pub const MAX_SCREEN_REASON: usize = 1024;
+
 pub fn validate_search(query: &str, max_results: u16) -> Result<(), ErrorCode> {
     if !(1..=256).contains(&query.len()) {
         return Err(ErrorCode::BadRequest);
@@ -59,6 +65,20 @@ impl Message {
             Self::Request { body, .. } => validate_request(body),
             Self::Reply { body, .. } => validate_reply(body),
             Self::Input(input) => validate_input(input),
+            Self::ScreenData(bytes) => {
+                if bytes.len() <= MAX_SCREEN_CHUNK {
+                    Ok(())
+                } else {
+                    Err(ErrorCode::BadRequest)
+                }
+            }
+            Self::ScreenClosed(reason) => {
+                if reason.len() <= MAX_SCREEN_REASON {
+                    Ok(())
+                } else {
+                    Err(ErrorCode::BadRequest)
+                }
+            }
             Self::TerminalInput(input) => input.validate(),
             Self::Mouse(event) => validate_mouse(event),
             Self::CellSize(cell) => {
@@ -204,6 +224,7 @@ fn validate_request(body: &RequestBody) -> Result<(), ErrorCode> {
         RequestBody::Authenticate(_)
         | RequestBody::OfferUdp
         | RequestBody::ReadAddresses
+        | RequestBody::OpenScreen
         | RequestBody::ReadRemoteAccess
         | RequestBody::StartPairing
         | RequestBody::CancelPairing
@@ -319,6 +340,13 @@ fn validate_reply(body: &ReplyBody) -> Result<(), ErrorCode> {
         ReplyBody::Pairing(offer) => offer.invite.validate(),
         ReplyBody::UdpOffer(offer) => offer.validate(),
         ReplyBody::Addresses(addresses) => addresses.validate(),
+        ReplyBody::ScreenOpened(channel) => {
+            if *channel == crate::CONTROL {
+                Err(ErrorCode::UnknownChannel)
+            } else {
+                Ok(())
+            }
+        }
         ReplyBody::Authenticated
         | ReplyBody::ExecCancelled
         | ReplyBody::ActivityAcknowledged

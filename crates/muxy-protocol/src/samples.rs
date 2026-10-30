@@ -109,8 +109,25 @@ impl Message {
         terminal_metadata_samples(&mut samples);
         samples.extend(activity_samples(session));
         samples.extend(remote_samples());
+        samples.extend(screen_samples(channel));
         samples
     }
+}
+
+fn screen_samples(channel: ChannelId) -> [Message; 5] {
+    [
+        Message::Request {
+            id: RequestId(50),
+            body: RequestBody::OpenScreen,
+        },
+        Message::Reply {
+            id: RequestId(50),
+            body: ReplyBody::ScreenOpened(channel),
+        },
+        Message::ScreenData(b"RFB 003.008\n".to_vec()),
+        Message::ScreenData(Vec::new()),
+        Message::ScreenClosed("wayvnc stopped".into()),
+    ]
 }
 
 fn remote_samples() -> Vec<Message> {

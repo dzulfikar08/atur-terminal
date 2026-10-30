@@ -13,6 +13,7 @@
 "%@ Updates" = "%@ Updates";
 "%@ already exists; move it before installing Atur Terminal." = "%@ already exists; move it before installing Atur Terminal.";
 "%@ and %@, but %@" = "%@ and %@, but %@";
+"%@ can't share its screen." = "%@ can't share its screen.";
 "%@ did not respond within five minutes" = "%@ did not respond within five minutes";
 "%@ exited with %@" = "%@ exited with %@";
 "%@ failed: %@" = "%@ failed: %@";
@@ -265,6 +266,7 @@
 "By default, ⌘I opens Composer to draft prompts with files, images, or dictation, and ⌘↩ sends it. Send to All Split Panes in its menu targets every split." = "By default, ⌘I opens Composer to draft prompts with files, images, or dictation, and ⌘↩ sends it. Send to All Split Panes in its menu targets every split.";
 "By default, ⌘⇧P opens the command palette. Choose Switch Project… to jump to any project or worktree by name." = "By default, ⌘⇧P opens the command palette. Choose Switch Project… to jump to any project or worktree by name.";
 "By default, ⌘⌃← and ⌘⌃→ go back and forward through tabs you've visited, across projects." = "By default, ⌘⌃← and ⌘⌃→ go back and forward through tabs you've visited, across projects.";
+"Can't show the screen" = "Can't show the screen";
 "Cancel" = "Cancel";
 "Cancel Dictation" = "Cancel Dictation";
 "Cancel Recording" = "Cancel Recording";
@@ -654,6 +656,7 @@
 "Finish Dictation" = "Finish Dictation";
 "Finish recording to transcribe." = "Finish recording to transcribe.";
 "Finished working" = "Finished working";
+"Fit" = "Fit";
 "Float Panel" = "Float Panel";
 "Focus Current Project" = "Focus Current Project";
 "Focus Pane Down" = "Focus Pane Down";
@@ -1028,6 +1031,7 @@
 "Port" = "Port";
 "Predict typed text so it appears at once over slow connections. Auto turns it on when the connection is slow." = "Predict typed text so it appears at once over slow connections. Auto turns it on when the connection is slow.";
 "Preparing on-device dictation…" = "Preparing on-device dictation…";
+"Press %@ to show or hide this toolbar." = "Press %@ to show or hide this toolbar.";
 "Press Return after inserting standalone voice dictation into the terminal." = "Press Return after inserting standalone voice dictation into the terminal.";
 "Press a key…" = "Press a key…";
 "Press a shortcut…" = "Press a shortcut…";
@@ -1185,6 +1189,9 @@
 "Save" = "Save";
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file.";
 "Scan it with the Atur Terminal mobile app, or open this link on the phone:" = "Scan it with the Atur Terminal mobile app, or open this link on the phone:";
+"Screen view closed" = "Screen view closed";
+"Screen view unavailable" = "Screen view unavailable";
+"Screen: %@" = "Screen: %@";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
 "Scroll to Bottom" = "Scroll to Bottom";
@@ -1388,6 +1395,7 @@
 "The phone looks for the server at:" = "The phone looks for the server at:";
 "The project directory isn't available on this Mac" = "The project directory isn't available on this Mac";
 "The project's tabs changed. Choose the layout again to confirm replacement." = "The project's tabs changed. Choose the layout again to confirm replacement.";
+"The screen connection closed." = "The screen connection closed.";
 "The selected 1.x configuration contains no supported settings or projects." = "The selected 1.x configuration contains no supported settings or projects.";
 "The selected AI provider \"%@\" is no longer supported. Choose another one in Settings → AI." = "The selected AI provider \"%@\" is no longer supported. Choose another one in Settings → AI.";
 "The selected language extension is unavailable, so Atur Terminal is temporarily using English." = "The selected language extension is unavailable, so Atur Terminal is temporarily using English.";
@@ -1538,6 +1546,9 @@
 "Vertical padding (points)" = "Vertical padding (points)";
 "Vibrancy of the glass background." = "Vibrancy of the glass background.";
 "View" = "View";
+"View Screen" = "View Screen";
+"View only" = "View only";
+"View screen" = "View screen";
 "Voice" = "Voice";
 "Voice input is not available on this platform yet." = "Voice input is not available on this platform yet.";
 "Wait for the AI repository action to finish" = "Wait for the AI repository action to finish";
@@ -1547,6 +1558,7 @@
 "Wait for the running Git action to finish." = "Wait for the running Git action to finish.";
 "Wait for the server settings operation to finish before quitting" = "Wait for the server settings operation to finish before quitting";
 "Waiting for the phone… the code works once and expires in %@" = "Waiting for the phone… the code works once and expires in %@";
+"Waiting for the screen…" = "Waiting for the screen…";
 "Web Inspector" = "Web Inspector";
 "Web content process terminated" = "Web content process terminated";
 "When closing tabs or panes" = "When closing tabs or panes";

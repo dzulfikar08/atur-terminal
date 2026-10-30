@@ -11,6 +11,7 @@ use muxy_protocol::{
 use crate::ClientError;
 use crate::handshake;
 use crate::requests::Pending;
+use crate::screen::{ScreenEvent, ScreenRoutes};
 
 mod clipboard;
 
@@ -69,6 +70,7 @@ pub enum ClientEvent {
 pub(crate) fn route(
     decoder: &mut Decoder<impl Read>,
     pending: &Pending,
+    screens: &ScreenRoutes,
     events: &Sender<ClientEvent>,
     connected: &Sender<Result<(muxy_protocol::ServerInfo, Vec<Feature>), ClientError>>,
     cancellation: &dyn StreamCancellation,
@@ -78,13 +80,14 @@ pub(crate) fn route(
     let _ = connected.send(handshake);
     let mut clipboard = ClipboardWrites::default();
     if accepted {
-        while let Some(event) = next_event(decoder, pending, &mut clipboard) {
+        while let Some(event) = next_event(decoder, pending, screens, &mut clipboard) {
             if events.send(event).is_err() {
                 break;
             }
         }
     }
     pending.close();
+    screens.disconnected();
     cancellation.cancel();
     let _ = events.send(ClientEvent::Disconnected);
 }
@@ -92,6 +95,7 @@ pub(crate) fn route(
 fn next_event(
     decoder: &mut Decoder<impl Read>,
     pending: &Pending,
+    screens: &ScreenRoutes,
     clipboard: &mut ClipboardWrites,
 ) -> Option<ClientEvent> {
     loop {
@@ -128,6 +132,12 @@ fn next_event(
             }
             (CONTROL, Message::SessionEnded { session, reason }) => {
                 return Some(ClientEvent::SessionEnded { session, reason });
+            }
+            (channel, Message::ScreenData(bytes)) if channel != CONTROL => {
+                screens.deliver(channel, ScreenEvent::Data(bytes));
+            }
+            (channel, Message::ScreenClosed(reason)) if channel != CONTROL => {
+                screens.deliver(channel, ScreenEvent::Closed(reason));
             }
             (channel, Message::Frame(frame)) if channel != CONTROL => {
                 return Some(ClientEvent::Frame { channel, frame });

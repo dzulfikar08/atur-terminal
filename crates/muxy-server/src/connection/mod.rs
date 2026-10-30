@@ -4,6 +4,7 @@ mod merge;
 mod outbox;
 mod policy;
 mod reader;
+mod screen;
 mod sink;
 #[cfg(test)]
 mod tests;

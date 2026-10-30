@@ -969,6 +969,7 @@ impl Registry {
     }
 
     pub fn shutdown(&self) {
+        crate::screen::stop_all();
         let mut state = lock(&self.sessions);
         if !state.stopping {
             state.stopping = true;

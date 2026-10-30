@@ -1,7 +1,9 @@
 use std::io::{Read, Write};
 
 use muxy_protocol::wire::{Decoder, Encoder, WireError};
-use muxy_protocol::{CONTROL, ErrorCode, ErrorReply, FEATURES, Message, SUPPORTED, ServerInfo, V1};
+use muxy_protocol::{
+    CONTROL, ErrorCode, ErrorReply, FEATURES, Feature, Message, SUPPORTED, ServerInfo, V1,
+};
 
 /// Returns whether the client shares a protocol version and may continue.
 pub(super) fn accept(
@@ -38,7 +40,7 @@ fn negotiate(
                     &Message::HelloReply {
                         versions: SUPPORTED.to_vec(),
                         server: ServerInfo::current(),
-                        features: FEATURES.to_vec(),
+                        features: features(),
                     },
                 )?;
                 return Ok(true);
@@ -57,6 +59,15 @@ fn negotiate(
     };
     encoder.send(CONTROL, &message)?;
     Ok(false)
+}
+
+/// What this server offers; mirroring a desktop only where `wayvnc` could run.
+fn features() -> Vec<Feature> {
+    let mut features = FEATURES.to_vec();
+    if crate::screen::offered() {
+        features.push(Feature::SCREEN);
+    }
+    features
 }
 
 pub(super) fn fatal(message: impl Into<String>) -> Message {

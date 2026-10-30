@@ -28,4 +28,5 @@ signal-hook = "0.4"
 
 [dev-dependencies]
 muxy-terminal = { path = "../muxy-terminal" }
+atur-screen = { path = "../atur-screen" }
 tempfile = "3"
