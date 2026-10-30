@@ -794,6 +794,29 @@ pub(super) fn exec_error(error: muxy_client::ClientError) -> String {
 }
 
 async fn server_call(client: &muxy_client::Client, call: &Call) -> Result<Value, String> {
+    if matches!(call.verb.as_str(), "files.readBytes" | "files.writeBytes") {
+        let send = |action| async {
+            client
+                .files_async(FilesRequest {
+                    project: call.project,
+                    action,
+                })
+                .await
+                .map_err(|error| match error {
+                    muxy_client::ClientError::Server(reply) => reply.message,
+                    error => error.to_string(),
+                })
+        };
+        let chunked = client.supports(muxy_protocol::Feature::FILE_CHUNKS);
+        let path = api::text(&call.args, "path")?;
+        return if call.verb == "files.readBytes" {
+            super::file_bytes::read(path, chunked, send).await
+        } else {
+            let data = api::text(&call.args, "base64")?;
+            super::file_bytes::write(path, data, chunked, super::file_bytes::upload_id(), send)
+                .await
+        };
+    }
     if call.verb.starts_with("files.") {
         return client
             .files_async(FilesRequest {

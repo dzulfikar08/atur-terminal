@@ -22,8 +22,8 @@ loading. Ask for the minimum.
 | `worktrees:read` | `worktrees.list`; the `worktree.headChanged` event |
 | `worktrees:write` | `worktrees.switchTo`, `worktrees.refresh` |
 | `agents:read` | `agents.list`; the `agent.status` event |
-| `files:read` | `files.list`, `files.read`, `files.stat`; the `file.changed` event |
-| `files:write` | `files.write`, `mkdir`, `rename`, `move`, `delete` |
+| `files:read` | `files.list`, `files.read`, `files.readBytes`, `files.stat`; the `file.changed` event |
+| `files:write` | `files.write`, `writeBytes`, `mkdir`, `rename`, `move`, `delete` |
 | `git:read` | Status, diffs, log, branches, worktrees, pull request info |
 | `git:write` | Every other `git.*` call |
 | `gh:read` | `gh.user` |

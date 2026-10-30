@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{ErrorCode, ProjectId, ServerPath};
 
 pub const MAX_FILE_BYTES: usize = 5 * 1024 * 1024;
+/// The most a file read or written in chunks (`ReadRange`, `WriteChunk`) may hold.
+pub const MAX_CHUNKED_FILE_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_FILE_ENTRIES: usize = 16_384;
 pub const MAX_FILE_PATH_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_FILE_CHANGES: usize = 256;
@@ -64,6 +66,37 @@ pub enum FilesAction {
         #[cbor(with = "crate::wire::cbor::bytes")]
         bytes: Vec<u8>,
     },
+    /// Reads up to `length` bytes (at most `MAX_FILE_BYTES`) from `offset` of a
+    /// file of at most `MAX_CHUNKED_FILE_BYTES`. Needs `Feature::FILE_CHUNKS`.
+    #[n(12)]
+    ReadRange {
+        #[n(0)]
+        path: ServerPath,
+        #[n(1)]
+        offset: u64,
+        #[n(2)]
+        length: u32,
+    },
+    /// One piece of a file written whole and atomically. Pieces of one `upload`
+    /// go to a hidden temporary file beside `path`, each at the end of what is
+    /// there; `commit` renames it over `path`, `abort` deletes it. Needs
+    /// `Feature::FILE_CHUNKS`.
+    #[n(13)]
+    WriteChunk {
+        #[n(0)]
+        path: ServerPath,
+        #[n(1)]
+        upload: u64,
+        #[n(2)]
+        offset: u64,
+        #[n(3)]
+        #[cbor(with = "crate::wire::cbor::bytes")]
+        bytes: Vec<u8>,
+        #[n(4)]
+        commit: bool,
+        #[n(5)]
+        abort: bool,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -109,6 +142,20 @@ pub struct FileBytes {
     pub bytes: Vec<u8>,
 }
 
+/// A piece of a file: `bytes` start at `offset` of a file of `size` bytes.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct FileChunk {
+    #[n(0)]
+    pub path: ServerPath,
+    #[n(1)]
+    pub size: u64,
+    #[n(2)]
+    pub offset: u64,
+    #[n(3)]
+    #[cbor(with = "crate::wire::cbor::bytes")]
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub enum FilesReply {
     #[n(0)]
@@ -125,6 +172,8 @@ pub enum FilesReply {
     Done,
     #[n(6)]
     Bytes(#[n(0)] FileBytes),
+    #[n(7)]
+    Chunk(#[n(0)] FileChunk),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -224,6 +273,29 @@ impl FilesRequest {
             | FilesAction::Mkdir(path) => relative_path(path),
             FilesAction::Write { path, content } => file_content(path, content.as_bytes()),
             FilesAction::WriteBytes { path, bytes } => file_content(path, bytes),
+            FilesAction::ReadRange { path, length, .. } => {
+                relative_path(path)?;
+                if *length as usize > MAX_FILE_BYTES {
+                    return Err(ErrorCode::BadRequest);
+                }
+                Ok(())
+            }
+            FilesAction::WriteChunk {
+                path,
+                offset,
+                bytes,
+                commit,
+                abort,
+                ..
+            } => {
+                file_content(path, bytes)?;
+                if *abort && *commit
+                    || offset.saturating_add(bytes.len() as u64) > MAX_CHUNKED_FILE_BYTES
+                {
+                    return Err(ErrorCode::BadRequest);
+                }
+                Ok(())
+            }
             FilesAction::Rename { path, name } => {
                 relative_path(path)?;
                 relative_path(name)?;
@@ -273,6 +345,15 @@ impl FilesReply {
                 Ok(())
             }
             Self::Bytes(file) => file_content(&file.path, &file.bytes),
+            Self::Chunk(chunk) => {
+                file_content(&chunk.path, &chunk.bytes)?;
+                if chunk.size > MAX_CHUNKED_FILE_BYTES
+                    || chunk.offset.saturating_add(chunk.bytes.len() as u64) > chunk.size
+                {
+                    return Err(ErrorCode::BadRequest);
+                }
+                Ok(())
+            }
             Self::Info(file) => relative_path(&file.path),
             Self::Path(path) => relative_path(path),
             Self::Paths(values) => paths(values),

@@ -409,3 +409,101 @@ fn project_reads_overlap_and_mutations_wait_for_readers() {
         ));
     });
 }
+
+#[test]
+fn chunked_files_round_trip_binary_content_atomically() {
+    let workspace = Workspace::new();
+    let data: Vec<u8> = (0..=255).cycle().take(300_000).collect();
+    workspace.write("model.bin", "old").unwrap();
+    let chunk = |offset: usize, end: usize, commit: bool| FilesAction::WriteChunk {
+        path: p("model.bin"),
+        upload: 7,
+        offset: offset as u64,
+        bytes: data[offset..end].to_vec(),
+        commit,
+        abort: false,
+    };
+    workspace.files(chunk(0, 100_000, false)).unwrap();
+    assert_eq!(
+        std::fs::read(workspace.path.join("model.bin")).unwrap(),
+        b"old"
+    );
+    assert!(workspace.files(chunk(5, 10, false)).is_err());
+    workspace.files(chunk(100_000, 300_000, true)).unwrap();
+    assert_eq!(
+        std::fs::read(workspace.path.join("model.bin")).unwrap(),
+        data
+    );
+    assert!(
+        !workspace
+            .path
+            .join(".atur-upload-0000000000000007")
+            .exists()
+    );
+
+    let mut read = Vec::new();
+    loop {
+        let FilesReply::Chunk(piece) = workspace
+            .files(FilesAction::ReadRange {
+                path: p("model.bin"),
+                offset: read.len() as u64,
+                length: 70_000,
+            })
+            .unwrap()
+        else {
+            panic!("expected a chunk");
+        };
+        assert_eq!(piece.size, 300_000);
+        if piece.bytes.is_empty() {
+            break;
+        }
+        read.extend(piece.bytes);
+    }
+    assert_eq!(read, data);
+}
+
+#[test]
+fn chunked_uploads_can_be_aborted_and_are_limited() {
+    let workspace = Workspace::new();
+    let start = |abort: bool, offset: u64| FilesAction::WriteChunk {
+        path: p("a.bin"),
+        upload: 1,
+        offset,
+        bytes: vec![0, 1],
+        commit: false,
+        abort,
+    };
+    workspace.files(start(false, 0)).unwrap();
+    assert!(
+        workspace
+            .path
+            .join(".atur-upload-0000000000000001")
+            .exists()
+    );
+    workspace.files(start(true, 0)).unwrap();
+    assert!(
+        !workspace
+            .path
+            .join(".atur-upload-0000000000000001")
+            .exists()
+    );
+    assert!(!workspace.path.join("a.bin").exists());
+    assert!(
+        workspace
+            .files(start(false, muxy_protocol::MAX_CHUNKED_FILE_BYTES))
+            .is_err()
+    );
+    let oversize = std::fs::File::create(workspace.path.join("big.bin")).unwrap();
+    oversize
+        .set_len(muxy_protocol::MAX_CHUNKED_FILE_BYTES + 1)
+        .unwrap();
+    assert!(
+        workspace
+            .files(FilesAction::ReadRange {
+                path: p("big.bin"),
+                offset: 0,
+                length: 1,
+            })
+            .is_err()
+    );
+}

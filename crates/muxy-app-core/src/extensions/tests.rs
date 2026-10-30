@@ -335,3 +335,13 @@ fn manifests_load_whatever_main_accepts() {
     assert!(!only("?").matches("ab"));
     assert!(only("src/*.rs").matches("SRC/lib.RS"));
 }
+
+#[test]
+fn binary_file_verbs_need_the_file_permissions_and_writes_ask() {
+    assert_eq!(required_permission("files.readBytes", &json!({})), Some("files:read"));
+    assert_eq!(required_permission("files.writeBytes", &json!({})), Some("files:write"));
+    let args = json!({"path": "design.fig", "base64": "AAE="});
+    assert!(Request::for_call("openpencil", "files.readBytes", &args, "/repo").is_none());
+    let request = Request::for_call("openpencil", "files.writeBytes", &args, "/repo").unwrap();
+    assert_eq!(request.gate, Gate::FilesWrite);
+}

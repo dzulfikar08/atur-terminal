@@ -133,3 +133,43 @@ fn uploads_come_in_bounded_chunks_and_reply_with_an_absolute_path() {
         assert_eq!(validate_uploaded(Some(&path(bad))), Err(ErrorCode::BadPath));
     }
 }
+
+#[test]
+fn chunked_file_requests_are_bounded() {
+    use muxy_protocol::MAX_CHUNKED_FILE_BYTES;
+    let request = |action| FilesRequest {
+        project: ProjectId::from_u128(1),
+        action,
+    };
+    let chunk = |offset: u64, len: usize, commit: bool, abort: bool| {
+        request(FilesAction::WriteChunk {
+            path: p("file"),
+            upload: 1,
+            offset,
+            bytes: vec![0; len],
+            commit,
+            abort,
+        })
+    };
+    assert!(chunk(0, MAX_FILE_BYTES, true, false).validate().is_ok());
+    assert!(
+        chunk(0, MAX_FILE_BYTES + 1, false, false)
+            .validate()
+            .is_err()
+    );
+    assert!(
+        chunk(MAX_CHUNKED_FILE_BYTES, 1, false, false)
+            .validate()
+            .is_err()
+    );
+    assert!(chunk(0, 0, true, true).validate().is_err());
+    let range = |length| {
+        request(FilesAction::ReadRange {
+            path: p("file"),
+            offset: 0,
+            length,
+        })
+    };
+    assert!(range(MAX_FILE_BYTES as u32).validate().is_ok());
+    assert!(range(MAX_FILE_BYTES as u32 + 1).validate().is_err());
+}

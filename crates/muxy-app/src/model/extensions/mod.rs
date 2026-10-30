@@ -3,6 +3,7 @@ mod calls;
 mod commands;
 mod consent;
 mod events;
+mod file_bytes;
 mod http;
 mod items;
 mod local;

@@ -84,9 +84,9 @@ pub use activity::{
 
 mod files;
 pub use files::{
-    FileBytes, FileChanges, FileContent, FileEntry, FileInfo, FilesAction, FilesReply,
-    FilesRequest, MAX_FILE_BYTES, MAX_FILE_CHANGES, MAX_FILE_ENTRIES, MAX_FILE_PATH_BYTES,
-    validate_folder_names, validate_folder_path,
+    FileBytes, FileChanges, FileChunk, FileContent, FileEntry, FileInfo, FilesAction, FilesReply,
+    FilesRequest, MAX_CHUNKED_FILE_BYTES, MAX_FILE_BYTES, MAX_FILE_CHANGES, MAX_FILE_ENTRIES,
+    MAX_FILE_PATH_BYTES, validate_folder_names, validate_folder_path,
 };
 
 mod upload;

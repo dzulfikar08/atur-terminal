@@ -80,6 +80,7 @@ pub(crate) fn is_read(action: &FilesAction) -> bool {
         FilesAction::List(_)
             | FilesAction::Read(_)
             | FilesAction::ReadBytes(_)
+            | FilesAction::ReadRange { .. }
             | FilesAction::Stat(_)
     )
 }
@@ -99,6 +100,26 @@ impl Registry {
             FilesAction::List(value) => FilesReply::Entries(root.list(path(value))?),
             FilesAction::Read(value) => FilesReply::Content(root.read(path(value))?),
             FilesAction::ReadBytes(value) => FilesReply::Bytes(root.read_bytes(path(value))?),
+            FilesAction::ReadRange {
+                path: value,
+                offset,
+                length,
+            } => FilesReply::Chunk(root.read_range(path(value), *offset, *length)?),
+            FilesAction::WriteChunk {
+                path: value,
+                upload,
+                offset,
+                bytes,
+                commit,
+                abort,
+            } => FilesReply::Path(root.write_chunk(
+                path(value),
+                *upload,
+                *offset,
+                bytes,
+                *commit,
+                *abort,
+            )?),
             FilesAction::Stat(value) => FilesReply::Info(root.info(&root.resolve(path(value))?)?),
             FilesAction::Write {
                 path: value,

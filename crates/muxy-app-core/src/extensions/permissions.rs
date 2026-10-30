@@ -42,10 +42,9 @@ const BROWSER_READS: [&str; 16] = [
 /// The manifest permission a bridge verb needs, following main's verb table.
 pub fn required_permission(verb: &str, args: &Value) -> Option<&'static str> {
     Some(match verb {
-        "files.list" | "files.read" | "files.stat" => "files:read",
-        "files.write" | "files.mkdir" | "files.rename" | "files.move" | "files.delete" => {
-            "files:write"
-        }
+        "files.list" | "files.read" | "files.readBytes" | "files.stat" => "files:read",
+        "files.write" | "files.writeBytes" | "files.mkdir" | "files.rename" | "files.move"
+        | "files.delete" => "files:write",
         "gh.user" => "gh:read",
         v if GIT_READS.contains(&v) => "git:read",
         v if v.starts_with("git.") => "git:write",
@@ -225,7 +224,8 @@ impl Request {
                 ))
             }
             "tabs.open" => Self::tab(owner, args),
-            "files.write" | "files.mkdir" | "files.rename" | "files.move" | "files.delete" => {
+            "files.write" | "files.writeBytes" | "files.mkdir" | "files.rename" | "files.move"
+            | "files.delete" => {
                 let operation = &verb["files.".len()..];
                 let path = match operation {
                     "move" => text("into"),

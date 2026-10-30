@@ -888,6 +888,40 @@ fn files_samples() -> Vec<Message> {
                 },
             }),
         },
+        Message::Request {
+            id: RequestId(4),
+            body: RequestBody::Files(crate::FilesRequest {
+                project: crate::ProjectId::from_u128(1),
+                action: crate::FilesAction::ReadRange {
+                    path: ServerPath(b"design.fig".to_vec()),
+                    offset: 4,
+                    length: 1024,
+                },
+            }),
+        },
+        Message::Reply {
+            id: RequestId(4),
+            body: ReplyBody::Files(crate::FilesReply::Chunk(crate::FileChunk {
+                path: ServerPath(b"design.fig".to_vec()),
+                size: 8,
+                offset: 4,
+                bytes: vec![0, 1, 0, 0xff],
+            })),
+        },
+        Message::Request {
+            id: RequestId(5),
+            body: RequestBody::Files(crate::FilesRequest {
+                project: crate::ProjectId::from_u128(1),
+                action: crate::FilesAction::WriteChunk {
+                    path: ServerPath(b"design.fig".to_vec()),
+                    upload: 9,
+                    offset: 4,
+                    bytes: vec![0, 1, 0, 0xff],
+                    commit: true,
+                    abort: false,
+                },
+            }),
+        },
     ]
 }
 

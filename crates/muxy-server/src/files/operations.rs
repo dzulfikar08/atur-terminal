@@ -5,8 +5,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use muxy_protocol::{
-    FileBytes, FileContent, FileEntry, MAX_FILE_BYTES, MAX_FILE_ENTRIES, MAX_FILE_PATH_BYTES,
-    OperationId, ServerPath,
+    FileBytes, FileChunk, FileContent, FileEntry, MAX_CHUNKED_FILE_BYTES, MAX_FILE_BYTES,
+    MAX_FILE_ENTRIES, MAX_FILE_PATH_BYTES, OperationId, ServerPath,
 };
 use rustix::fs::{self, AtFlags, FileType, Mode, OFlags, RenameFlags};
 
@@ -103,6 +103,102 @@ impl Root {
             path: wire_path(&target.relative),
             bytes,
         })
+    }
+
+    pub(super) fn read_range(&self, path: &Path, offset: u64, length: u32) -> Result<FileChunk> {
+        use std::io::{Seek, SeekFrom};
+        let target = self.resolve(path)?;
+        let mut file = fs::openat(
+            &target.parent,
+            &target.name,
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map(File::from)
+        .map_err(error)?;
+        let metadata = file.metadata().map_err(error)?;
+        if !metadata.is_file() {
+            return Err(error("Only regular files can be read"));
+        }
+        let size = metadata.len();
+        if size > MAX_CHUNKED_FILE_BYTES {
+            return Err(error("File exceeds the 64 MiB limit"));
+        }
+        let wanted = u64::from(length).min(size.saturating_sub(offset));
+        let mut bytes = Vec::new();
+        if wanted > 0 {
+            file.seek(SeekFrom::Start(offset)).map_err(error)?;
+            file.take(wanted).read_to_end(&mut bytes).map_err(error)?;
+        }
+        Ok(FileChunk {
+            path: wire_path(&target.relative),
+            size,
+            offset,
+            bytes,
+        })
+    }
+
+    /// Appends one piece of an upload to its hidden temporary file beside the
+    /// target and, on `commit`, renames that over the target.
+    pub(super) fn write_chunk(
+        &self,
+        path: &Path,
+        upload: u64,
+        offset: u64,
+        content: &[u8],
+        commit: bool,
+        abort: bool,
+    ) -> Result<ServerPath> {
+        if offset.saturating_add(content.len() as u64) > MAX_CHUNKED_FILE_BYTES {
+            return Err(error("Content exceeds the 64 MiB limit"));
+        }
+        let target = self.mutation(path)?;
+        let temporary = format!(".atur-upload-{upload:016x}");
+        if abort {
+            let _ = fs::unlinkat(&target.parent, &temporary, AtFlags::empty());
+            return Ok(wire_path(&target.relative));
+        }
+        let mode = match fs::statat(&target.parent, &target.name, AtFlags::SYMLINK_NOFOLLOW) {
+            Ok(stat) if FileType::from_raw_mode(stat.st_mode) == FileType::RegularFile => {
+                Some(Mode::from_raw_mode(stat.st_mode))
+            }
+            Ok(_) => return Err(error("Only regular files can be overwritten")),
+            Err(rustix::io::Errno::NOENT) => None,
+            Err(cause) => return Err(error(cause)),
+        };
+        let mut flags = OFlags::WRONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+        if offset == 0 {
+            flags |= OFlags::CREATE | OFlags::TRUNC;
+        }
+        let mut file = fs::openat(
+            &target.parent,
+            &temporary,
+            flags,
+            Mode::from_raw_mode(0o666),
+        )
+        .map(File::from)
+        .map_err(|_| error("The upload is not in progress; start again from offset 0"))?;
+        let result = (|| {
+            if file.metadata().map_err(error)?.len() != offset {
+                return Err(error("The upload is not at this offset"));
+            }
+            std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(offset)).map_err(error)?;
+            file.write_all(content).map_err(error)?;
+            if commit {
+                if let Some(mode) = mode {
+                    fs::fchmod(&file, mode).map_err(error)?;
+                }
+                file.sync_all().map_err(error)?;
+                fs::renameat(&target.parent, &temporary, &target.parent, &target.name)
+                    .map_err(error)?;
+            }
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::unlinkat(&target.parent, &temporary, AtFlags::empty());
+        }
+        result?;
+        Ok(wire_path(&target.relative))
     }
 
     pub(super) fn write(&self, path: &Path, content: &[u8]) -> Result<ServerPath> {

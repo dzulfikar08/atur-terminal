@@ -39,6 +39,9 @@ impl Feature {
     /// Only servers that can capture a Wayland desktop list it, and they list it
     /// from the handshake, not in [`FEATURES`].
     pub const SCREEN: Self = Self(4);
+    /// `FilesAction::ReadRange` and `FilesAction::WriteChunk`: files up to
+    /// `MAX_CHUNKED_FILE_BYTES`, read and written in pieces.
+    pub const FILE_CHUNKS: Self = Self(5);
 }
 
 /// Features this build's server supports.
@@ -46,4 +49,5 @@ pub const FEATURES: &[Feature] = &[
     Feature::TERMINAL_INPUT,
     Feature::UDP_OFFER,
     Feature::SERVER_ADDRESSES,
+    Feature::FILE_CHUNKS,
 ];

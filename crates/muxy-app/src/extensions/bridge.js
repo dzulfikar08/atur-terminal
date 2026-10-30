@@ -159,6 +159,8 @@
       list: (path, o) => dispatch('files.list', { project: filesProject(o), path: text(path) }),
       read: (path, o) => dispatch('files.read', { project: filesProject(o), path: text(path) }),
       stat: (path, o) => dispatch('files.stat', { project: filesProject(o), path: text(path) }),
+      readBytes: (path, o) => dispatch('files.readBytes', { project: filesProject(o), path: text(path) }),
+      writeBytes: (path, base64, o) => dispatch('files.writeBytes', { project: filesProject(o), path: text(path), base64: text(base64) }),
       write: (path, contents, o) => dispatch('files.write', { project: filesProject(o), path: text(path), contents: text(contents) }),
       mkdir: (path, o) => dispatch('files.mkdir', { project: filesProject(o), path: text(path) }),
       rename: (path, newName, o) => dispatch('files.rename', { project: filesProject(o), path: text(path), newName: text(newName) }),
