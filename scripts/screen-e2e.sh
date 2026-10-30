@@ -128,6 +128,11 @@ for via in SERVER DIRECT; do
   fi
 done
 echo "clipboard exchange failed: $clipboard_failed"
+if [[ $clipboard_failed -ne 0 ]]; then
+  echo "::group::wayvnc (direct) log"; tail -150 "$WORK/wayvnc-direct.log"; echo "::endgroup::"
+  echo "::group::the server's own log"; tail -50 "$WORK/srv/server.log"; echo "::endgroup::"
+  echo "::group::wl-paste types"; wl-paste --list-types 2>&1 || true; echo "::endgroup::"
+fi
 
 echo "== the capture stops with the last viewer, and with the server"
 pgrep -f "wayvnc .*atur-term-screen" >/dev/null
