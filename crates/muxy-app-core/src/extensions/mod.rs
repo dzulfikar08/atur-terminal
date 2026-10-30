@@ -18,12 +18,17 @@ pub use storage::{Settings, Storage};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+/// Features the app ships itself. They are listed under Built-in in Settings →
+/// Extensions, cannot be uninstalled, and are on until the user turns them off.
+pub const BUILTINS: [&str; 1] = ["screen"];
+
 /// Installed packages and explicit developer folders for this app profile.
 #[derive(Clone, Debug, Default)]
 pub struct Registry {
     pub extensions: BTreeMap<String, Extension>,
     pub errors: Vec<String>,
     enabled: BTreeSet<String>,
+    builtin_disabled: BTreeSet<String>,
     unpacked: BTreeMap<String, PathBuf>,
     profile: PathBuf,
 }
@@ -42,6 +47,7 @@ impl Registry {
         };
         registry.enabled = registry.read_preference("extension-enabled.json");
         registry.unpacked = registry.read_preference("extension-folders.json");
+        registry.builtin_disabled = registry.read_preference("extension-builtin-disabled.json");
         registry.reload();
         registry
     }
@@ -163,6 +169,29 @@ impl Registry {
             &serde_json::json!(active),
         )?;
         self.enabled = active;
+        Ok(())
+    }
+
+    /// Whether the built-in feature `id` (one of [`BUILTINS`]) is on.
+    pub fn builtin_enabled(&self, id: &str) -> bool {
+        BUILTINS.contains(&id) && !self.builtin_disabled.contains(id)
+    }
+
+    pub fn set_builtin_enabled(&mut self, id: &str, enabled: bool) -> Result<(), String> {
+        if !BUILTINS.contains(&id) {
+            return Err("unknown built-in extension".into());
+        }
+        let mut disabled = self.builtin_disabled.clone();
+        if enabled {
+            disabled.remove(id);
+        } else {
+            disabled.insert(id.into());
+        }
+        storage::write(
+            &self.profile.join("extension-builtin-disabled.json"),
+            &serde_json::json!(disabled),
+        )?;
+        self.builtin_disabled = disabled;
         Ok(())
     }
 

@@ -1365,6 +1365,139 @@ impl ExtensionsView {
         installed: &[(Extension, bool, bool)],
         cx: &mut Context<Self>,
     ) -> gpui::Div {
+        let builtins = self.builtin_section(cx);
+        div()
+            .flex()
+            .flex_col()
+            .gap(self.metrics.spacing7())
+            .children(builtins)
+            .child(self.installed_list(installed, cx))
+    }
+
+    /// The features the app ships itself: always installed, turned on or off here.
+    fn builtin_section(&self, cx: &mut Context<Self>) -> Option<gpui::Div> {
+        let query = self.query.to_lowercase();
+        let model = self.model.upgrade()?;
+        let builtins: Vec<_> = crate::extensions::builtin::all()
+            .into_iter()
+            .filter(|builtin| {
+                format!("{} {}", builtin.title, builtin.description)
+                    .to_lowercase()
+                    .contains(&query)
+            })
+            .collect();
+        if builtins.is_empty() {
+            return None;
+        }
+        let mut rows = self.card().overflow_hidden();
+        for (index, builtin) in builtins.into_iter().enumerate() {
+            let enabled = model
+                .read(cx)
+                .extensions
+                .registry
+                .builtin_enabled(builtin.id);
+            let id = builtin.id;
+            rows = rows.child(
+                div()
+                    .id(SharedString::from(format!("extension-builtin-{id}")))
+                    .flex()
+                    .items_center()
+                    .gap(self.metrics.spacing6())
+                    .p(self.metrics.spacing7())
+                    .when(index > 0, |row| {
+                        row.border_t_1().border_color(self.theme.border)
+                    })
+                    .child(SymbolGlyph::new(
+                        "macwindow",
+                        self.metrics.icon_lg(),
+                        self.theme.fg_muted,
+                    ))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap(self.metrics.spacing2())
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_wrap()
+                                    .items_center()
+                                    .gap(self.metrics.spacing4())
+                                    .child(
+                                        div()
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .child(builtin.title),
+                                    )
+                                    .child(self.badge(tr!("Built-in"), false))
+                                    .child(self.badge(
+                                        if enabled {
+                                            tr!("Enabled")
+                                        } else {
+                                            tr!("Disabled")
+                                        },
+                                        enabled,
+                                    )),
+                            )
+                            .child(
+                                div()
+                                    .text_size(self.metrics.font_footnote())
+                                    .text_color(self.theme.fg_muted)
+                                    .line_clamp(2)
+                                    .child(builtin.description),
+                            ),
+                    )
+                    .child(controls::toggle(
+                        self.style(),
+                        &format!("extension-builtin-{id}"),
+                        enabled,
+                        cx.listener(move |view, _, _, cx| view.set_builtin(id, !enabled, cx)),
+                    )),
+            );
+        }
+        Some(
+            div()
+                .flex()
+                .flex_col()
+                .gap(self.metrics.spacing4())
+                .child(
+                    div()
+                        .text_size(self.metrics.font_emphasis())
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(tr!("Built-in")),
+                )
+                .child(rows),
+        )
+    }
+
+    fn set_builtin(&mut self, id: &'static str, enabled: bool, cx: &mut Context<Self>) {
+        if self.mutation.is_some() {
+            return;
+        }
+        self.error = None;
+        let Ok(task) = self.model.update(cx, |model, cx| {
+            model.set_builtin_extension_enabled(id, enabled, cx)
+        }) else {
+            return;
+        };
+        cx.spawn(async move |view, cx| {
+            if let Err(error) = task.await {
+                let _ = view.update(cx, |view, cx| {
+                    view.error = Some(error);
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn installed_list(
+        &self,
+        installed: &[(Extension, bool, bool)],
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
         let query = self.query.to_lowercase();
         let filtered: Vec<_> = installed
             .iter()

@@ -101,6 +101,13 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/atur-terminal' }}
       - run: xvfb-run -a python3 scripts/check-desktop-linux.py --target "${{ matrix.target }}"
+      - name: Install every first-party extension from the live store
+        # Downloads each published package from https://extensions.diatur.com,
+        # verifies its sha256 and Ed25519 signature against the baked key,
+        # installs and enables it.
+        run: xvfb-run -a cargo test --locked -p muxy-app marketplace_packages_install -- --ignored --nocapture
+        env:
+          ATUR_TERM_MARKETPLACE_URL: https://extensions.diatur.com
 
   # The screen mirroring check needs a Wayland compositor and the current
   # wayvnc, which Arch ships and Ubuntu's packages are too old for. The

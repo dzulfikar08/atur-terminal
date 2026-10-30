@@ -151,7 +151,9 @@ flowchart LR
   sensitive actions. Their scripts run in JavaScriptCore on their own threads.
 - File, Git, and process work goes through the server. Extension web requests
   run in the app and can't reach the local machine or private networks.
-- Marketplace packages are verified before they are installed.
+- Marketplace packages are verified before they are installed: the sha256 must
+  match and the Ed25519 signature over the archive must verify against the
+  public key built into the app.
 - Language packs are resource-only bundles. The app reads their catalogs, checks
   that each translation keeps its key's placeholders, and runs nothing from them.
 

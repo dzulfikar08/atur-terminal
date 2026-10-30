@@ -31,6 +31,21 @@ fn unpacked_packages_require_explicit_enable_and_unload_keeps_sources() {
 }
 
 #[test]
+fn builtin_extensions_start_on_and_remember_being_turned_off() {
+    let profile = tempfile::tempdir().unwrap();
+    let mut registry = Registry::load(profile.path());
+    assert!(registry.builtin_enabled("screen"));
+    assert!(!registry.builtin_enabled("unknown"));
+    assert!(registry.set_builtin_enabled("unknown", false).is_err());
+    registry.set_builtin_enabled("screen", false).unwrap();
+    assert!(!registry.builtin_enabled("screen"));
+    assert!(!Registry::load(profile.path()).builtin_enabled("screen"));
+    let mut restored = Registry::load(profile.path());
+    restored.set_builtin_enabled("screen", true).unwrap();
+    assert!(Registry::load(profile.path()).builtin_enabled("screen"));
+}
+
+#[test]
 fn manifest_key_falls_back_to_the_one_earlier_releases_wrote() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("package.json");

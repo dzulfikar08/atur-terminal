@@ -118,7 +118,17 @@ and extensions.
 
 ## Extensions
 
-**Settings → Extensions → Browse** installs extensions from the marketplace.
+**Settings → Extensions → Browse** installs extensions from the Atur
+marketplace at `https://extensions.diatur.com`. Set `ATUR_TERM_MARKETPLACE_URL`
+to use another `https` marketplace, or to an empty value to turn browsing off.
+Every package is signed; the app refuses one that is unsigned or whose
+signature does not verify.
+
+**Built-in** lists features the app ships itself, such as **Screen Mirroring**,
+which opens your desktop from Atur in a browser tab (command palette and the
+server popover). Built-in extensions cannot be uninstalled; turn them off with
+their switch.
+
 New extensions start disabled; review their permissions and turn them on.
 Updates are manual: use **Update all**, or update one from its page. Building
 your own? See [Extensions](../extensions/overview.md).

@@ -11,16 +11,49 @@ mod version;
 pub(crate) use version::is_update;
 
 const ENVIRONMENT: &str = "ATUR_TERM_MARKETPLACE_URL";
+/// The store this app browses unless `ATUR_TERM_MARKETPLACE_URL` says otherwise.
+const DEFAULT_MARKETPLACE: &str = "https://extensions.diatur.com";
+/// `ATUR_EXTENSIONS_PUBKEY`: the Ed25519 key (32 raw bytes, standard base64)
+/// that signs every published extension archive. Archives that are unsigned
+/// or fail verification are never installed.
+const ATUR_EXTENSIONS_PUBKEY: &str = "cyXFQ6bN1nil+fIQ7YnRE4RBDPzOxQpTlhqzw2C6CS4=";
 const MAX_ARCHIVE: u64 = 256 * 1024 * 1024;
 const MAX_EXPANDED: u64 = 512 * 1024 * 1024;
 
 type Result<T> = std::result::Result<T, String>;
 
-/// The `https` address of the marketplace this app browses, from
-/// `ATUR_TERM_MARKETPLACE_URL`. No marketplace is built in, so without it
-/// browsing and update checks are hidden.
+/// The `https` address of the marketplace this app browses: the Atur store by
+/// default, `ATUR_TERM_MARKETPLACE_URL` when set, and none (browsing and update
+/// checks hidden) when that variable is set but empty or not a valid address.
 fn endpoint() -> Option<reqwest::Url> {
-    parse_endpoint(&std::env::var(ENVIRONMENT).ok()?)
+    resolve_endpoint(std::env::var(ENVIRONMENT).ok().as_deref())
+}
+
+fn resolve_endpoint(configured: Option<&str>) -> Option<reqwest::Url> {
+    parse_endpoint(configured.unwrap_or(DEFAULT_MARKETPLACE))
+}
+
+/// Check `signature` (standard base64 of 64 raw bytes) as an Ed25519 signature
+/// by `key` (standard base64 of 32 raw bytes) over exactly `data`.
+fn verify_signature(key: &str, data: &[u8], signature: Option<&str>) -> Result<()> {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let invalid = || tr!("archive signature does not match the Atur extensions key").to_string();
+    let signature = signature
+        .filter(|signature| !signature.is_empty())
+        .ok_or_else(|| tr!("archive is not signed").to_string())?;
+    let key: [u8; 32] = STANDARD
+        .decode(key)
+        .ok()
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(invalid)?;
+    let signature: [u8; 64] = STANDARD
+        .decode(signature.trim())
+        .ok()
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(invalid)?;
+    ed25519_dalek::VerifyingKey::from_bytes(&key)
+        .and_then(|key| key.verify_strict(data, &ed25519_dalek::Signature::from_bytes(&signature)))
+        .map_err(|_| invalid())
 }
 
 fn parse_endpoint(value: &str) -> Option<reqwest::Url> {
@@ -172,6 +205,7 @@ pub(crate) fn download(details: &Value, directory: &Path) -> Result<tempfile::Te
     if data.len() as u64 != size {
         return Err(tr!("archive size does not match the marketplace").into());
     }
+    verify_signature(ATUR_EXTENSIONS_PUBKEY, &data, details["signature"].as_str())?;
     std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     let stage = tempfile::Builder::new()
         .prefix(".install-")
@@ -382,6 +416,52 @@ mod tests {
             writer.write_all(b"hello").unwrap();
         }
         writer.finish().unwrap().into_inner()
+    }
+
+    fn signed(data: &[u8]) -> (String, String) {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        use ed25519_dalek::Signer;
+        let key = ed25519_dalek::SigningKey::from_bytes(&[7; 32]);
+        (
+            STANDARD.encode(key.verifying_key().to_bytes()),
+            STANDARD.encode(key.sign(data).to_bytes()),
+        )
+    }
+
+    #[test]
+    fn only_correctly_signed_archives_verify() {
+        let (key, signature) = signed(b"archive");
+        verify_signature(&key, b"archive", Some(&signature)).unwrap();
+        assert!(verify_signature(&key, b"archive!", Some(&signature)).is_err());
+        assert!(verify_signature(&key, b"archive", None).is_err());
+        assert!(verify_signature(&key, b"archive", Some("")).is_err());
+        assert!(verify_signature(&key, b"archive", Some("not base64")).is_err());
+        assert!(verify_signature(&key, b"archive", Some("AAAA")).is_err());
+        let (_, other) = signed(b"other");
+        assert!(verify_signature(&key, b"archive", Some(&other)).is_err());
+        let wrong_key = signed(b"x").0.replace('=', "").replacen('A', "B", 1);
+        assert!(verify_signature(&wrong_key, b"archive", Some(&signature)).is_err());
+    }
+
+    #[test]
+    fn the_baked_key_and_store_are_well_formed() {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        assert_eq!(STANDARD.decode(ATUR_EXTENSIONS_PUBKEY).unwrap().len(), 32);
+        assert_eq!(
+            resolve_endpoint(None).unwrap().as_str(),
+            "https://extensions.diatur.com/"
+        );
+    }
+
+    #[test]
+    fn the_environment_overrides_or_disables_the_default_store() {
+        assert_eq!(
+            resolve_endpoint(Some("https://mirror.example"))
+                .and_then(|url| url.host_str().map(str::to_owned)),
+            Some("mirror.example".into())
+        );
+        assert!(resolve_endpoint(Some("")).is_none());
+        assert!(resolve_endpoint(Some("http://insecure.example")).is_none());
     }
 
     #[test]

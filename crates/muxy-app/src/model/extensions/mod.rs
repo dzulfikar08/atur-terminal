@@ -605,6 +605,19 @@ impl AppModel {
         self.change_extensions(move |state| state.registry.set_enabled(&owner, enabled), cx)
     }
 
+    pub(crate) fn set_builtin_extension_enabled(
+        &mut self,
+        id: &str,
+        enabled: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::Task<Result<(), String>> {
+        let id = id.to_owned();
+        self.change_extensions(
+            move |state| state.registry.set_builtin_enabled(&id, enabled),
+            cx,
+        )
+    }
+
     /// Stores (or with `None`, clears) the user's value for a declared setting.
     pub(crate) fn set_extension_setting(
         &mut self,

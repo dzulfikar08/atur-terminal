@@ -1189,6 +1189,8 @@
 "Save" = "Save";
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to an .aturbackup file.";
 "Scan it with the Atur Terminal mobile app, or open this link on the phone:" = "Scan it with the Atur Terminal mobile app, or open this link on the phone:";
+"Screen Mirroring" = "Screen Mirroring";
+"Screen Mirroring is turned off in Settings → Extensions." = "Screen Mirroring is turned off in Settings → Extensions.";
 "Screen view closed" = "Screen view closed";
 "Screen view unavailable" = "Screen view unavailable";
 "Screen: %@" = "Screen: %@";
@@ -1547,6 +1549,7 @@
 "Vibrancy of the glass background." = "Vibrancy of the glass background.";
 "View" = "View";
 "View Screen" = "View Screen";
+"View a connected computer's desktop, shared by its server." = "View a connected computer's desktop, shared by its server.";
 "View only" = "View only";
 "View screen" = "View screen";
 "Voice" = "Voice";
@@ -1592,8 +1595,10 @@
 "archive checksum does not match the marketplace" = "archive checksum does not match the marketplace";
 "archive entry size mismatch" = "archive entry size mismatch";
 "archive identity does not match the marketplace" = "archive identity does not match the marketplace";
+"archive is not signed" = "archive is not signed";
 "archive must contain one extension package" = "archive must contain one extension package";
 "archive permissions do not match the marketplace" = "archive permissions do not match the marketplace";
+"archive signature does not match the Atur extensions key" = "archive signature does not match the Atur extensions key";
 "archive size does not match the marketplace" = "archive size does not match the marketplace";
 "blocked" = "blocked";
 "blocks all %@" = "blocks all %@";

@@ -17,6 +17,13 @@ impl AppModel {
     /// The server's second connection, when the server can be viewed: it is
     /// another computer's, connected, and offers screen sharing.
     fn screen_client(&self, server: ServerId) -> Option<muxy_client::Client> {
+        if !self
+            .extensions
+            .registry
+            .builtin_enabled(crate::extensions::builtin::SCREEN)
+        {
+            return None;
+        }
         let client = self.extensions.client(server)?;
         screen::offered(
             !server.is_local(),
@@ -57,7 +64,13 @@ impl AppModel {
     /// Why `server`'s screen can't be viewed, for the user.
     fn screen_unavailable(&mut self, server: ServerId, cx: &mut Context<Self>) -> String {
         let name = self.server_label(server);
-        if !self.ready(server) {
+        if !self
+            .extensions
+            .registry
+            .builtin_enabled(crate::extensions::builtin::SCREEN)
+        {
+            tr!("Screen Mirroring is turned off in Settings → Extensions.").to_string()
+        } else if !self.ready(server) {
             tr!("%@ isn't connected.", &name).to_string()
         } else if !server.is_local() && self.extensions.client(server).is_none() {
             self.extension_client(server, cx);
