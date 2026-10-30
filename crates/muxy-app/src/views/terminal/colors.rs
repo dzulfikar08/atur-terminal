@@ -120,7 +120,7 @@ impl Palette {
                 cursor: 0x17_17_17,
                 colors: default_colors([
                     0xd9_d9_d9, 0xb3_37_3b, 0x2f_7d_4f, 0x8f_6a_1c, 0x3f_66_a8, 0x7a_4f_93,
-                    0x1f_76_83, 0x3f_3f_3f, 0x6e_6e_6e, 0xc9_56_5a, 0x3f9a64, 0xa8_81_2a,
+                    0x1f_76_83, 0x3f_3f_3f, 0x6e_6e_6e, 0xc9_56_5a, 0x3f_9a_65, 0xa8_81_2a,
                     0x5a_82_c4, 0x96_70_ad, 0x3a_8f_9c, 0x17_17_17,
                 ]),
                 cursor_color: None,
