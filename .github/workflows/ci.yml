@@ -5,7 +5,7 @@ name: ci
 # releases do not ship them.
 on:
   push:
-    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror, phone-screen]
+    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror]
   pull_request:
   workflow_call:
 

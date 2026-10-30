@@ -8,7 +8,7 @@ name: mobile
 # GitHub-hosted runners only.
 on:
   push:
-    branches: [atur-terminal, feat/mobile-rn, phone-screen]
+    branches: [atur-terminal, feat/mobile-rn]
     paths:
       - "crates/atur-screen/**"
       - "crates/atur-mobile/**"
