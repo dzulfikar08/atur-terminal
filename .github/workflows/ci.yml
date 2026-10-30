@@ -132,10 +132,10 @@ jobs:
       # The Zig wrapper builds for a baseline CPU: the binaries run on another runner.
       - run: >-
           ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
-          cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe
+          cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe --example herdr_marks_probe
       - run: |
           mkdir bin
-          cp target/release/atur-term-server target/release/examples/screen_probe bin/
+          cp target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe bin/
       - uses: actions/upload-artifact@v4
         with:
           name: screen-e2e-bin
@@ -160,3 +160,23 @@ jobs:
           path: bin
       - run: chmod +x bin/*
       - run: bash scripts/screen-e2e.sh bin
+
+  # Prompt marks of a herdr session survive a restart of the server. Runs the
+  # release herdr in isolation (own socket, config and home).
+  herdr-marks:
+    needs: screen-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-e2e-bin
+          path: bin
+      - run: |
+          chmod +x bin/*
+          gh release download v0.9.5 -R herdrdev/herdr -p herdr-linux-x86_64 -O bin/herdr
+          chmod +x bin/herdr
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: bash scripts/herdr-marks-e2e.sh bin bin/herdr

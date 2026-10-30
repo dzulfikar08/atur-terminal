@@ -125,8 +125,12 @@ finds the rows itself (`session/prompt_marks.rs`):
    plus the screen row. History pages and the live `ScreenPrompts` map the stored rows back to page and
    screen coordinates, so clients see them exactly as they see native marks.
 
-Limits: only messages submitted through this server are marked (not typing in herdr's own UI); marks
-are kept in memory, so a restart of `atur-term-server` forgets them; a width change reflows the
+The marks are stored with the session in `herdr.json` (row, the text searched for, padding offset) whenever
+they change, and an adopted session takes them back when its owner starts, dropping those beyond the
+content herdr holds now. A mark on screen is then checked against what the screen shows like any other, so
+a restart of `atur-term-server` keeps them; deleting `herdr.json` forgets them.
+
+Limits: only messages submitted through this server are marked (not typing in herdr's own UI); a width change reflows the
 content and drops them; a message that wraps within its first ten characters, or that the agent does
 not echo on screen, is not found; marks above what herdr's scrollback cap (`scrollback_limit_bytes`)
 dropped no longer line up.

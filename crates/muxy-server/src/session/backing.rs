@@ -8,11 +8,12 @@ use std::io::Write;
 use std::ops::Range;
 use std::sync::mpsc::Sender;
 
-use muxy_protocol::{AgentProvider, AgentState, ExitReason, MouseEvent, Size};
+use muxy_protocol::{AgentProvider, AgentState, ExitReason, MouseEvent, SessionId, Size};
 use muxy_terminal::pty::{ExitStatus, Pty};
 use muxy_terminal::{CellSize, Row};
 
 use super::owner::OwnerEvent;
+use super::prompt_marks::SavedMark;
 use crate::error::ServerError;
 
 pub(crate) type Fault = Box<dyn Error + Send + Sync>;
@@ -101,6 +102,17 @@ pub(crate) trait Backing: Send {
     /// the owner has to find the rows of the user's messages itself.
     fn drops_prompt_marks(&self) -> bool {
         false
+    }
+
+    /// The prompt marks stored for `session` by an earlier run of the server.
+    fn saved_prompt_marks(&self, session: SessionId) -> Vec<SavedMark> {
+        let _ = session;
+        Vec::new()
+    }
+
+    /// Stores the prompt marks of `session`, for the next run of the server.
+    fn save_prompt_marks(&self, session: SessionId, marks: &[SavedMark]) {
+        let _ = (session, marks);
     }
 
     /// Rows `range` of that scrollback, oldest first.

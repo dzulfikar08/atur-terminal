@@ -16,6 +16,7 @@ use muxy_protocol::{
 use crate::error::ServerError;
 pub(crate) use backing::Backing;
 pub(crate) use owner::OwnerEvent;
+pub(crate) use prompt_marks::SavedMark;
 
 pub(crate) use owner::start;
 

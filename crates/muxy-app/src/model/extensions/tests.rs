@@ -858,3 +858,18 @@ fn project_and_agent_lists_use_main_shapes(cx: &mut TestAppContext) {
     );
     assert_eq!(rename["error"], "permission denied (projects:write)");
 }
+
+#[test]
+fn pane_list_entries_carry_the_server_session_and_server_ids() {
+    let pane = muxy_app_core::PaneId::new();
+    let session = muxy_protocol::SessionId::new(42);
+    let server = ServerId::local();
+    let entry = workspace::pane_entry(pane, "zsh", "/work", true, session, Some(server));
+    assert_eq!(entry["sessionID"], "42");
+    assert_eq!(entry["serverID"], server.to_string());
+    assert_eq!(entry["id"], pane.to_string());
+    assert_eq!(entry["isFocused"], true);
+    let fresh = workspace::pane_entry(pane, "zsh", "/work", false, None, None);
+    assert!(fresh["sessionID"].is_null());
+    assert!(fresh["serverID"].is_null());
+}
