@@ -85,7 +85,7 @@ impl AppModel {
         }
         let overlay = self.overlay.take();
         if let Some(Overlay::Screen(view)) = &overlay {
-            view.update(cx, |view, cx| view.shutdown(cx));
+            view.update(cx, super::screen::ScreenView::shutdown);
         }
         self.focus_return = match overlay {
             Some(Overlay::Menu(menu)) => menu.returns_focus_to,

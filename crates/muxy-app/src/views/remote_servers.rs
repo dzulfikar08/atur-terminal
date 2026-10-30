@@ -384,6 +384,10 @@ pub(crate) fn command(model: &AppModel, cx: &Context<AppModel>) -> Command<Handl
 }
 
 /// One server's page: what can be done with it now.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One server's page lists everything that can be done with it"
+)]
 fn server_command(server: &RemoteServer, model: gpui::WeakEntity<AppModel>) -> Command<Handler> {
     let id = server.entry.id;
     let title = format!("{}  ·  {}", server.entry.name, status_label(server));
@@ -458,7 +462,7 @@ fn server_command(server: &RemoteServer, model: gpui::WeakEntity<AppModel>) -> C
                 Command::new(
                     "view-screen",
                     tr!("View Screen"),
-                    handler(|model, id, window, cx| model.open_screen(id, window, cx)),
+                    handler(AppModel::open_screen),
                 )
                 .keywords("View Screen Remote Desktop Mirror"),
             );

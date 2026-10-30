@@ -322,9 +322,11 @@ fn losing_the_connection_and_closing() {
     });
 }
 
+type Calls = Arc<Mutex<Vec<(Vec<u8>, bool)>>>;
+
 struct FakeH264 {
     sink: FrameSink,
-    calls: Arc<Mutex<Vec<(Vec<u8>, bool)>>>,
+    calls: Calls,
 }
 
 impl H264Decoder for FakeH264 {

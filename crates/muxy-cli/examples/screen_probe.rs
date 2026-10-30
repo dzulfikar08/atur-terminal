@@ -192,6 +192,10 @@ fn wait_ready(screen: &Screen) -> Result<(u32, u32)> {
 }
 
 /// The colour at the centre of the newest picture, as red, green, blue.
+#[allow(
+    irrefutable_let_patterns,
+    reason = "macOS pictures can also be surfaces"
+)]
 fn centre(screen: &Screen, width: u32, height: u32) -> Option<[u8; 3]> {
     let frame = screen.frame()?;
     let Pixels::Bgra(bytes) = &frame.pixels else {

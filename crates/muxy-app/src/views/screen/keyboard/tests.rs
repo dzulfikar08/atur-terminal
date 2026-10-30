@@ -3,6 +3,10 @@ use gpui::{Keystroke, Modifiers};
 
 use super::*;
 
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "Spells out every modifier of a test case"
+)]
 fn keys(control: bool, alt: bool, shift: bool, platform: bool) -> Modifiers {
     Modifiers {
         control,

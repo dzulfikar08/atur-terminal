@@ -169,7 +169,7 @@ impl ScreenView {
                 view.sync_clipboard_out(cx);
             }
         });
-        cx.on_release(|view, cx| view.release(cx)).detach();
+        cx.on_release(Self::release).detach();
         Self {
             server,
             name,
@@ -244,7 +244,7 @@ impl ScreenView {
                 return;
             }
             while wake.recv().await.is_ok() {
-                if this.update(cx, |view, cx| view.woke(cx)).is_err() {
+                if this.update(cx, Self::woke).is_err() {
                     break;
                 }
             }
@@ -252,7 +252,7 @@ impl ScreenView {
         self.ticker = Some(cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_secs(1)).await;
-                if this.update(cx, |view, cx| view.tick(cx)).is_err() {
+                if this.update(cx, Self::tick).is_err() {
                     break;
                 }
             }

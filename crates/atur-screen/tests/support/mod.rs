@@ -233,7 +233,11 @@ pub fn wait_frame(screen: &Screen, mut condition: impl FnMut(&Frame) -> bool) ->
     found.unwrap()
 }
 
-#[allow(unreachable_patterns, reason = "macOS has a second pixel variant")]
+#[allow(
+    unreachable_patterns,
+    clippy::match_wildcard_for_single_variants,
+    reason = "macOS has a second pixel variant, other platforms none"
+)]
 pub fn bgra(frame: &Frame) -> Vec<u8> {
     match &frame.pixels {
         Pixels::Bgra(bytes) => bytes.to_vec(),
