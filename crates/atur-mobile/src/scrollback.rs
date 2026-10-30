@@ -14,6 +14,8 @@ pub struct Scrollback {
     channel: ChannelId,
     lines: Vec<Line>,
     history_rows: u64,
+    /// Rows of the loaded lines where a prompt starts, oldest first.
+    prompts: Mutex<Vec<u32>>,
     /// Where the next older page ends; `None` once nothing older remains.
     older: Mutex<Option<HistoryCursor>>,
 }
@@ -42,11 +44,13 @@ impl Scrollback {
             .chain(page.screen.iter().flat_map(|screen| &screen.rows))
             .map(Line::from_row)
             .collect();
+        let prompts = page.prompts.iter().map(|row| u32::from(*row)).collect();
         Ok(Self {
             client: client.clone(),
             channel,
             lines,
             history_rows: page.total_rows,
+            prompts: Mutex::new(prompts),
             older: Mutex::new(page.next),
         })
     }
@@ -64,6 +68,16 @@ impl Scrollback {
         self.history_rows
     }
 
+    /// Indexes into the loaded lines (`lines()` followed by everything `load_older`
+    /// returned, spliced in front) where a prompt starts: a user's message or a
+    /// shell command, oldest first.
+    pub fn prompts(&self) -> Vec<u32> {
+        self.prompts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     /// The rows just above those already loaded, oldest first. Empty once
     /// nothing older remains, or once the history was cleared or rewrapped;
     /// take a new scrollback to see it again.
@@ -76,8 +90,18 @@ impl Scrollback {
             .client
             .history_page(self.channel, before, page_size(max_rows))
         {
-            Ok(HistoryPage { rows, next, .. }) => {
+            Ok(HistoryPage {
+                rows,
+                next,
+                prompts,
+                ..
+            }) => {
                 *older = next;
+                let shift = u32::try_from(rows.len()).unwrap_or(u32::MAX);
+                let mut known = self.prompts.lock().unwrap_or_else(PoisonError::into_inner);
+                let mut merged: Vec<u32> = prompts.iter().map(|row| u32::from(*row)).collect();
+                merged.extend(known.iter().map(|row| row.saturating_add(shift)));
+                *known = merged;
                 Ok(rows.iter().map(Line::from_row).collect())
             }
             Err(ClientError::Server(error)) if error.code == ErrorCode::StaleHistoryCursor => {

@@ -978,6 +978,66 @@ fn the_facade_pairs_attaches_types_and_streams_rows() -> TestResult {
 }
 
 #[test]
+fn history_names_the_rows_where_prompts_start() -> TestResult {
+    let (_server, _local, direct, events) = direct_phone()?;
+    let session = home_session(&direct, 40, 6)?;
+    call(
+        &direct,
+        "attach",
+        &json!({ "session": session, "cols": 40, "rows": 6 }),
+    )?;
+    let mut rows = Rows::default();
+    wait_json(&events, |event| event["t"] == "hello")?;
+    // Eight marked lines and their replies are far more than the six screen rows hold, so
+    // most prompts are in scrollback, the way a user's earlier messages are.
+    fire(
+        &direct,
+        "input",
+        &json!({
+            "session": session,
+            "data": "for i in 1 2 3 4 5 6 7 8; do printf '\\033]133;A\\007msg-%d\\n' $i; echo reply-$i; done\r",
+        }),
+    )?;
+    wait_json(&events, |event| {
+        rows.apply(event);
+        rows.has("reply-8")
+    })
+    .map_err(|error| format!("{error}; rows: {:?}", rows.0))?;
+    let history = call(
+        &direct,
+        "history",
+        &json!({ "session": session, "lines": 100 }),
+    )?;
+    let all = history["rows"].as_array().ok_or("no rows")?;
+    let prompts: Vec<usize> = history["prompts"]
+        .as_array()
+        .ok_or("no prompts")?
+        .iter()
+        .filter_map(|index| usize::try_from(index.as_u64()?).ok())
+        .collect();
+    assert!(
+        prompts.windows(2).all(|pair| pair[0] < pair[1]),
+        "{prompts:?}"
+    );
+    let marked: Vec<&str> = prompts
+        .iter()
+        .filter_map(|index| all.get(*index)?.as_str())
+        .collect();
+    assert_eq!(marked.len(), prompts.len(), "an index is past the rows");
+    for number in 1..=8 {
+        let wanted = format!("msg-{number}");
+        assert!(
+            marked.iter().any(|row| row.contains(&wanted)),
+            "{wanted} is not on a prompt row: {marked:?}"
+        );
+    }
+    call(&direct, "detach", &json!({ "session": session }))?;
+    call(&direct, "endSession", &json!({ "session": session }))?;
+    direct.disconnect();
+    Ok(())
+}
+
+#[test]
 fn the_facade_moves_to_udp_and_works_the_same() -> TestResult {
     let (_server, _local, direct, events, info) = connect_phone(Server::new(), None, None)?;
     assert_eq!(info["transport"], "udp", "{info}");

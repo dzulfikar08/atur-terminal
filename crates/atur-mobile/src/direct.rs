@@ -650,8 +650,8 @@ impl Direct {
                     .and_then(|lines| usize::try_from(lines).ok())
                     .unwrap_or(400)
                     .clamp(1, MAX_HISTORY_ROWS);
-                let (rows, visible) = history(&attached.terminal, lines)?;
-                Ok(json!({ "rows": rows, "visible": visible }))
+                let read = history(&attached.terminal, lines)?;
+                Ok(json!({ "rows": read.rows, "visible": read.visible, "prompts": read.prompts }))
             }
             "activity" => activity(connection),
             "ackActivity" => {
@@ -982,12 +982,20 @@ fn attach(live: &Live, session: u64, cols: u16, rows: u16) -> Answer {
 /// How often a read starts over when the computer rewrites its scrollback under it.
 const HISTORY_ATTEMPTS: usize = 3;
 
+/// What `history` read: rows including scrollback, oldest first, ending with `visible` screen
+/// rows, and the indexes of the rows where a prompt (a message or a command) starts.
+struct History {
+    rows: Vec<String>,
+    visible: usize,
+    prompts: Vec<usize>,
+}
+
 /// The newest `lines` rows including scrollback, oldest first, ending with the visible screen.
 ///
 /// A page cursor goes stale when the computer clears or rewrites its scrollback between two pages
 /// (a full-screen redraw of an agent does that); the read then starts over from the newest page,
 /// and only the last attempt settles for the rows it has, which are a short read, not a wrong one.
-fn history(terminal: &Terminal, lines: usize) -> Result<(Vec<String>, usize), Fail> {
+fn history(terminal: &Terminal, lines: usize) -> Result<History, Fail> {
     let mut attempt = 1;
     loop {
         if let Some(read) = history_once(terminal, lines, attempt >= HISTORY_ATTEMPTS)? {
@@ -998,11 +1006,7 @@ fn history(terminal: &Terminal, lines: usize) -> Result<(Vec<String>, usize), Fa
 }
 
 /// One read; `None` when a cursor went stale and `settle` is off.
-fn history_once(
-    terminal: &Terminal,
-    lines: usize,
-    settle: bool,
-) -> Result<Option<(Vec<String>, usize)>, Fail> {
+fn history_once(terminal: &Terminal, lines: usize, settle: bool) -> Result<Option<History>, Fail> {
     let client = &terminal.client;
     let channel = terminal.view.channel;
     let page_rows = u16::try_from(lines.min(usize::from(HISTORY_PAGE))).unwrap_or(HISTORY_PAGE);
@@ -1018,6 +1022,8 @@ fn history_once(
     };
     let visible = screen.len();
     let mut rows: Vec<String> = first.rows.iter().map(|row| ansi::row(&row.runs)).collect();
+    // A page's prompts index its own history rows, then the screen's on the newest page.
+    let mut prompts: Vec<usize> = first.prompts.iter().copied().map(usize::from).collect();
     let mut next = first.next;
     while rows.len() + visible < lines {
         let Some(before) = next else { break };
@@ -1025,6 +1031,10 @@ fn history_once(
             Ok(page) => {
                 let mut older: Vec<String> =
                     page.rows.iter().map(|row| ansi::row(&row.runs)).collect();
+                let mut merged: Vec<usize> =
+                    page.prompts.iter().copied().map(usize::from).collect();
+                merged.extend(prompts.iter().map(|row| row + older.len()));
+                prompts = merged;
                 older.append(&mut rows);
                 rows = older;
                 next = page.next;
@@ -1042,9 +1052,19 @@ fn history_once(
     }
     rows.extend(screen);
     if rows.len() > lines.max(visible) {
-        rows.drain(..rows.len() - lines.max(visible));
+        let cut = rows.len() - lines.max(visible);
+        rows.drain(..cut);
+        prompts = prompts
+            .into_iter()
+            .filter_map(|row| row.checked_sub(cut))
+            .collect();
     }
-    Ok(Some((rows, visible)))
+    prompts.retain(|row| *row < rows.len());
+    Ok(Some(History {
+        rows,
+        visible,
+        prompts,
+    }))
 }
 
 // ---------------------------------------------------------------------------------------------
