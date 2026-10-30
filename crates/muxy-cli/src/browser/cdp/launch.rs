@@ -259,6 +259,24 @@ pub(super) fn flag_value<'a>(command: &'a str, name: &str) -> Option<&'a str> {
     Some(rest.split(" --").next().unwrap_or(rest).trim())
 }
 
+/// The first word of the value of `--name=value`: for flags that never hold
+/// spaces, so a page address after the flags is not taken for part of it.
+fn flag_word<'a>(command: &'a str, name: &str) -> Option<&'a str> {
+    flag_value(command, name)?.split_whitespace().next()
+}
+
+/// Whether the folder in a `--user-data-dir` value, which may be followed by
+/// a page address, is `dir`.
+fn is_folder(value: &str, dir: &Path) -> bool {
+    if Path::new(value) == dir {
+        return true;
+    }
+    let dir = dir.to_string_lossy();
+    value
+        .strip_prefix(dir.as_ref())
+        .is_some_and(|rest| rest.starts_with(' '))
+}
+
 /// The main process of the browser using `data_dir`, not one of its helpers.
 pub(super) fn main_process<'a>(
     processes: &'a [Process],
@@ -275,10 +293,13 @@ pub(super) fn main_process<'a>(
         if !names.contains(&program.as_str()) || command.contains(" --type=") {
             return false;
         }
-        let used = flag_value(command, "user-data-dir")
-            .map(Path::new)
-            .or(default_dir);
-        data_dir.is_none() || used == data_dir
+        let Some(wanted) = data_dir else {
+            return true;
+        };
+        match flag_value(command, "user-data-dir") {
+            Some(value) => is_folder(value, wanted),
+            None => default_dir == Some(wanted),
+        }
     })
 }
 
@@ -295,12 +316,12 @@ pub(super) enum Debugging {
 }
 
 pub(super) fn debugging(command: &str) -> Debugging {
-    if let Some(address) = flag_value(command, "remote-debugging-address")
+    if let Some(address) = flag_word(command, "remote-debugging-address")
         && !is_loopback_host(address)
     {
         return Debugging::Exposed;
     }
-    match flag_value(command, "remote-debugging-port").map(str::parse::<u16>) {
+    match flag_word(command, "remote-debugging-port").map(str::parse::<u16>) {
         Some(Ok(port)) => Debugging::Port(port),
         _ => Debugging::Off,
     }
