@@ -495,7 +495,7 @@ fn rgba(frame: &Frame) -> Option<Vec<u8>> {
     }
 }
 
-/// Presses and releases the key of each character; `\n` is Return, `\t` Tab, `\u{8}` BackSpace.
+/// Presses and releases the key of each character; `\n` is Return, `\t` Tab, `\u{8}` `BackSpace`.
 fn type_text(screen: &Screen, text: &str) {
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
