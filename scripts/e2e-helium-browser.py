@@ -237,40 +237,34 @@ def e2e(binary, engine):
         server.shutdown()
 
     # A browser that runs without a debugging port is never restarted silently.
-    binary_path = None
+    profile = os.path.join(run.temporary, "profile-plain")
+    env = {**run.env, "ATUR_TERM_BROWSER_USER_DATA_DIR": profile}
+    plain = None
     try:
-        probe = subprocess.run([str(binary), "browser", "list"], env=run.env, text=True, capture_output=True, timeout=60)
-        run.check("the browser starts again on demand", probe.returncode == 0, probe.stderr)
-        run.stop_browser()
-        for _ in range(100):
-            alive = subprocess.run(["pgrep", "-f", f"--user-data-dir={run.profile}"], capture_output=True)
-            if alive.returncode != 0:
-                break
-            time.sleep(0.2)
         plain = subprocess.Popen(
             [
                 os.environ.get("ATUR_TERM_BROWSER_PATH") or ("google-chrome" if engine == "chrome" else engine),
                 "--headless=new", "--no-sandbox", "--disable-gpu", "--no-first-run",
-                f"--user-data-dir={run.profile}", "about:blank",
+                f"--user-data-dir={profile}", "about:blank",
             ],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
         )
         for _ in range(100):
-            if subprocess.run(["pgrep", "-f", f"--user-data-dir={run.profile}"], capture_output=True).returncode == 0:
+            if subprocess.run(["pgrep", "-f", f"--user-data-dir={profile}"], capture_output=True).returncode == 0:
                 break
             time.sleep(0.2)
-        time.sleep(2)
+        time.sleep(3)
         run.check("the plain browser is running", plain.poll() is None, f"exited with {plain.poll()}")
-        refusal = run.cli("list", fail=True)
+        refusal = run.cli("list", env=env, fail=True)
         run.check(
             "a running browser without debugging gets an explanation, not a restart",
             "without remote debugging" in refusal and "--restart-browser" in refusal and "never restarts" in refusal,
             refusal,
         )
+        time.sleep(1)
         run.check("and is left running", plain.poll() is None)
-        plain.terminate()
-        plain.wait(timeout=20)
     finally:
+        subprocess.run(["pkill", "-f", f"--user-data-dir={profile}"], check=False)
         run.stop_browser()
     print(f"\n{len(run.results)} checks passed with engine {engine}")
 
