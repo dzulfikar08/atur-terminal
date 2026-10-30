@@ -136,6 +136,62 @@ where
     }
 }
 
+/// One piece of a page's upload, as `files.writeChunk` carries it. The
+/// server's upload id is made from the extension and the page's own id, so
+/// an extension never touches another's staged file.
+pub(super) async fn write_piece<F, Fut>(
+    owner: &str,
+    path: &str,
+    args: &Value,
+    mut send: F,
+) -> Result<Value, String>
+where
+    F: FnMut(FilesAction) -> Fut,
+    Fut: Future<Output = Result<FilesReply, String>>,
+{
+    let id = args["upload"]
+        .as_str()
+        .filter(|id| !id.is_empty() && id.len() <= 64)
+        .ok_or_else(|| "upload must be a string of at most 64 characters".to_owned())?;
+    let offset = args["offset"]
+        .as_u64()
+        .ok_or_else(|| "offset must be a nonnegative integer".to_owned())?;
+    let abort = args["abort"].as_bool().unwrap_or(false);
+    let commit = args["final"].as_bool().unwrap_or(false);
+    let bytes = STANDARD
+        .decode(args["base64"].as_str().unwrap_or("").trim())
+        .map_err(|_| "base64 must be valid standard base64".to_owned())?;
+    if bytes.len() > PIECE {
+        return Err("a piece may hold at most 4 MiB".into());
+    }
+    let reply = send(FilesAction::WriteChunk {
+        path: server_path(path),
+        upload: namespaced(owner, id),
+        offset,
+        bytes,
+        commit,
+        abort,
+    })
+    .await?;
+    match reply {
+        FilesReply::Path(path) => {
+            Ok(json!({"path": muxy_app_core::extensions::api::path_text(&path)?}))
+        }
+        _ => Err("unexpected files response".into()),
+    }
+}
+
+/// FNV-1a of the extension and the page's upload id.
+fn namespaced(owner: &str, id: &str) -> u64 {
+    owner
+        .bytes()
+        .chain(std::iter::once(0))
+        .chain(id.bytes())
+        .fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+        })
+}
+
 /// A name for one upload's temporary file that no other upload is using.
 pub(super) fn upload_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -332,6 +388,28 @@ mod tests {
         .unwrap_err();
         assert_eq!(error, "disk full");
         assert_eq!(*fake.file.borrow(), b"old");
+        assert!(fake.staged.borrow().is_none());
+    }
+
+    #[test]
+    fn page_pieces_stage_and_commit_under_the_extensions_own_upload_name() {
+        let fake = Fake::default();
+        let data = binary(1000);
+        let piece = |offset: usize, end: usize, last: bool| {
+            json!({"upload": "u1", "offset": offset, "final": last,
+                "base64": STANDARD.encode(&data[offset..end])})
+        };
+        for args in [piece(0, 600, false), piece(600, 1000, true)] {
+            block_on(write_piece("ext", "f", &args, go(&fake))).unwrap();
+        }
+        assert_eq!(*fake.file.borrow(), data);
+        assert_ne!(namespaced("ext", "u1"), namespaced("other", "u1"));
+        let bad = json!({"upload": "", "offset": 0, "base64": ""});
+        assert!(block_on(write_piece("ext", "f", &bad, go(&fake))).is_err());
+        let abort = json!({"upload": "u2", "offset": 0, "base64": "AA==", "abort": false});
+        block_on(write_piece("ext", "f", &abort, go(&fake))).unwrap();
+        let abort = json!({"upload": "u2", "offset": 0, "base64": "", "abort": true});
+        block_on(write_piece("ext", "f", &abort, go(&fake))).unwrap();
         assert!(fake.staged.borrow().is_none());
     }
 

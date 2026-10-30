@@ -37,6 +37,9 @@ await atur.files.writeBytes("art/logo-copy.png", base64);
   file, as standard base64. `writeBytes` asks the user like `write`, writes to a
   temporary file beside the target and renames it over the target, so the file
   is replaced whole or not at all. Files may hold up to 64 MiB, sent in pieces.
+  A page can post only 1 MiB at a time, so the page API sends a large file in
+  pieces of 512 KiB itself and asks once, before the first piece; an error or a
+  failed piece removes the temporary file and leaves the target as it was.
   A server older than this version handles at most 5 MiB and answers a larger
   file with an error saying so.
 - Subscribe to `file.changed` (with `files:read`) to hear about changes; see

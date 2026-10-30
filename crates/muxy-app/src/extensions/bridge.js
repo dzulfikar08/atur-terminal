@@ -160,7 +160,26 @@
       read: (path, o) => dispatch('files.read', { project: filesProject(o), path: text(path) }),
       stat: (path, o) => dispatch('files.stat', { project: filesProject(o), path: text(path) }),
       readBytes: (path, o) => dispatch('files.readBytes', { project: filesProject(o), path: text(path) }),
-      writeBytes: (path, base64, o) => dispatch('files.writeBytes', { project: filesProject(o), path: text(path), base64: text(base64) }),
+      writeBytes: async (path, base64, o) => {
+        const data = text(base64);
+        const project = filesProject(o);
+        // A page may post at most 1 MiB at once, so a large file goes in pieces of
+        // 512 KiB of base64 (a multiple of 4, so each piece decodes alone).
+        const piece = 512 * 1024;
+        if (!page || data.length <= piece) return dispatch('files.writeBytes', { project, path: text(path), base64: data });
+        const upload = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        const chunk = (offset, body, extra) => dispatch('files.writeChunk', { project, path: text(path), upload, offset, base64: body, ...extra });
+        try {
+          for (let at = 0; at < data.length; at += piece) {
+            const last = at + piece >= data.length;
+            const result = await chunk(at / 4 * 3, data.slice(at, at + piece), { final: last });
+            if (last) return result;
+          }
+        } catch (error) {
+          try { await chunk(0, '', { abort: true }); } catch (_) { /* nothing was staged */ }
+          throw error;
+        }
+      },
       write: (path, contents, o) => dispatch('files.write', { project: filesProject(o), path: text(path), contents: text(contents) }),
       mkdir: (path, o) => dispatch('files.mkdir', { project: filesProject(o), path: text(path) }),
       rename: (path, newName, o) => dispatch('files.rename', { project: filesProject(o), path: text(path), newName: text(newName) }),

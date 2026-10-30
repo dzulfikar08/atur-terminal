@@ -43,8 +43,8 @@ const BROWSER_READS: [&str; 16] = [
 pub fn required_permission(verb: &str, args: &Value) -> Option<&'static str> {
     Some(match verb {
         "files.list" | "files.read" | "files.readBytes" | "files.stat" => "files:read",
-        "files.write" | "files.writeBytes" | "files.mkdir" | "files.rename" | "files.move"
-        | "files.delete" => "files:write",
+        "files.write" | "files.writeBytes" | "files.writeChunk" | "files.mkdir"
+        | "files.rename" | "files.move" | "files.delete" => "files:write",
         "gh.user" => "gh:read",
         v if GIT_READS.contains(&v) => "git:read",
         v if v.starts_with("git.") => "git:write",
@@ -224,9 +224,14 @@ impl Request {
                 ))
             }
             "tabs.open" => Self::tab(owner, args),
-            "files.write" | "files.writeBytes" | "files.mkdir" | "files.rename" | "files.move"
-            | "files.delete" => {
-                let operation = &verb["files.".len()..];
+            // Only an upload's first piece asks; later pieces continue what was allowed.
+            "files.writeChunk" if args["offset"].as_u64() != Some(0) => None,
+            "files.write" | "files.writeBytes" | "files.writeChunk" | "files.mkdir"
+            | "files.rename" | "files.move" | "files.delete" => {
+                let operation = match &verb["files.".len()..] {
+                    "writeChunk" => "writeBytes",
+                    operation => operation,
+                };
                 let path = match operation {
                     "move" => text("into"),
                     "delete" => args["paths"][0].as_str().unwrap_or("").to_owned(),
