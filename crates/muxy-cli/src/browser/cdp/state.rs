@@ -135,7 +135,7 @@ mod tests {
         let directory = tempfile::tempdir()?;
         let store = Store::new(directory.path());
         store.update(BrowserEngine::Helium, "127.0.0.1:9222", |state| {
-            state.add("A")
+            state.add("A");
         })?;
         let state = store.update(BrowserEngine::Helium, "127.0.0.1:9222", |state| {
             state.add("B");
@@ -152,12 +152,12 @@ mod tests {
         let directory = tempfile::tempdir()?;
         let store = Store::new(directory.path());
         store.update(BrowserEngine::Helium, "127.0.0.1:9222", |state| {
-            state.add("A")
+            state.add("A");
         })?;
         let state = store.update(BrowserEngine::Helium, "127.0.0.1:9333", |_| {})?;
         assert!(state.tabs.is_empty());
         let state = store.update(BrowserEngine::Chrome, "127.0.0.1:9333", |state| {
-            state.add("C")
+            state.add("C");
         })?;
         assert_eq!(
             (state.engine.as_str(), state.tabs.as_slice()),
@@ -182,7 +182,7 @@ mod tests {
         let directory = tempfile::tempdir()?;
         let store = Store::new(directory.path());
         store.update(BrowserEngine::Helium, "127.0.0.1:9222", |state| {
-            state.add("A")
+            state.add("A");
         })?;
         let text = fs::read_to_string(state_path(directory.path()))?;
         let driving = muxy_app_core::browser::agent::active(&text, now_ms());
