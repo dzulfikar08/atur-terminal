@@ -88,6 +88,9 @@ class Run:
         assert done.returncode == 0, f"{args} failed: {done.stderr}"
         return done.stdout.strip()
 
+    def expect(self, name, got, want):
+        self.check(name, got == want, f"got {got!r}, wanted {want!r}")
+
     def check(self, name, condition, detail=""):
         assert condition, f"{name}: {detail}"
         self.results.append(name)
@@ -150,14 +153,14 @@ def e2e(binary, engine):
         run.check("read returns title, url and text", "Hello, Ada" in run.cli("read", tab) and "Agent test" in run.cli("read", tab))
         run.check("wait-for sees later content", json.loads(run.cli("wait-for", tab, "#late", "5000")) is True)
         run.check("wait times out with false", json.loads(run.cli("wait", tab, "--selector", "#never", "--timeout-ms", "300")) is False)
-        run.check("eval returns JSON", run.cli("eval", tab, "1 + 1") == "2")
-        run.check("eval runs statements", run.cli("eval", tab, "const a = 20; return a + 1;") == "21")
+        run.expect("eval returns JSON", run.cli("eval", tab, "1 + 1"), "2")
+        run.expect("eval runs statements", run.cli("eval", tab, "const a = 20; return a + 1;"), "21")
         run.check("get-text", json.loads(run.cli("get-text", tab, "#out")) == "Hello, Ada")
-        run.check("get-count", run.cli("get-count", tab, "input") == "3")
+        run.expect("get-count", run.cli("get-count", tab, "input"), "3")
         run.check("get-attribute", json.loads(run.cli("get-attribute", tab, "#next", "href")) == "/next")
-        run.check("is visible", run.cli("is", tab, "visible", "#go") == "true")
+        run.expect("is visible", run.cli("is", tab, "visible", "#go"), "true")
         run.cli("check", tab, "#agree")
-        run.check("check sets the box", run.cli("is", tab, "checked", "#agree") == "true")
+        run.expect("check sets the box", run.cli("is", tab, "checked", "#agree"), "true")
         run.cli("select", tab, "#size", "l")
         run.check("select sets the value", json.loads(run.cli("get-value", tab, "#size")) == "l")
         found = json.loads(run.cli("find", tab, "text", "Greet"))
@@ -167,7 +170,7 @@ def e2e(binary, engine):
         run.cli("storage", "set", tab, "token", "abc")
         run.check("storage round trip", json.loads(run.cli("storage", "get", tab, "token")) == "abc")
         run.cli("storage", "clear", tab)
-        run.check("storage clear", run.cli("storage", "get", tab, "token") == "null")
+        run.expect("storage clear", run.cli("storage", "get", tab, "token"), "null")
 
         cookies = json.loads(run.cli("cookies", "get", tab))
         run.check("cookies get lists the page's cookie", any(c["name"] == "seen" and c["value"] == "1" for c in cookies), str(cookies))
