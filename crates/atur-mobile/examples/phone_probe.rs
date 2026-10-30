@@ -353,8 +353,7 @@ impl Phone {
     fn open(&self, h264: bool) -> Result<(i64, i64)> {
         self.call("screenOpen", &json!({ "viewOnly": false, "h264": h264 }))?;
         let ready = self.event("the screen to be ready", |event| {
-            (event["t"] == "screen" && event["state"] == "ready")
-                || (event["t"] == "screen" && event["state"] == "closed")
+            event["t"] == "screen" && (event["state"] == "ready" || event["state"] == "closed")
         })?;
         if ready["state"] == "closed" {
             return Err(format!("the screen closed at the start: {}", ready["reason"]).into());
