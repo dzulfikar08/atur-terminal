@@ -97,6 +97,25 @@ Plain text is shared both ways:
 
 With **View only** on, your clipboard is not sent to the server.
 
+## On the server
+
+The server starts `wayvnc` when the first viewer opens a screen and stops it 15
+seconds after the last viewer leaves. It runs as the same user as the server, on
+the Wayland desktop it finds in that user's runtime directory (`WAYLAND_DISPLAY`
+when set, otherwise the first `wayland-N` socket). A computer with more than one
+screen shows the one `wayvnc` picks first; `wayvnc` chooses it, not Atur Terminal.
+
+These environment variables of the server change what it does:
+
+| Variable | Effect |
+| --- | --- |
+| `ATUR_TERM_SCREEN=0` | The server does not offer screen sharing at all. |
+| `ATUR_TERM_SCREEN_GPU=0` | `wayvnc` is not started with GPU video encoding, so it sends ZRLE instead of H.264. |
+| `ATUR_TERM_WAYVNC` | The path of the `wayvnc` program, when it is not on the `PATH`. |
+
+With a GPU, `wayvnc` encodes H.264 on it (`-g`); the server tries that first and
+falls back to software encoding, which `wayvnc` does as ZRLE, when it cannot.
+
 ## If the picture stops
 
 **Retry connection** starts a new session. If the server's connection is lost,
