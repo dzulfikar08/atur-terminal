@@ -100,12 +100,13 @@ class Run:
         subprocess.run(["pkill", "-f", f"--user-data-dir={self.profile}"], check=False)
 
 
-def debug_port(run):
+def debug_port(run, profile=None):
+    profile = profile or run.profile
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         out = subprocess.run(["ps", "-axo", "args="], text=True, capture_output=True).stdout
         for line in out.splitlines():
-            if f"--user-data-dir={run.profile}" in line and "--type=" not in line:
+            if f"--user-data-dir={profile}" in line and "--type=" not in line:
                 for word in line.split():
                     if word.startswith("--remote-debugging-port="):
                         return int(word.split("=", 1)[1])
@@ -263,6 +264,13 @@ def e2e(binary, engine):
         )
         time.sleep(1)
         run.check("and is left running", plain.poll() is None)
+        # Only with --restart-browser is it quit and started again with debugging.
+        run.cli("--restart-browser", "list", env=env, timeout=120)
+        run.check("--restart-browser quits the browser without debugging", plain.wait(timeout=30) is not None)
+        port = debug_port(run, profile)
+        run.check("and starts it again with a loopback debugging port", port > 0)
+        run.cli("list", env=env)
+        run.check("which later commands attach to", True)
     finally:
         subprocess.run(["pkill", "-f", f"--user-data-dir={profile}"], check=False)
         run.stop_browser()

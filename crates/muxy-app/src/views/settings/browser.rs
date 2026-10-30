@@ -110,6 +110,30 @@ pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<A
             view.field("browser-home-page"),
         ));
     }
+    rows.extend(agent_browser_rows(view, cx));
+    if view.matches(Category::Browser, tr_key!("Profiles")) {
+        rows.push(view.row_with(
+            "browser-profiles",
+            tr_key!("Profiles"),
+            profiles(view, cx),
+            true,
+        ));
+    }
+    if view.matches(Category::Browser, tr_key!("Import from another browser")) {
+        rows.push(view.row_with(
+            "browser-import",
+            tr_key!("Import from another browser"),
+            sources(view, cx),
+            true,
+        ));
+    }
+    rows
+}
+
+/// The rows that choose the browser agents drive and where to find it.
+fn agent_browser_rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<AnyElement> {
+    let settings = &view.snapshot.settings.browser;
+    let mut rows = Vec::new();
     if view.matches(Category::Browser, tr_key!("Browser for agents")) {
         let choices: Vec<_> = BrowserEngine::ALL
             .iter()
@@ -142,22 +166,6 @@ pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<A
             "browser-engine-path",
             tr_key!("Browser path"),
             view.field("browser-engine-path"),
-        ));
-    }
-    if view.matches(Category::Browser, tr_key!("Profiles")) {
-        rows.push(view.row_with(
-            "browser-profiles",
-            tr_key!("Profiles"),
-            profiles(view, cx),
-            true,
-        ));
-    }
-    if view.matches(Category::Browser, tr_key!("Import from another browser")) {
-        rows.push(view.row_with(
-            "browser-import",
-            tr_key!("Import from another browser"),
-            sources(view, cx),
-            true,
         ));
     }
     rows
