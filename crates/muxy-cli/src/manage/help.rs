@@ -88,7 +88,7 @@ Options for every action: --engine builtin|helium|chromium|chrome drives your ow
 browser over its loopback debugging port instead of the built-in one (also
 ATUR_TERM_BROWSER_ENGINE or Settings > Browser); --any-tab also drives tabs agents
 didn't open; --restart-browser restarts a running browser that has no debugging
-port, with your tabs restored (never done without --restart-browser or a "y").
+port, with your tabs restored (never done without --restart-browser or a y).
 Browser commands talk to the Atur Terminal desktop app on this computer, not to the
 server, so they don't take --host. Open starts the app if it isn't running.
 Tabs open in the current project, or the one named by --project and
