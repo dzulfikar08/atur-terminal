@@ -223,6 +223,7 @@ struct Mark {
     needle: Needle,
     /// Rows from the marked row down to the one that shows the message.
     offset: usize,
+    cols: u16,
 }
 
 /// A mark as stored with its session, so that a restart of the server keeps it.
@@ -233,6 +234,9 @@ pub(crate) struct SavedMark {
     short: String,
     #[serde(default)]
     offset: usize,
+    /// The width of the terminal when the row was counted: another width reflows it.
+    #[serde(default)]
+    cols: u16,
 }
 
 impl SavedMark {
@@ -243,6 +247,7 @@ impl SavedMark {
             long: long.to_owned(),
             short: short.to_owned(),
             offset,
+            cols: 0,
         }
     }
 }
@@ -253,6 +258,8 @@ pub(super) struct PromptMarks {
     pending: Option<Pending>,
     rows: BTreeMap<u64, Mark>,
     checked: Option<Instant>,
+    /// The width of the terminal now, which new marks are counted at.
+    cols: u16,
     /// Whether the marks changed since they were last taken for storing.
     dirty: bool,
 }
@@ -271,6 +278,7 @@ impl PromptMarks {
                     long: mark.needle.long.clone(),
                     short: mark.needle.short.clone(),
                     offset: mark.offset,
+                    cols: mark.cols,
                 })
                 .collect(),
         )
@@ -288,12 +296,27 @@ impl PromptMarks {
                         short: mark.short,
                     },
                     offset: mark.offset,
+                    cols: mark.cols,
                 },
             );
         }
         if self.rows.len() > MAX_MARKS {
             self.rows.pop_first();
         }
+    }
+
+    /// The terminal is `cols` wide now. Marks counted at another width are gone:
+    /// the content reflowed under them.
+    pub(super) fn resized(&mut self, cols: u16) {
+        let before = self.rows.len();
+        self.rows.retain(|_, mark| mark.cols == cols);
+        self.dirty |= self.rows.len() != before;
+        self.cols = cols;
+    }
+
+    /// Sets the width new marks are counted at, without touching the others.
+    pub(super) fn set_width(&mut self, cols: u16) {
+        self.cols = cols;
     }
 
     pub(super) fn len(&self) -> usize {
@@ -376,6 +399,7 @@ impl PromptMarks {
             Mark {
                 needle: pending.needle,
                 offset,
+                cols: self.cols,
             },
         );
         if self.rows.len() > MAX_MARKS {
@@ -685,6 +709,7 @@ mod tests {
         let saved: Vec<SavedMark> = serde_json::from_str(&json).expect("deserialize");
 
         let mut fresh = PromptMarks::default();
+        fresh.resized(0);
         // Row 99 is beyond the 44 rows of content left; row 40 is inside them.
         let mut outside = saved.clone();
         outside.push(SavedMark::new(99, "gone", "gone", 0));
@@ -694,6 +719,13 @@ mod tests {
         let texts = PromptMarks::texts(&screen(&["", "fix the login redirect", "", "> "]));
         assert!(!fresh.stale(40, &texts));
         assert!(fresh.take_changed().is_none());
+        // The same width keeps them, another one drops them.
+        fresh.resized(0);
+        assert_eq!(fresh.len(), 1);
+        assert!(fresh.take_changed().is_none());
+        fresh.resized(100);
+        assert_eq!(fresh.len(), 0);
+        assert!(fresh.take_changed().is_some());
     }
 
     #[test]

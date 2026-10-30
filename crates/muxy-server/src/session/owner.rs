@@ -218,6 +218,7 @@ pub(crate) fn start(
                         .unwrap_or(u64::MAX)
                 });
                 marks.restore(pty.saved_prompt_marks(session.id), total);
+                marks.set_width(size.cols);
                 log::info!(
                     "session {}: {} prompt marks restored (content rows: {total})",
                     session.id.get(),
@@ -796,14 +797,8 @@ impl Owner {
     fn resize(&mut self, size: Size) -> Result<(), Fault> {
         self.pty.resize(size)?;
         self.terminal.resize(size)?;
-        if size.cols != self.size.cols {
-            log::info!(
-                "session {}: width {} -> {}, prompt marks dropped",
-                self.info.id.get(),
-                self.size.cols,
-                size.cols
-            );
-            self.marks.clear();
+        if self.detect_prompts {
+            self.marks.resized(size.cols);
             self.persist_marks();
         }
         self.size = size;
