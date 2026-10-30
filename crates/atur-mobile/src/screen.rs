@@ -16,6 +16,7 @@
 //! Nothing queues: the RFB reader hands over a few chunks, the session keeps one picture, and a
 //! slow sink slows the acknowledgements, so the server sends only the newest.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -155,8 +156,10 @@ fn open(
     let remote_reason = Arc::new(Mutex::new(None));
     let signal = Arc::new(Signal::default());
     let wake = Arc::clone(&signal);
+    let units = Arc::new(AtomicU64::new(0));
     let decoder: Box<dyn H264Decoder> = Box::new(Forward {
         sink: Arc::clone(sink),
+        units: Arc::clone(&units),
     });
     let screen = Screen::start_with_decoder(
         Link {
@@ -177,6 +180,8 @@ fn open(
         listener: Arc::clone(listener),
         sink: Arc::clone(sink),
         remote_reason,
+        units,
+        mark: Mutex::new((Instant::now(), 0)),
     });
     let previous = lock(&slot.current).replace(Arc::clone(&viewer));
     if let Some(previous) = previous {
@@ -284,6 +289,8 @@ impl ScreenTransport for Link {
 /// afterwards.
 struct Forward {
     sink: Arc<SinkCell>,
+    /// Access units handed over so far; the session counts only the pictures it decodes itself.
+    units: Arc<AtomicU64>,
 }
 
 impl H264Decoder for Forward {
@@ -294,6 +301,7 @@ impl H264Decoder for Forward {
     fn decode(&mut self, annex_b: &[u8], reset: bool) -> Result<(), DecodeError> {
         let sink = lock(&self.sink).clone();
         if let Some(sink) = sink {
+            self.units.fetch_add(1, Ordering::Relaxed);
             sink.on_video(annex_b.to_vec(), reset);
         }
         Ok(())
@@ -310,6 +318,9 @@ struct Viewer {
     listener: Arc<dyn DirectListener>,
     sink: Arc<SinkCell>,
     remote_reason: Arc<Mutex<Option<String>>>,
+    /// Access units the H.264 forwarder handed over, and the count at the last statistics.
+    units: Arc<AtomicU64>,
+    mark: Mutex<(Instant, u64)>,
 }
 
 impl Viewer {
@@ -454,10 +465,25 @@ impl Viewer {
 
     fn stats(&self) -> Value {
         let stats = self.screen.stats();
+        // The session counts the pictures it decodes itself; H.264 is decoded by the phone, so
+        // its rate is the access units handed over.
+        let units = self.units.load(Ordering::Relaxed);
+        let video_fps = {
+            let mut mark = lock(&self.mark);
+            let seconds = mark.0.elapsed().as_secs_f64();
+            let handed = f64::from(u32::try_from(units - mark.1).unwrap_or(u32::MAX));
+            *mark = (Instant::now(), units);
+            if seconds > 0.0 { handed / seconds } else { 0.0 }
+        };
+        let fps = if stats.codec.starts_with("h264") {
+            video_fps
+        } else {
+            f64::from(stats.fps)
+        };
         json!({
             "t": "screenStats",
             "codec": stats.codec,
-            "fps": tenths(stats.fps),
+            "fps": (fps * 10.0).round() / 10.0,
             "kbps": tenths(stats.kbps),
             "dropped": stats.dropped,
             "decodeMs": tenths(stats.decode_ms),
