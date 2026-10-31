@@ -3,6 +3,7 @@ pub(crate) mod help;
 mod projects;
 mod records;
 mod sessions;
+mod shot;
 
 use std::io::{self, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};

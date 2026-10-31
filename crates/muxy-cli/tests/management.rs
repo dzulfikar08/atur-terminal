@@ -198,6 +198,18 @@ fn sessions_survive_commands_accept_input_and_keep_saved_output() -> Result {
         f.ok(&["session", "read-screen", &session, "--saved"])?
             .contains("CLI_OUTPUT")
     );
+    let image = f.directory.path().join("screen.png");
+    let shot = f.json(&[
+        "shot",
+        &session,
+        "--saved",
+        "--output",
+        image.to_str().ok_or("path")?,
+        "--json",
+    ])?;
+    assert_eq!(shot["width"], 96 * 8);
+    assert_eq!(shot["height"].as_u64().ok_or("height")? % 16, 0);
+    assert_eq!(&std::fs::read(&image)?[..8], b"\x89PNG\r\n\x1a\n");
     assert_eq!(f.json(&["session", "list", "--json"])?, json!([]));
     assert_eq!(
         f.json(&["session", "list", "--project", &project, "--json"])?,

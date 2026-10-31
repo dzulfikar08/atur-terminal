@@ -24,6 +24,7 @@ LICENSE_FILES = (
     "THIRD_PARTY.md",
     "crates/muxy-server/src/detection/THIRD_PARTY.md",
     "crates/muxy-server/src/detection/LICENSE-herdr",
+    "crates/muxy-cli/src/manage/shot/LICENSE-noto-font",
 )
 TAG_PATTERN = re.compile(r"atur-v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*|-[1-9][0-9]*)?")
 

@@ -9,6 +9,7 @@ Usage: atur-term [--host DESTINATION [--udp]] [COMMAND]
   project       List, add, edit or delete server projects
   session       Create terminals, send input, read output and end sessions
   worktree      List, create, register or remove Git worktree projects
+  shot          Save a PNG of a terminal's current screen
   settings      Read or update server settings
   activity      Read or acknowledge agent activity
   git           Run a server Git action using JSON
@@ -98,6 +99,16 @@ Installs the atur-term-cli skill, which teaches AI coding agents to use this com
 into each agent folder that exists: ~/.claude/skills, ~/.codex/skills and
 ~/.agents/skills. --dir adds another skills folder; repeat it for more.
 An installed copy, including one left by an older release, is replaced.";
+pub(crate) const SHOT: &str = "Usage: atur-term shot [session] [--output FILE|-] [--saved] [--json]
+Saves a PNG of the terminal's current screen, so an agent that can read images
+sees colors, layout and TUI state that read-screen text loses. The session ID
+defaults to the terminal this command runs in. FILE defaults to
+atur-shot-<id>.png in the current directory, on the computer running this
+command even with --host; - writes the PNG to standard output. --saved draws the
+last checkpoint, which also works after the session ended.
+Prints the file's absolute path; --json adds the session ID and pixel size. The
+cursor is outlined. Text uses a built-in 8x16 font: characters it lacks, and
+wide ones, appear as hollow boxes; graphics images are not drawn.";
 pub(crate) const SERVER: &str = "Usage: atur-term server start|status|stop [--json]
   stop [--force]  Stop only if idle; --force ends all running terminals.";
 pub(crate) const PROJECT: &str = "Usage: atur-term project <action> [--json]
@@ -118,6 +129,7 @@ pub(crate) const SESSION: &str = "Usage: atur-term session <action> [--json]
   send [id] <text>                 Send literal text without pressing Return
   send-keys [id] <key>             Enter, Tab, Escape, Backspace, Ctrl+C/D/Z
   read-screen [id] [--lines N] [--saved]
+  shot [id] [--output FILE|-] [--saved]
   history [id] [--before CURSOR] [--limit N] [--saved]
   search [id] <text> [--ignore-case] [--before CURSOR] [--limit N] [--saved]
   wait [id] --text TEXT [--ignore-case] | --exit [--timeout-ms N]
@@ -136,6 +148,7 @@ Input/output commands briefly attach to a live terminal; --saved reads its last
 checkpoint instead and also works after it ends. They never close UI panes.
 Ended sessions and their saved output are automatically removed after 7 days.
 Read-screen returns the last N visible rows (default 50), not scrollback.
+Shot draws the visible screen as a PNG (same as atur-term shot).
 History/search return one page as JSON, with next for --before; 0 starts paging.
 Text list columns: id, project-id, status, attached, directory.
 JSON session IDs and pagination cursors are strings to preserve all 64 bits.";
@@ -187,6 +200,7 @@ pub(crate) fn topic(group: &str) -> Option<&'static str> {
         "server" => SERVER,
         "project" => PROJECT,
         "session" => SESSION,
+        "shot" => SHOT,
         "worktree" => WORKTREE,
         "settings" => SETTINGS,
         "activity" => ACTIVITY,

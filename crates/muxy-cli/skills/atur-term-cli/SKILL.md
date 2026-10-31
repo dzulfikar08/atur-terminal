@@ -71,6 +71,9 @@ atur-term session search "$WEB" "error" --ignore-case
 atur-term session history "$WEB" --limit 200        # JSON, paged with --before
 ```
 
+`atur-term shot "$WEB" --output /tmp/web.png` saves the visible screen as a PNG and prints its
+path; use it when colors or a TUI's layout matter and text would lose them.
+
 After a terminal ends, add `--saved` to read its last saved output.
 
 ## Send input deliberately

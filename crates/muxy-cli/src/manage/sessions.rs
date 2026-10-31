@@ -60,6 +60,17 @@ pub(super) fn run(command: Session, client: &Client, output: &Output, paths: Pat
             lines,
             saved,
         } => screen(client, calling(client, session)?, lines, saved, output),
+        Session::Shot {
+            session,
+            output: path,
+            saved,
+        } => shot(
+            client,
+            calling(client, session)?,
+            path.as_deref(),
+            saved,
+            output,
+        ),
         Session::History {
             session,
             before,
@@ -127,11 +138,7 @@ fn screen(
     saved: bool,
     output: &Output,
 ) -> Result {
-    let grid = if saved {
-        RunGrid::from_saved(client.read_saved_screen(session)?)
-    } else {
-        attached(client, session, |attachment| Ok(attachment.grid.clone()))?
-    };
+    let grid = grid_of(client, session, saved)?;
     let text = screen_text(&grid, lines);
     if output.json {
         Output::json(
@@ -141,6 +148,44 @@ fn screen(
         writeln!(io::stdout(), "{text}")?;
         Ok(())
     }
+}
+
+fn grid_of(client: &Client, session: SessionId, saved: bool) -> Result<RunGrid> {
+    Ok(if saved {
+        RunGrid::from_saved(client.read_saved_screen(session)?)
+    } else {
+        attached(client, session, |attachment| Ok(attachment.grid.clone()))?
+    })
+}
+
+/// Saves the screen as a PNG at `path` (`-` for standard output), by default
+/// `atur-shot-<id>.png` here, and says where it went.
+fn shot(
+    client: &Client,
+    session: SessionId,
+    path: Option<&Path>,
+    saved: bool,
+    output: &Output,
+) -> Result {
+    let grid = grid_of(client, session, saved)?;
+    let cursor = (grid.cursor.visible && !saved).then_some((grid.cursor.row, grid.cursor.col));
+    let image = super::shot::render(&grid.rows, grid.size.cols, cursor)?;
+    if path == Some(Path::new("-")) {
+        io::stdout().write_all(&image.png)?;
+        return Ok(());
+    }
+    let path = path.map_or_else(
+        || std::path::PathBuf::from(format!("atur-shot-{}.png", session.get())),
+        Path::to_path_buf,
+    );
+    std::fs::write(&path, &image.png)
+        .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+    let path = std::path::absolute(&path)?;
+    output.record(
+        &json!({"id":session.get().to_string(), "path":path.to_string_lossy(),
+            "width":image.width, "height":image.height, "saved":saved}),
+        &["path"],
+    )
 }
 
 /// The project of the terminal this command runs in.

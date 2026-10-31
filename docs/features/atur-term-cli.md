@@ -48,6 +48,7 @@ atur-term --help          # all commands; atur-term <command> --help for details
 | `atur-term server start\|status\|stop` | Starts, inspects, or stops the server. `stop` refuses while terminals run; add `--force` to end them. |
 | `atur-term project list\|add\|rename\|set-color\|set-icon\|delete` | Manages projects. Deleting ends its terminals but keeps files on disk. |
 | `atur-term session list\|create\|send\|send-keys\|read-screen\|history\|search\|wait\|end\|discard` | Creates terminals, sends input, reads output, and waits for text or exit. |
+| `atur-term shot [session]` | Saves a PNG of a terminal's current screen, for agents that read images. Same as `session shot`. |
 | `atur-term worktree list\|create\|checkout-pr\|register\|remove` | Manages Git worktree projects, including checking out pull requests. |
 | `atur-term settings get\|set` | Reads or changes [server settings](server.md#settings). |
 | `atur-term activity list\|ack` | Reads or clears [AI agent](ai-agents.md) activity. |
@@ -72,6 +73,9 @@ atur-term session end "$id" --yes
   `Escape`, `Backspace`, `Ctrl+C`, `Ctrl+D`, or `Ctrl+Z`.
 - `read-screen` returns the last visible rows. `history` and `search` page
   through scrollback as JSON.
+- `shot` saves the visible screen as a PNG (`--output FILE`, or `-` for stdout; default
+  `atur-shot-<id>.png` here) and prints its path. Colors, layout and the cursor are kept; text
+  uses a built-in font, so unusual or wide characters show as boxes.
 - `--saved` reads a session's last saved screen, even after it ended.
 - `end` stops the program and keeps its saved output. `discard` also deletes
   the output.
