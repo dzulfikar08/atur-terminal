@@ -1990,7 +1990,7 @@ mod tests {
         id: u64,
         watching: bool,
         told: Option<Size>,
-    ) -> Result<mpsc::Receiver<AttachmentEvent>, Fault> {
+    ) -> Result<Receiver<AttachmentEvent>, Fault> {
         let (sink, events) = mpsc::channel();
         owner.sizing.join(AttachmentId(id), watching, told);
         owner.sync_size_authority();
