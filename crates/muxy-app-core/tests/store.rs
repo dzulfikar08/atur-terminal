@@ -313,7 +313,7 @@ fn older_files_keep_everything_and_move_server_state_to_the_local_entry() -> Tes
     Ok(())
 }
 
-fn inode(path: &std::path::Path) -> Result<u64, Box<dyn Error>> {
+fn inode(path: impl AsRef<std::path::Path>) -> Result<u64, Box<dyn Error>> {
     Ok(std::os::unix::fs::MetadataExt::ino(&fs::metadata(path)?))
 }
 
@@ -558,19 +558,19 @@ fn a_version_3_file_moves_its_window_into_the_view_file_once() -> TestResult {
     fs::write(fixture.path(), legacy)?;
     let view = store::view_path(fixture.path(), muxy_app_core::MAIN_WINDOW)?;
     // A view from an earlier run must not override the window the file holds.
-    let mut stale = store::load(fixture.path())?;
-    stale.set_window_bounds(Some(WindowBounds {
+    let mut earlier = store::load(fixture.path())?;
+    earlier.set_window_bounds(Some(WindowBounds {
         x: 1.0,
         y: 2.0,
         width: 300.0,
         height: 200.0,
     }))?;
     let other = fixture.0.join("other.json");
-    store::save(&other, &stale)?;
+    store::save(&other, &earlier)?;
     fs::copy(store::view_path(&other, muxy_app_core::MAIN_WINDOW)?, &view)?;
 
     let state = store::load(fixture.path())?;
-    assert_ne!(state, stale);
+    assert_ne!(state, earlier);
     assert_eq!(state.version(), 4);
     store::save(fixture.path(), &state)?;
     let saved: Value = serde_json::from_slice(&fs::read(fixture.path())?)?;
