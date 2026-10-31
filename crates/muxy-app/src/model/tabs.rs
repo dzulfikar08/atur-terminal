@@ -29,6 +29,22 @@ impl AppModel {
         }
     }
 
+    /// Moves a dragged pane into the tab it was dropped on.
+    pub(crate) fn drop_pane_on_tab(
+        &mut self,
+        pane: muxy_app_core::PaneId,
+        tab: TabId,
+        cx: &mut Context<Self>,
+    ) {
+        if self.close_request.is_some() {
+            return;
+        }
+        if self.edit_tab(|state| state.move_pane_to_tab(pane, tab), cx) {
+            self.changed(cx);
+            self.focus_requested = true;
+        }
+    }
+
     /// Applies a tab drop. `previous` was shown before pressing `tab` selected
     /// it, so the group `tab` leaves goes back to showing it.
     pub(crate) fn drop_tab(

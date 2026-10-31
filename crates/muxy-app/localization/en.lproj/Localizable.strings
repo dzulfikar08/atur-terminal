@@ -1029,7 +1029,9 @@
 "Pewter" = "Pewter";
 "Phones" = "Phones";
 "Phones that can connect. Revoking one disconnects it immediately." = "Phones that can connect. Revoking one disconnects it immediately.";
+"Pin Agent" = "Pin Agent";
 "Pin Tab" = "Pin Tab";
+"Pinned" = "Pinned";
 "Pixels" = "Pixels";
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Port" = "Port";
@@ -1495,6 +1497,7 @@
 "Unload folder" = "Unload folder";
 "Unloading…" = "Unloading…";
 "Unpacked" = "Unpacked";
+"Unpin Agent" = "Unpin Agent";
 "Unpin Tab" = "Unpin Tab";
 "Unstage" = "Unstage";
 "Unstage All" = "Unstage All";

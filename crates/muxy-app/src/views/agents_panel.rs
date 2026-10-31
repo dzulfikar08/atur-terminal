@@ -14,7 +14,8 @@ use muxy_ui::tr;
 
 use crate::model::AppModel;
 use crate::model::agents_panel::{
-    AgentStatus, Drag, Entry, EntryKey, MIN_HEIGHT, MIN_WIDTH, Placement, RunningAgent,
+    AgentStatus, Drag, Entry, EntryKey, MIN_HEIGHT, MIN_WIDTH, Placement, Row, RunningAgent,
+    Section, layout_rows,
 };
 
 const DOCKED_MAX_HEIGHT: f32 = 260.0;
@@ -143,6 +144,7 @@ fn leading(entry: &Entry, owner: gpui::EntityId, model: &AppModel) -> AnyElement
 
 fn entry_row(
     entry: &Entry,
+    pinned: bool,
     selected: bool,
     focused: bool,
     model: &AppModel,
@@ -207,11 +209,81 @@ fn entry_row(
                 })),
         )
         .children(trailing)
+        .child(
+            IconButton::new(
+                SharedString::from(format!("agents-panel-pin-{key}")),
+                Icon::Pin,
+                m.icon_xs(),
+                m.control_small(),
+                if pinned { theme.accent } else { theme.fg_dim },
+                theme.fg,
+            )
+            .tooltip(
+                if pinned {
+                    tr!("Unpin Agent")
+                } else {
+                    tr!("Pin Agent")
+                },
+                theme.raised(),
+                theme.fg,
+                theme.border,
+                theme.bg,
+            )
+            .on_click(cx.listener(move |model, _, _, cx| {
+                cx.stop_propagation();
+                model.toggle_agent_pin(key, cx);
+            })),
+        )
+        .into_any_element()
+}
+
+fn section_header(
+    section: Section,
+    count: usize,
+    model: &AppModel,
+    cx: &mut Context<AppModel>,
+) -> AnyElement {
+    let m = model.metrics;
+    let theme = &model.theme;
+    let (label, status) = match section {
+        Section::Pinned => (tr!("Pinned"), None),
+        Section::Status(status) => (status_label(status), Some(status)),
+    };
+    let folded = status.is_some_and(|status| model.agents_panel.folded.contains(&status));
+    div()
+        .id(SharedString::from(format!("agents-panel-section-{label}")))
+        .flex()
+        .items_center()
+        .gap(m.spacing1())
+        .px(m.spacing3())
+        .pt(m.spacing2())
+        .text_size(m.font_micro())
+        .font_weight(FontWeight::BOLD)
+        .text_color(theme.fg_dim)
+        .when_some(status, |header, status| {
+            header
+                .cursor_pointer()
+                .on_click(cx.listener(move |model, _, _, cx| {
+                    model.toggle_agents_fold(status, cx);
+                }))
+                .child(IconGlyph::new(
+                    if folded {
+                        Icon::ChevronRight
+                    } else {
+                        Icon::ChevronDown
+                    },
+                    m.icon_xs(),
+                    theme.fg_dim,
+                ))
+        })
+        .child(label.to_uppercase())
+        .when(folded, |header| header.child(format!("({count})")))
         .into_any_element()
 }
 
 fn rows(
     entries: &[Entry],
+    layout: &[Row],
     model: &AppModel,
     cx: &mut Context<AppModel>,
     window: &Window,
@@ -219,7 +291,14 @@ fn rows(
     let m = model.metrics;
     let theme = &model.theme;
     let focused = model.agents_panel.focus.contains_focused(window, cx);
-    let selected = model.selected_agents_entry(entries);
+    let visible: Vec<Entry> = layout
+        .iter()
+        .filter_map(|row| match row {
+            Row::Entry(index) => Some(entries[*index].clone()),
+            Row::Header { .. } => None,
+        })
+        .collect();
+    let selected = model.selected_agents_entry(&visible);
     let mut list = div()
         .id("agents-panel-rows")
         .flex()
@@ -243,23 +322,18 @@ fn rows(
             )
             .into_any_element();
     }
-    let mut previous = None;
-    for entry in entries {
-        let status = entry.status();
-        if previous != Some(status) {
-            list = list.child(
-                div()
-                    .px(m.spacing3())
-                    .pt(m.spacing2())
-                    .text_size(m.font_micro())
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(theme.fg_dim)
-                    .child(status_label(status).to_uppercase()),
-            );
+    for row in layout {
+        match *row {
+            Row::Header { section, count } => {
+                list = list.child(section_header(section, count, model, cx));
+            }
+            Row::Entry(index) => {
+                let entry = &entries[index];
+                let is_pinned = model.agents_panel.pinned.contains(&entry.key());
+                let is_selected = selected == Some(entry.key());
+                list = list.child(entry_row(entry, is_pinned, is_selected, focused, model, cx));
+            }
         }
-        previous = Some(status);
-        let is_selected = selected == Some(entry.key());
-        list = list.child(entry_row(entry, is_selected, focused, model, cx));
     }
     div()
         .relative()
@@ -440,7 +514,12 @@ fn body(
     cx: &mut Context<AppModel>,
 ) -> gpui::Stateful<gpui::Div> {
     let agents = model.running_agents();
-    let entries = model.agents_panel_entries_from(agents.clone());
+    let entries = model.agents_panel_all_from(agents.clone());
+    let layout = layout_rows(
+        &entries,
+        &model.agents_panel.pinned,
+        &model.agents_panel.folded,
+    );
     div()
         .id("agents-panel")
         .debug_selector(|| "agents-panel".into())
@@ -475,7 +554,7 @@ fn body(
         .flex_col()
         .min_h(px(0.0))
         .child(header(placement, &agents, model, cx))
-        .child(rows(&entries, model, cx, window))
+        .child(rows(&entries, &layout, model, cx, window))
         .child(drag_tracker(cx))
 }
 

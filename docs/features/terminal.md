@@ -21,7 +21,9 @@ quit the app, and every app shows the same screen and history.
   directory** to open them in the current pane's folder instead.
 - Drag dividers to resize, or even them out with **Equalize Splits**
   (`Cmd+Ctrl+=`, or a pane's right-click menu). `Cmd`-drag a pane onto another
-  pane to swap them, or onto an edge to dock it there.
+  pane to swap them, or onto an edge to dock it there. Drop it on another
+  tab in the title bar to move the pane into that tab; a tab left empty
+  closes.
 - Right-click a tab to rename, color, or pin it. Pinned tabs stay first and
   can't be closed until unpinned.
 
@@ -71,6 +73,8 @@ plain text and case-insensitive; **Aa** makes it case-sensitive.
 
 - `Cmd`-click a URL or file path to open it. Paths with `:line:column` jump to
   that line in supported editors.
+- Holding `Cmd` over a link underlines it and shows where it leads (the URL, or the
+  path with line and column) at the bottom of the pane before you click.
 - **Settings → General → Open files with** picks the app for files.
 - Web links open in your system browser, or in the
   [built-in browser](browser.md) when **Settings → Browser** says so.

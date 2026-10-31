@@ -40,6 +40,36 @@ flowchart LR
   protocol moves to encrypted UDP while the server and its sessions stay as they
   are. See [UDP transport](./udp-transport.md).
 
+## Saved layout and window view
+
+The desktop app saves two kinds of file in the profile:
+
+| File | Holds | Shared by |
+| --- | --- | --- |
+| `desktop-state.json` | The layout: projects, tabs, panes, splits, tab groups, workspaces, and what the app keeps per server. | Every window of the profile |
+| `desktop-state.view.json` | One window's view: the project and tab it shows, the focused pane, zoomed panes, the tab each tab group shows, and the window's bounds. | That window. Another window uses `desktop-state.view-<name>.json`. |
+
+- A view only refers to the layout. If another window closed a tab or pane
+  the view names, loading drops that reference and the window shows the first
+  tab, or the pane next to the closed one. A missing or unreadable view file
+  is not an error; the window starts on the first tab of Home.
+- Saving writes a file only when its content changes. Moving focus, zooming,
+  selecting a tab, or moving the window never rewrites the layout file, so a
+  window that only did that can't undo another window's layout change.
+- `store::sync_window` adopts a layout another window saved and keeps the
+  caller's view. The desktop app runs one window per profile today, and
+  doesn't call it.
+- Version 4 of `desktop-state.json` has no `window`. Earlier versions, and
+  files a backup restore writes, still hold one. Loading uses that window once
+  and the next save moves it into the view file. Older releases can't read
+  version 4, so that first save keeps the file it replaces as
+  `desktop-state.v3.json`, unless that file already exists. **To roll back to
+  2.2.0-12 or earlier, quit the app and rename `desktop-state.v3.json` to
+  `desktop-state.json`.** Changes made since the upgrade are lost, and the
+  `desktop-state.view*.json` files can stay or be deleted.
+- Backups carry the layout with the window of the computer that made them, as
+  before; view files aren't part of a backup.
+
 ## Crates
 
 ```mermaid

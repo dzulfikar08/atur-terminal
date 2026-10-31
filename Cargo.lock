@@ -4720,6 +4720,7 @@ name = "muxy-cli"
 version = "2.0.0-beta-0"
 dependencies = [
  "atur-screen",
+ "image",
  "muxy-app-core",
  "muxy-client",
  "muxy-core",

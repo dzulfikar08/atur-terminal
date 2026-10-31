@@ -47,6 +47,19 @@ impl WindowBounds {
 }
 
 impl WindowState {
+    /// A window showing `project`, with nothing focused.
+    pub(crate) fn new(project: ProjectId) -> Self {
+        Self {
+            active_pane: None,
+            focus_history: Vec::new(),
+            current_project: project,
+            selected_tab: HashMap::new(),
+            bounds: None,
+            workspace: None,
+            remote_servers: false,
+        }
+    }
+
     pub(crate) fn activate(&mut self, pane: Option<PaneId>) {
         self.active_pane = pane;
         if let Some(pane) = pane {

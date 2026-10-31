@@ -12,16 +12,75 @@ pub(crate) const MIN_WIDTH: f32 = 220.0;
 pub(crate) const MIN_HEIGHT: f32 = 140.0;
 const DEFAULT_FRAME: [f32; 4] = [80.0, 80.0, 320.0, 360.0];
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+/// Declared in list order: an agent waiting on you, then one that finished,
+/// then working ones, then idle ones.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub(crate) enum AgentStatus {
     Blocked,
-    Working,
     Completed,
+    Working,
     Idle,
 }
 
 impl AgentStatus {
-    pub(crate) const ALL: [Self; 4] = [Self::Blocked, Self::Working, Self::Completed, Self::Idle];
+    pub(crate) const ALL: [Self; 4] = [Self::Blocked, Self::Completed, Self::Working, Self::Idle];
+}
+
+/// A heading of the agents list: the pinned entries, or one status.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Section {
+    Pinned,
+    Status(AgentStatus),
+}
+
+/// One line of the agents list, top to bottom.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Row {
+    Header {
+        section: Section,
+        count: usize,
+    },
+    /// The entry at this index of the slice the rows were laid out from.
+    Entry(usize),
+}
+
+/// Pinned entries first, then one section per status in priority order.
+/// Folded status sections keep their heading and count but hide their entries;
+/// pinned entries stay shown whatever their status.
+pub(crate) fn layout_rows(
+    entries: &[Entry],
+    pinned: &std::collections::HashSet<EntryKey>,
+    folded: &std::collections::HashSet<AgentStatus>,
+) -> Vec<Row> {
+    let mut rows = Vec::new();
+    let pins: Vec<usize> = (0..entries.len())
+        .filter(|index| pinned.contains(&entries[*index].key()))
+        .collect();
+    if !pins.is_empty() {
+        rows.push(Row::Header {
+            section: Section::Pinned,
+            count: pins.len(),
+        });
+        rows.extend(pins.into_iter().map(Row::Entry));
+    }
+    for status in AgentStatus::ALL {
+        let group: Vec<usize> = (0..entries.len())
+            .filter(|index| {
+                entries[*index].status() == status && !pinned.contains(&entries[*index].key())
+            })
+            .collect();
+        if group.is_empty() {
+            continue;
+        }
+        rows.push(Row::Header {
+            section: Section::Status(status),
+            count: group.len(),
+        });
+        if !folded.contains(&status) {
+            rows.extend(group.into_iter().map(Row::Entry));
+        }
+    }
+    rows
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,7 +103,7 @@ pub(crate) enum Entry {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum EntryKey {
     Agent(ServerId, SessionId),
     Worktree(ProjectId),
@@ -112,6 +171,10 @@ pub(crate) enum Drag {
 pub(crate) struct AgentsPanel {
     pub(crate) focus: FocusHandle,
     pub(crate) selected: Option<EntryKey>,
+    /// Entries kept at the top whatever their status.
+    pub(crate) pinned: std::collections::HashSet<EntryKey>,
+    /// Status sections collapsed to their heading.
+    pub(crate) folded: std::collections::HashSet<AgentStatus>,
     pub(crate) drag: Option<Drag>,
     pub(crate) scroll: gpui::ScrollHandle,
     pub(crate) resize: PanelResizeState,
@@ -124,6 +187,8 @@ impl AgentsPanel {
         Self {
             focus: cx.focus_handle(),
             selected: None,
+            pinned: std::collections::HashSet::new(),
+            folded: std::collections::HashSet::new(),
             drag: None,
             scroll: gpui::ScrollHandle::new(),
             resize: PanelResizeState::default(),
@@ -215,7 +280,21 @@ impl AppModel {
         self.agents_panel_entries_from(self.running_agents())
     }
 
+    /// The entries in the order the list shows them, without those hidden in
+    /// a folded section.
     pub(crate) fn agents_panel_entries_from(&self, agents: Vec<RunningAgent>) -> Vec<Entry> {
+        let all = self.agents_panel_all_from(agents);
+        layout_rows(&all, &self.agents_panel.pinned, &self.agents_panel.folded)
+            .into_iter()
+            .filter_map(|row| match row {
+                Row::Entry(index) => Some(all[index].clone()),
+                Row::Header { .. } => None,
+            })
+            .collect()
+    }
+
+    /// Every entry, folded or not, most urgent first.
+    pub(crate) fn agents_panel_all_from(&self, agents: Vec<RunningAgent>) -> Vec<Entry> {
         if self.appearance.agents_panel_grouping == AgentsPanelGrouping::Agents {
             return agents.into_iter().map(Entry::Agent).collect();
         }
@@ -328,7 +407,23 @@ impl AppModel {
             .or_else(|| entries.first().map(Entry::key))
     }
 
+    pub(crate) fn toggle_agent_pin(&mut self, key: EntryKey, cx: &mut Context<Self>) {
+        if !self.agents_panel.pinned.remove(&key) {
+            self.agents_panel.pinned.insert(key);
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn toggle_agents_fold(&mut self, status: AgentStatus, cx: &mut Context<Self>) {
+        if !self.agents_panel.folded.remove(&status) {
+            self.agents_panel.folded.insert(status);
+        }
+        cx.notify();
+    }
+
     pub(crate) fn move_agents_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
+        let all = self.agents_panel_all_from(self.running_agents());
+        let rows = layout_rows(&all, &self.agents_panel.pinned, &self.agents_panel.folded);
         let entries = self.agents_panel_entries();
         if entries.is_empty() {
             self.agents_panel.selected = None;
@@ -340,11 +435,13 @@ impl AppModel {
             .unwrap_or(0);
         let next = current.saturating_add_signed(delta).min(entries.len() - 1);
         self.agents_panel.selected = Some(entries[next].key());
-        let headings = 1 + entries[..=next]
-            .windows(2)
-            .filter(|pair| pair[0].status() != pair[1].status())
-            .count();
-        self.agents_panel.scroll.scroll_to_item(next + headings);
+        let key = entries[next].key();
+        if let Some(row) = rows
+            .iter()
+            .position(|row| matches!(row, Row::Entry(index) if all[*index].key() == key))
+        {
+            self.agents_panel.scroll.scroll_to_item(row);
+        }
         cx.notify();
     }
 
