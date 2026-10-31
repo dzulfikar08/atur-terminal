@@ -890,8 +890,8 @@ fn pinned_agents_lead_and_a_folded_status_hides_its_entries_but_keeps_its_count(
         };
         let (blocked, done, working) =
             (key_of(worktree_pane), key_of(home_pane), key_of(root_pane));
-        let pinned = [all[working].key()].into_iter().collect();
-        let folded = [AgentStatus::Completed].into_iter().collect();
+        let pinned: HashSet<_> = [all[working].key()].into_iter().collect();
+        let folded: HashSet<_> = [AgentStatus::Completed].into_iter().collect();
         assert_eq!(
             layout_rows(&all, &pinned, &folded),
             [
@@ -912,9 +912,8 @@ fn pinned_agents_lead_and_a_folded_status_hides_its_entries_but_keeps_its_count(
             ],
             "the pin outranks its status, and the folded done section keeps only its heading"
         );
-        let none = std::collections::HashSet::new();
         assert_eq!(
-            layout_rows(&all, &none, &none)
+            layout_rows(&all, &HashSet::new(), &HashSet::new())
                 .into_iter()
                 .filter_map(|row| match row {
                     Row::Entry(index) => Some(index),
