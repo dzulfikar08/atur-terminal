@@ -139,14 +139,12 @@ pub(crate) fn peek_label(target: &Target) -> String {
     let full = match target {
         Target::Url(url) => url.clone(),
         Target::File(location) => {
-            let mut text = location.path.display().to_string();
-            if let Some(line) = location.line {
-                text.push_str(&format!(":{line}"));
-                if let Some(column) = location.column {
-                    text.push_str(&format!(":{column}"));
-                }
+            let path = location.path.display();
+            match (location.line, location.column) {
+                (Some(line), Some(column)) => format!("{path}:{line}:{column}"),
+                (Some(line), None) => format!("{path}:{line}"),
+                _ => path.to_string(),
             }
-            text
         }
     };
     let count = full.chars().count();
@@ -228,6 +226,27 @@ impl TerminalPane {
             self.link_hover.target = target;
             cx.notify();
         }
+    }
+
+    /// The chip naming where the hovered link leads, over the pane's bottom
+    /// left corner.
+    pub(crate) fn link_peek(&self) -> Option<gpui::Div> {
+        use gpui::{ParentElement, Styled, div, px, rgb};
+        let label = peek_label(self.link_hover.target.as_ref()?);
+        Some(
+            div()
+                .absolute()
+                .left_0()
+                .bottom_0()
+                .max_w_full()
+                .px(px(8.0))
+                .py(px(2.0))
+                .text_size(px(12.0))
+                .truncate()
+                .bg(rgb(self.palette.background))
+                .text_color(rgb(self.palette.foreground))
+                .child(label),
+        )
     }
 
     pub(crate) fn link_context(&self) -> Option<muxy_app_core::opener::OpenContext> {

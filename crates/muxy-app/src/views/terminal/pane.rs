@@ -1820,28 +1820,7 @@ impl Render for TerminalPane {
                     .overflow_hidden()
                     .child(element::terminal(cx.entity(), &palette)),
             )
-            .when_some(
-                self.link_hover
-                    .target
-                    .as_ref()
-                    .map(super::links::peek_label),
-                |pane, label| {
-                    pane.child(
-                        div()
-                            .absolute()
-                            .left_0()
-                            .bottom_0()
-                            .max_w_full()
-                            .px(px(8.0))
-                            .py(px(2.0))
-                            .text_size(px(12.0))
-                            .truncate()
-                            .bg(gpui::rgb(palette.background))
-                            .text_color(gpui::rgb(palette.foreground))
-                            .child(label),
-                    )
-                },
-            )
+            .children(self.link_peek())
     }
 }
 

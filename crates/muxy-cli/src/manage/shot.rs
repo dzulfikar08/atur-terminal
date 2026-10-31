@@ -302,9 +302,7 @@ fn palette(index: u8) -> [u8; 3] {
 }
 
 fn mix(foreground: [u8; 3], background: [u8; 3]) -> [u8; 3] {
-    [0, 1, 2].map(|i| {
-        u8::try_from((u16::from(foreground[i]) + u16::from(background[i])) / 2).unwrap_or(255)
-    })
+    [0, 1, 2].map(|i| u8::midpoint(foreground[i], background[i]))
 }
 
 #[cfg(test)]

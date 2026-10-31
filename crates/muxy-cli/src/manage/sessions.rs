@@ -76,17 +76,7 @@ pub(super) fn run(command: Session, client: &Client, output: &Output, paths: Pat
             before,
             limit,
             saved,
-        } => {
-            let session = calling(client, session)?;
-            let page = if saved {
-                client.saved_history_page(session, before, limit)?
-            } else {
-                attached(client, session, |attachment| {
-                    Ok(client.history_page(attachment.channel, before, limit)?)
-                })?
-            };
-            Output::json(&super::records::history(&page))
-        }
+        } => history(client, calling(client, session)?, before, limit, saved),
         Session::Search {
             session,
             query,
@@ -148,6 +138,23 @@ fn screen(
         writeln!(io::stdout(), "{text}")?;
         Ok(())
     }
+}
+
+fn history(
+    client: &Client,
+    session: SessionId,
+    before: muxy_protocol::HistoryCursor,
+    limit: u16,
+    saved: bool,
+) -> Result {
+    let page = if saved {
+        client.saved_history_page(session, before, limit)?
+    } else {
+        attached(client, session, |attachment| {
+            Ok(client.history_page(attachment.channel, before, limit)?)
+        })?
+    };
+    Output::json(&super::records::history(&page))
 }
 
 fn grid_of(client: &Client, session: SessionId, saved: bool) -> Result<RunGrid> {
