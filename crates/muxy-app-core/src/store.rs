@@ -19,6 +19,8 @@ use std::io::{self, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
+
 use crate::view::{self, MAIN_WINDOW, View};
 use crate::{AppError, AppState};
 
@@ -45,6 +47,19 @@ pub fn view_path(path: impl AsRef<Path>, window: &str) -> Result<PathBuf, AppErr
     }
     name.push(".json");
     Ok(path.with_file_name(name))
+}
+
+/// Where the first save of version 4 keeps the file it replaces, when an
+/// earlier release wrote that file. To roll back to such a release, rename it
+/// to the layout file's name.
+#[must_use]
+pub fn rollback_path(path: impl AsRef<Path>) -> PathBuf {
+    let path = path.as_ref();
+    let mut name = path
+        .file_stem()
+        .map_or_else(|| OsString::from("state"), OsString::from);
+    name.push(".v3.json");
+    path.with_file_name(name)
 }
 
 /// The state as the main window sees it.
@@ -101,7 +116,8 @@ pub fn save(path: impl AsRef<Path>, state: &AppState) -> Result<(), AppError> {
 
 /// Saves the layout and `window`'s view. A file that would not change is not
 /// written, so a window that only moved focus or zoomed leaves the layout
-/// file, and the other windows' views, alone.
+/// file, and the other windows' views, alone. The first save over a layout
+/// file of an earlier release keeps that file at [`rollback_path`].
 pub fn save_window(path: impl AsRef<Path>, window: &str, state: &AppState) -> Result<(), AppError> {
     let path = path.as_ref();
     let view_file = view_path(path, window)?;
@@ -111,8 +127,33 @@ pub fn save_window(path: impl AsRef<Path>, window: &str, state: &AppState) -> Re
     };
     let layout = state.layout_bytes().map_err(json)?;
     let view = state.view_bytes().map_err(json)?;
+    keep_rollback_copy(path, &layout)?;
     write_if_changed(path, &layout)?;
     write_if_changed(&view_file, &view)
+}
+
+/// Copies a layout file written before version 4 aside, unless a copy is
+/// already there: the first one is the file the earlier release wrote.
+fn keep_rollback_copy(path: &Path, next: &[u8]) -> Result<(), AppError> {
+    #[derive(Deserialize)]
+    struct Written {
+        version: u32,
+    }
+    let Ok(current) = fs::read(path) else {
+        return Ok(());
+    };
+    let earlier = serde_json::from_slice::<Written>(&current).is_ok_and(|file| file.version < 4);
+    let copy = rollback_path(path);
+    if current == next
+        || !earlier
+        || copy.try_exists().map_err(|source| AppError::Io {
+            path: copy.clone(),
+            source,
+        })?
+    {
+        return Ok(());
+    }
+    write(&copy, &current)
 }
 
 /// Adopts the layout another window saved, keeping this window's view of it.
