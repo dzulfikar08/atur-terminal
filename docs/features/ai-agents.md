@@ -69,9 +69,13 @@ focus. Use the arrow keys and Return to open a row.
   **Reattach to Right Panel** docks it on its last side. The other side's move
   button is also available while floating.
 - **Settings → Appearance → Agents panel rows** lists each agent, grouped as
-  needs input, working, completed, and idle, where Return opens its pane; or
+  needs input, completed, working, and idle (most urgent first), where Return
+  opens its pane; or
   each project and worktree running agents, with counts, where Return opens
   the worktree.
+- The pin button on a row keeps it at the top under **Pinned**, whatever its
+  status. Click a status heading to fold that section to its heading and count;
+  click again to unfold. Pins and folds last until you quit.
 
 ## Agents Focused sidebar
 

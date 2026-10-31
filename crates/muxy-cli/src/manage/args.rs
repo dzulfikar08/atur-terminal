@@ -102,6 +102,11 @@ pub(crate) enum Session {
         lines: usize,
         saved: bool,
     },
+    Shot {
+        session: Option<SessionId>,
+        output: Option<PathBuf>,
+        saved: bool,
+    },
     History {
         session: Option<SessionId>,
         before: HistoryCursor,
@@ -161,6 +166,17 @@ pub(crate) enum Worktree {
 
 pub(crate) fn parse(arguments: &[OsString]) -> io::Result<Invocation> {
     let group = arguments.first().map_or(Ok(""), |s| text(s))?;
+    if group == "shot" {
+        if arguments.len() == 2 && (arguments[1] == "--help" || arguments[1] == "-h") {
+            return Ok(Invocation {
+                json: false,
+                action: Action::Help(help::SHOT),
+            });
+        }
+        let mut rewritten = vec![OsString::from("session"), OsString::from("shot")];
+        rewritten.extend(arguments[1..].iter().cloned());
+        return parse(&rewritten);
+    }
     let usage =
         help::topic(group).ok_or_else(|| invalid("unknown command; run atur-term --help"))?;
     if (2..=3).contains(&arguments.len())
@@ -256,6 +272,7 @@ fn options(group: &str, verb: &str) -> (&'static [&'static str], &'static [&'sta
         ("session", "list") => (&["--project"], &["--all"]),
         ("session", "create") => (&["--directory", "--cols", "--rows"], &[]),
         ("session", "read-screen") => (&["--lines"], &["--saved"]),
+        ("session", "shot") => (&["--output"], &["--saved"]),
         ("session", "history") => (&["--before", "--limit"], &["--saved"]),
         ("session", "search") => (&["--before", "--limit"], &["--saved", "--ignore-case"]),
         ("session", "wait") => (&["--text", "--timeout-ms"], &["--exit", "--ignore-case"]),
@@ -340,7 +357,7 @@ fn session(verb: &str, o: &mut Options<'_>) -> io::Result<Session> {
     }
     let arguments = match verb {
         "send" | "send-keys" | "search" => 1,
-        "end" | "discard" | "read-screen" | "history" | "wait" => 0,
+        "end" | "discard" | "read-screen" | "shot" | "history" | "wait" => 0,
         _ => return Err(invalid(help::SESSION)),
     };
     // The session ID comes first and may be left out inside an Atur Terminal terminal.
@@ -388,6 +405,11 @@ fn session(verb: &str, o: &mut Options<'_>) -> io::Result<Session> {
         "read-screen" => Ok(Session::Screen {
             session,
             lines: o.number("--lines", 50, 1, usize::from(muxy_protocol::MAX_ROWS))?,
+            saved,
+        }),
+        "shot" => Ok(Session::Shot {
+            session,
+            output: o.value("--output")?.map(PathBuf::from),
             saved,
         }),
         "history" => Ok(Session::History {
@@ -677,6 +699,27 @@ mod tests {
 
     fn action(arguments: &[&str]) -> io::Result<Action> {
         words(arguments).map(|invocation| invocation.action)
+    }
+
+    #[test]
+    fn shot_is_a_top_level_command_for_a_session_with_an_output_file() -> io::Result<()> {
+        assert_eq!(
+            action(&["shot", "7", "--output", "screen.png", "--saved"])?,
+            Action::Session(Session::Shot {
+                session: SessionId::new(7),
+                output: Some("screen.png".into()),
+                saved: true,
+            })
+        );
+        assert_eq!(
+            action(&["shot"])?,
+            action(&["session", "shot"])?,
+            "inside a terminal the session is that terminal"
+        );
+        assert_eq!(action(&["shot", "--help"])?, Action::Help(help::SHOT));
+        assert!(words(&["shot", "0"]).is_err());
+        assert!(words(&["shot", "1", "2"]).is_err());
+        Ok(())
     }
 
     #[test]

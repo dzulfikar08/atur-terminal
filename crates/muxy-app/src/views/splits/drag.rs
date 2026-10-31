@@ -17,6 +17,9 @@ pub(crate) struct LayoutDragState {
     pub(crate) geometry: TabGeometry,
     pane: Option<PaneDrag>,
     pub(crate) preview: Option<Preview>,
+    /// The titlebar tab under a pane being dragged: dropping moves the pane
+    /// into that tab.
+    pub(crate) tab_hint: Option<(TabId, Bounds<Pixels>)>,
 }
 
 /// Where each shown tab's panes were laid out in the last frame, with the
@@ -86,7 +89,8 @@ impl LayoutDragState {
 
     pub(crate) fn cancel(&mut self) -> bool {
         let changed = self.pane.take().is_some();
-        self.preview.take().is_some() || changed
+        let hinted = self.tab_hint.take().is_some();
+        self.preview.take().is_some() || changed || hinted
     }
 }
 
@@ -244,6 +248,13 @@ impl AppModel {
 
     fn move_pane_drag(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         self.validate_layout_drag(cx);
+        let tab_hit = self
+            .tab_drag
+            .cells
+            .borrow()
+            .iter()
+            .find(|(_, bounds)| bounds.contains(&position))
+            .copied();
         let Some(drag) = &mut self.layout_drag.pane else {
             return;
         };
@@ -255,6 +266,16 @@ impl AppModel {
             cx.notify();
         }
         drag.position = position;
+        let hinted = tab_hit.filter(|(tab, _)| *tab != drag.tab);
+        if self.layout_drag.tab_hint != hinted {
+            self.layout_drag.tab_hint = hinted;
+            cx.notify();
+        }
+        if hinted.is_some() {
+            drag.hover = position;
+            self.set_drop_preview(None, cx);
+            return;
+        }
         let (bounds, scale) = drag.geometry;
         let target = target::target_at(&drag.layout, bounds, scale, position);
         if let Some(preview) = &self.layout_drag.preview {
@@ -300,7 +321,11 @@ impl AppModel {
         }
         if let Some(drag) = self.layout_drag.pane.take() {
             if drag.active {
-                self.finish_layout_drop(cx);
+                if let Some((tab, _)) = self.layout_drag.tab_hint.take() {
+                    self.drop_pane_on_tab(drag.pane, tab, cx);
+                } else {
+                    self.finish_layout_drop(cx);
+                }
             } else if let Some(pane) = self.grids.get(&drag.pane) {
                 pane.view
                     .update(cx, |pane, cx| pane.command_click(event.position, cx));
@@ -381,10 +406,12 @@ pub(crate) fn overlay(model: &AppModel) -> AnyElement {
         .map(|drag| (drag.tab, drag.geometry));
     let geometry = model.layout_drag.geometry.clone();
     let tab_preview = model.tab_drag.preview();
+    let tab_hint = model.layout_drag.tab_hint.map(|(_, bounds)| bounds);
     let preview = move || {
         expected
             .filter(|(tab, expected)| geometry.get(*tab) == Some(*expected))
             .and(pane_preview)
+            .or(tab_hint)
             .or(tab_preview)
     };
     let painted = preview.clone();

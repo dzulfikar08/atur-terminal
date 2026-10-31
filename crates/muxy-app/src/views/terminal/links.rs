@@ -132,6 +132,30 @@ fn trim(text: &str) -> &str {
     text
 }
 
+/// What a held Ctrl/Cmd shows before the link opens: the URL or path with its
+/// line and column, shortened in the middle so the end stays readable.
+pub(crate) fn peek_label(target: &Target) -> String {
+    const LIMIT: usize = 96;
+    let full = match target {
+        Target::Url(url) => url.clone(),
+        Target::File(location) => {
+            let path = location.path.display();
+            match (location.line, location.column) {
+                (Some(line), Some(column)) => format!("{path}:{line}:{column}"),
+                (Some(line), None) => format!("{path}:{line}"),
+                _ => path.to_string(),
+            }
+        }
+    };
+    let count = full.chars().count();
+    if count <= LIMIT {
+        return full;
+    }
+    let head: String = full.chars().take(LIMIT / 2 - 1).collect();
+    let tail: String = full.chars().skip(count - (LIMIT / 2 - 1)).collect();
+    format!("{head}\u{2026}{tail}")
+}
+
 impl TerminalPane {
     pub(crate) fn link_at(&self, position: gpui::Point<gpui::Pixels>) -> Option<Candidate> {
         if !self.native_visible || !self.geometry?.0.contains(&position) {
@@ -204,6 +228,27 @@ impl TerminalPane {
         }
     }
 
+    /// The chip naming where the hovered link leads, over the pane's bottom
+    /// left corner.
+    pub(crate) fn link_peek(&self) -> Option<gpui::Div> {
+        use gpui::{ParentElement, Styled, div, px, rgb};
+        let label = peek_label(self.link_hover.target.as_ref()?);
+        Some(
+            div()
+                .absolute()
+                .left_0()
+                .bottom_0()
+                .max_w_full()
+                .px(px(8.0))
+                .py(px(2.0))
+                .text_size(px(12.0))
+                .truncate()
+                .bg(rgb(self.palette.background))
+                .text_color(rgb(self.palette.foreground))
+                .child(label),
+        )
+    }
+
     pub(crate) fn link_context(&self) -> Option<muxy_app_core::opener::OpenContext> {
         let mut context = self.open_context.clone()?;
         if let Some(directory) = self.directory() {
@@ -224,6 +269,23 @@ mod tests {
             width,
             style: muxy_protocol::Style::default(),
         }
+    }
+
+    #[test]
+    fn peek_shows_file_locations_and_shortens_long_urls_in_the_middle() {
+        use muxy_app_core::opener::FileLocation;
+        let file = Target::File(FileLocation {
+            path: "/src/main.rs".into(),
+            line: Some(12),
+            column: Some(3),
+        });
+        assert_eq!(peek_label(&file), "/src/main.rs:12:3");
+        let url = format!("https://example.com/{}/end.html", "a".repeat(200));
+        let label = peek_label(&Target::Url(url));
+        assert_eq!(label.chars().count(), 95);
+        assert!(label.starts_with("https://example.com/a"));
+        assert!(label.ends_with("end.html"));
+        assert!(label.contains('\u{2026}'));
     }
 
     #[test]

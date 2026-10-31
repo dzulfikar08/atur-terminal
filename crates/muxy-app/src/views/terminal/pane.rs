@@ -1739,6 +1739,7 @@ impl Render for TerminalPane {
             .debug_selector(|| "terminal-pane".to_owned())
             .track_focus(&self.focus)
             .size_full()
+            .relative()
             .min_w(px(0.0))
             .min_h(px(0.0))
             .overflow_hidden()
@@ -1819,6 +1820,7 @@ impl Render for TerminalPane {
                     .overflow_hidden()
                     .child(element::terminal(cx.entity(), &palette)),
             )
+            .children(self.link_peek())
     }
 }
 

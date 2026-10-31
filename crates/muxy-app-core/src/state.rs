@@ -806,6 +806,74 @@ impl AppState {
         self.focus_pane(pane)
     }
 
+    /// Moves `pane` into the tab `target` of the same project, docked right of
+    /// that tab's last pane. A tab left without panes closes; the pane keeps
+    /// its session.
+    pub fn move_pane_to_tab(&mut self, pane: PaneId, target: TabId) -> Result<(), AppError> {
+        let (project_id, source_id) = self
+            .projects
+            .iter()
+            .find_map(|project| {
+                project
+                    .tabs
+                    .iter()
+                    .find(|tab| tab.layout.contains(pane))
+                    .map(|tab| (project.id, tab.id))
+            })
+            .ok_or(AppError::UnknownPane(pane))?;
+        if source_id == target {
+            return Err(AppError::InvalidState("pane is already in that tab".into()));
+        }
+        let project = self.project_mut(project_id)?;
+        project.require_available()?;
+        let anchor = project
+            .tabs
+            .iter()
+            .find(|tab| tab.id == target)
+            .and_then(|tab| tab.layout.leaves().last().copied())
+            .ok_or(AppError::UnknownTab {
+                project: project_id,
+                tab: target,
+            })?;
+        let source = project
+            .tabs
+            .iter_mut()
+            .find(|tab| tab.id == source_id)
+            .ok_or(AppError::UnknownTab {
+                project: project_id,
+                tab: source_id,
+            })?;
+        let index = source
+            .panes
+            .iter()
+            .position(|candidate| candidate.id == pane)
+            .ok_or(AppError::UnknownPane(pane))?;
+        let moved = source.panes.remove(index);
+        let emptied = source.panes.is_empty();
+        if !emptied {
+            source.layout.remove(pane);
+            if source.zoomed == Some(pane) {
+                source.zoomed = None;
+            }
+        }
+        let destination =
+            project
+                .tabs
+                .iter_mut()
+                .find(|tab| tab.id == target)
+                .ok_or(AppError::UnknownTab {
+                    project: project_id,
+                    tab: target,
+                })?;
+        destination.layout.split(anchor, pane, Direction::Right);
+        destination.zoomed = None;
+        destination.panes.push(moved);
+        if emptied {
+            self.close_tab(project_id, source_id)?;
+        }
+        self.focus_pane(pane)
+    }
+
     pub fn focus_pane(&mut self, pane: PaneId) -> Result<(), AppError> {
         let tab = self.pane_tab_mut(pane)?;
         if tab.zoomed.is_some() {

@@ -65,6 +65,19 @@ distributes itself, which this project does not.
 - Shared libraries bundled by linuxdeploy keep their Debian/Ubuntu copyright files under
   `usr/share/doc/<package>/copyright`, and `usr/share/doc/atur-terminal/bundled-sources.json` lists their sources.
 
+## Screenshot font
+
+`atur-term shot` draws text with 8x16 bitmaps rasterized from Noto Sans Mono Regular
+(Copyright 2022 The Noto Project Authors, SIL Open Font License 1.1). The generated table is
+`crates/muxy-cli/src/manage/shot/font.rs`; the licence is
+`crates/muxy-cli/src/manage/shot/LICENSE-noto-font` and ships in every package.
+
+## Ideas from herdr-app
+
+Pane and tab drag between tabs, the link peek, the pinned/folded agent list and `shot` were
+inspired by [herdr-app](https://github.com/herdrdev/herdr-app) (Apache-2.0). They are
+reimplemented against Atur Terminal's own code; no herdr-app source is copied or linked.
+
 ## Detection manifests
 
 Agent detection manifests and region extraction: see

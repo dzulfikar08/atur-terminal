@@ -104,8 +104,8 @@ fn the_panel_lists_each_shown_session_once_most_urgent_first(cx: &mut TestAppCon
             agents,
             [
                 (worktree_pane, AgentStatus::Blocked),
-                (root_pane, AgentStatus::Working),
                 (home_pane, AgentStatus::Completed),
+                (root_pane, AgentStatus::Working),
             ],
             "a session in two panes counts once, a working agent's old finish is not \
              Completed, and an agent no pane shows is left out"
@@ -120,7 +120,7 @@ fn the_panel_lists_each_shown_session_once_most_urgent_first(cx: &mut TestAppCon
         ));
         assert!(entries.iter().any(|entry| matches!(
             entry,
-            Entry::Worktree { project, counts: [0, 1, 0, 0] } if *project == fixture.root
+            Entry::Worktree { project, counts: [0, 0, 1, 0] } if *project == fixture.root
         )));
         assert_eq!(entries.len(), 3);
     });
@@ -160,7 +160,7 @@ fn the_shortcut_shows_and_focuses_then_hides_and_keys_open_only_live_panes(
         "focus is not handed back on the next frame"
     );
 
-    cx.simulate_keystrokes("down enter");
+    cx.simulate_keystrokes("down down enter");
     view.read_with(cx, |model, _| {
         assert_eq!(model.state.current_project().id, fixture.root);
         assert_eq!(model.active_pane(), Some(root_pane));
@@ -415,8 +415,8 @@ fn keyboard_navigation_uses_the_highlighted_row_after_selection_changes(cx: &mut
     cx.run_until_parked();
     cx.simulate_keystrokes("enter");
     view.read_with(cx, |model, _| {
-        assert_eq!(model.active_pane(), Some(fixture.panes[0]));
-        assert_eq!(model.state.current_project().id, fixture.root);
+        assert_eq!(model.active_pane(), Some(fixture.panes[3]));
+        assert_eq!(model.state.current_project().id, model.state.home().id);
     });
 
     view.update_in(cx, |model, window, cx| {
@@ -427,7 +427,7 @@ fn keyboard_navigation_uses_the_highlighted_row_after_selection_changes(cx: &mut
     cx.run_until_parked();
     cx.simulate_keystrokes("down enter");
     view.read_with(cx, |model, _| {
-        assert_eq!(model.state.current_project().id, model.state.home().id);
+        assert_eq!(model.state.current_project().id, fixture.root);
     });
 }
 
@@ -872,4 +872,58 @@ fn the_docked_panel_resizes_by_its_top_edge_and_scrolls_by_its_thumb(cx: &mut Te
             "dragging the top edge up makes it taller and is saved in {layout:?}: {height:?}"
         );
     }
+}
+
+#[gpui::test]
+fn pinned_agents_lead_and_a_folded_status_hides_its_entries_but_keeps_its_count(
+    cx: &mut TestAppContext,
+) {
+    use crate::model::agents_panel::{Row, Section, layout_rows};
+    let (view, cx, fixture) = agents(cx);
+    let [root_pane, _, worktree_pane, home_pane] = fixture.panes;
+    view.update(cx, |model, _| {
+        let all = model.agents_panel_all_from(model.running_agents());
+        let key_of = |pane| {
+            all.iter()
+                .position(|entry| matches!(entry, Entry::Agent(agent) if agent.pane == pane))
+                .expect("agent")
+        };
+        let (blocked, done, working) =
+            (key_of(worktree_pane), key_of(home_pane), key_of(root_pane));
+        let pinned: HashSet<_> = [all[working].key()].into_iter().collect();
+        let folded: HashSet<_> = [AgentStatus::Completed].into_iter().collect();
+        assert_eq!(
+            layout_rows(&all, &pinned, &folded),
+            [
+                Row::Header {
+                    section: Section::Pinned,
+                    count: 1
+                },
+                Row::Entry(working),
+                Row::Header {
+                    section: Section::Status(AgentStatus::Blocked),
+                    count: 1
+                },
+                Row::Entry(blocked),
+                Row::Header {
+                    section: Section::Status(AgentStatus::Completed),
+                    count: 1
+                },
+            ],
+            "the pin outranks its status, and the folded done section keeps only its heading"
+        );
+        assert_eq!(
+            layout_rows(&all, &HashSet::new(), &HashSet::new())
+                .into_iter()
+                .filter_map(|row| match row {
+                    Row::Entry(index) => Some(index),
+                    Row::Header { .. } => None,
+                })
+                .collect::<Vec<_>>(),
+            [blocked, done, working]
+        );
+        model.agents_panel.folded.insert(AgentStatus::Blocked);
+        let visible = model.agents_panel_entries_from(model.running_agents());
+        assert_eq!(visible.len(), 2, "navigation skips folded entries");
+    });
 }
