@@ -3,6 +3,7 @@ mod checkpoint;
 mod metadata;
 mod owner;
 mod prompt_marks;
+mod sizing;
 
 use std::fmt;
 use std::sync::mpsc::{SendError, Sender};
@@ -46,13 +47,18 @@ pub enum SessionCommand {
         id: AttachmentId,
         channel: ChannelId,
         size: Size,
+        /// The client only watches until it types (see `sizing`).
+        watching: bool,
         sink: AttachmentSink,
     },
     AttachWithoutResize {
         id: AttachmentId,
         channel: ChannelId,
+        watching: bool,
         sink: AttachmentSink,
     },
+    /// The client behind the attachment pressed a key or pasted.
+    Typed(AttachmentId),
     Detach(AttachmentId),
     HistoryPage {
         before: HistoryCursor,

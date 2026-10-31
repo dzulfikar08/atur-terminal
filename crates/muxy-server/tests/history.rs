@@ -44,6 +44,7 @@ impl Fixture {
             id: AttachmentId(u64::from(id)),
             channel: ChannelId(id),
             size: SIZE,
+            watching: false,
             sink: sink.into(),
         })?;
         match events.recv_timeout(TIMEOUT)? {

@@ -142,6 +142,7 @@ fn attach(
         id: AttachmentId(id),
         channel: ChannelId(u32::try_from(id)?),
         size,
+        watching: false,
         sink: sink.into(),
     })?;
     match events.recv_timeout(TIMEOUT)? {

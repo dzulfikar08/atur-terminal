@@ -19,6 +19,7 @@ use crate::session::backing::{Backing, Fault};
 use crate::session::checkpoint::Checkpoint;
 use crate::session::metadata::Metadata;
 use crate::session::prompt_marks::PromptMarks;
+use crate::session::sizing::Sizing;
 use crate::session::{
     AttachmentEvent, AttachmentId, AttachmentSink, SessionCommand, SessionHandle,
 };
@@ -119,6 +120,10 @@ struct Owner {
     sender: Sender<OwnerEvent>,
     stream: Stream,
     waiting: Vec<WaitingAttach>,
+    /// Which attached client sizes the session.
+    sizing: Sizing,
+    /// Whether the backing was last told that a client may size it.
+    size_authority: bool,
     next_alive: Instant,
     output_pending: bool,
     resize_pending: bool,
@@ -249,6 +254,8 @@ pub(crate) fn start(
                     Stream::Always
                 },
                 waiting: Vec::new(),
+                sizing: Sizing::default(),
+                size_authority: true,
                 next_alive: Instant::now() + ALIVE_POLL,
                 output_pending: false,
                 resize_pending: false,
@@ -403,22 +410,30 @@ impl Owner {
                     self.resize(size)?;
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::ResizeAttachment { id, size })) => {
-                    self.resize(size)?;
-                    self.broadcast_frame(Some(id))?;
-                    self.output_pending = false;
-                    self.resize_pending = false;
+                    self.resize_attachment(id, size)?;
+                }
+                Wake::Event(OwnerEvent::Command(SessionCommand::Typed(id))) => {
+                    self.typed(id, Instant::now())?;
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::Attach {
                     id,
                     channel,
                     size,
+                    watching,
                     sink,
-                })) => self.request_attach(id, channel, Some(size), sink)?,
+                })) => {
+                    self.sizing.join(id, watching, Some(size));
+                    self.request_attach(id, channel, Some(size), sink)?;
+                }
                 Wake::Event(OwnerEvent::Command(SessionCommand::AttachWithoutResize {
                     id,
                     channel,
+                    watching,
                     sink,
-                })) => self.request_attach(id, channel, None, sink)?,
+                })) => {
+                    self.sizing.join(id, watching, None);
+                    self.request_attach(id, channel, None, sink)?;
+                }
                 Wake::Event(OwnerEvent::Command(SessionCommand::HistoryPage {
                     before,
                     max_rows,
@@ -429,6 +444,8 @@ impl Owner {
                 Wake::Event(OwnerEvent::Command(SessionCommand::Detach(id))) => {
                     self.attachments.remove(&id);
                     self.waiting.retain(|waiting| waiting.id != id);
+                    self.sizing.leave(id);
+                    self.sync_size_authority();
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::Search {
                     query,
@@ -471,6 +488,7 @@ impl Owner {
         size: Option<Size>,
         sink: AttachmentSink,
     ) -> Result<(), Fault> {
+        self.sync_size_authority();
         match self.stream {
             Stream::Always => self.attach(id, channel, size.unwrap_or(self.size), sink),
             Stream::Open(_) => {
@@ -489,6 +507,7 @@ impl Owner {
             Stream::Closed => {
                 if let Some(size) = size
                     && size != self.size
+                    && !self.sizing.watching(id)
                 {
                     self.resize(size)?;
                 }
@@ -794,6 +813,99 @@ impl Owner {
         }
     }
 
+    /// A client reports the grid of its view. The session takes that size when the
+    /// client may size it; either way the client is answered with the session's screen.
+    fn resize_attachment(&mut self, id: AttachmentId, size: Size) -> Result<(), Fault> {
+        self.prune_viewers();
+        if self.sizing.told(id, size) && size != self.size {
+            self.resize(size)?;
+            self.broadcast_frame(Some(id))?;
+            self.output_pending = false;
+            self.resize_pending = false;
+        } else {
+            self.repaint(id)?;
+        }
+        Ok(())
+    }
+
+    /// A client typed: the keyboard may move to it, and the session with it.
+    fn typed(&mut self, id: AttachmentId, now: Instant) -> Result<(), Fault> {
+        self.prune_viewers();
+        let size = self.sizing.typed(id, now);
+        self.sync_size_authority();
+        if let Some(size) = size
+            && size != self.size
+        {
+            self.resize(size)?;
+        }
+        Ok(())
+    }
+
+    /// Tells the backing whether a client may size the session, once that changes.
+    fn sync_size_authority(&mut self) {
+        if self.sizing.is_empty() {
+            return;
+        }
+        let sizes = self.sizing.sizes();
+        if sizes != self.size_authority {
+            self.size_authority = sizes;
+            self.pty.set_size_authority(sizes);
+        }
+    }
+
+    /// Forgets clients that left without a detach, such as a closed connection.
+    fn prune_viewers(&mut self) {
+        let present: std::collections::HashSet<AttachmentId> = self
+            .attachments
+            .keys()
+            .copied()
+            .chain(self.waiting.iter().map(|waiting| waiting.id))
+            .collect();
+        self.sizing.retain(&present);
+    }
+
+    /// Answers a resize that left the session as it was: the whole screen goes to
+    /// the asking client, whose view may have assumed another size.
+    fn repaint(&mut self, id: AttachmentId) -> Result<(), Fault> {
+        if !self.attachments.contains_key(&id) {
+            return Ok(());
+        }
+        let rows = self.terminal.screen()?;
+        let graphics = self.terminal.graphics()?;
+        let cursor = self.terminal.cursor()?;
+        let modes = self.terminal.modes()?;
+        let Some(attachment) = self.attachments.get_mut(&id) else {
+            return Ok(());
+        };
+        let seq = attachment.seq;
+        attachment.seq += 1;
+        let sent = [
+            AttachmentEvent::Metadata(MetadataEvent::ScreenPrompts {
+                seq,
+                rows: self.prompts.clone(),
+            }),
+            AttachmentEvent::Metadata(MetadataEvent::Links {
+                seq,
+                rows: self.links.clone(),
+            }),
+            AttachmentEvent::Resized(ScreenFrame {
+                size: self.size,
+                graphics: Some(graphics),
+                seq,
+                reset: true,
+                rows,
+                cursor,
+                modes,
+            }),
+        ]
+        .into_iter()
+        .all(|event| attachment.sink.send(event));
+        if !sent {
+            self.attachments.remove(&id);
+        }
+        Ok(())
+    }
+
     fn resize(&mut self, size: Size) -> Result<(), Fault> {
         self.pty.resize(size)?;
         self.terminal.resize(size)?;
@@ -814,7 +926,7 @@ impl Owner {
         size: Size,
         mut sink: AttachmentSink,
     ) -> Result<(), Fault> {
-        if self.attachments.is_empty() && size != self.size {
+        if self.attachments.is_empty() && size != self.size && !self.sizing.watching(id) {
             self.resize(size)?;
         }
         self.update_metadata();
@@ -1344,6 +1456,8 @@ mod tests {
             next_alive: Instant::now(),
             output_pending: false,
             resize_pending: false,
+            sizing: Sizing::default(),
+            size_authority: true,
             compress_pending: false,
             history_total: 0,
             history_generation: 0,
@@ -1802,6 +1916,154 @@ mod tests {
         assert!(owner.checkpoint.due().is_some());
         owner.checkpoint(Some(ExitReason::Ended));
         assert_eq!(owner.checkpoint.due(), None);
+        Ok(())
+    }
+
+    type Log = std::sync::Arc<std::sync::Mutex<Vec<String>>>;
+
+    /// A backing that records the sizes and the size authority it is given.
+    struct Recording(Log);
+
+    impl Recording {
+        fn note(&self, line: String) {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(line);
+        }
+    }
+
+    fn lines(log: &Log) -> Vec<String> {
+        log.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    impl Backing for Recording {
+        fn start_reader(&self, _sink: Sender<OwnerEvent>) -> Result<(), ServerError> {
+            Ok(())
+        }
+
+        fn take_writer(&mut self) -> Result<Box<dyn Write + Send>, ServerError> {
+            Ok(Box::new(io::sink()))
+        }
+
+        fn resize(&mut self, size: Size) -> Result<(), Fault> {
+            self.note(format!("resize {}x{}", size.cols, size.rows));
+            Ok(())
+        }
+
+        fn set_size_authority(&mut self, authority: bool) {
+            self.note(format!("authority {authority}"));
+        }
+
+        fn set_cell_size(&mut self, _cell: muxy_terminal::CellSize) -> Result<(), Fault> {
+            Ok(())
+        }
+
+        fn try_wait(&mut self) -> Option<ExitStatus> {
+            None
+        }
+
+        fn wait(&mut self) -> Result<ExitStatus, Fault> {
+            Ok(ExitStatus {
+                code: None,
+                signal: None,
+            })
+        }
+
+        fn kill(&mut self) -> Result<(), Fault> {
+            Ok(())
+        }
+
+        fn child_pid(&self) -> u32 {
+            0
+        }
+
+        fn foreground_pid(&self) -> Option<u32> {
+            None
+        }
+    }
+
+    fn join(
+        owner: &mut Owner,
+        id: u64,
+        watching: bool,
+        told: Option<Size>,
+    ) -> Result<Receiver<AttachmentEvent>, Fault> {
+        let (sink, events) = mpsc::channel();
+        owner.sizing.join(AttachmentId(id), watching, told);
+        owner.sync_size_authority();
+        let size = owner.size;
+        owner.attach(
+            AttachmentId(id),
+            ChannelId(u32::try_from(id)?),
+            size,
+            sink.into(),
+        )?;
+        Ok(events)
+    }
+
+    #[test]
+    fn a_watcher_sizes_the_session_only_once_it_types() -> Result<(), Fault> {
+        let log = Log::default();
+        let mut owner = owner_with(Box::new(Recording(Log::clone(&log))))?;
+        let start = owner.size;
+        let wide = Size { cols: 60, rows: 10 };
+        let small = Size { cols: 30, rows: 8 };
+        let (desktop, phone) = (AttachmentId(1), AttachmentId(2));
+        let _desktop_events = join(&mut owner, 1, false, Some(wide))?;
+        let phone_events = join(&mut owner, 2, true, Some(small))?;
+        phone_events.try_iter().for_each(drop);
+
+        // The phone only tells its grid: the session keeps its size, and the phone gets
+        // the screen it has, whole, as the answer.
+        owner.resize_attachment(phone, small)?;
+        assert_eq!(owner.size, start);
+        assert!(phone_events.try_iter().any(|event| matches!(
+            event,
+            AttachmentEvent::Resized(frame) if frame.size == start && frame.reset
+        )));
+        assert!(lines(&log).is_empty());
+
+        // Nobody typed yet: a client that is not watching may size it.
+        owner.resize_attachment(desktop, wide)?;
+        assert_eq!(owner.size, wide);
+
+        // The phone types: the session takes the size the phone told, and the desktop
+        // is the one that only watches now.
+        owner.typed(phone, Instant::now())?;
+        assert_eq!(owner.size, small);
+        owner.resize_attachment(desktop, Size { cols: 70, rows: 12 })?;
+        assert_eq!(owner.size, small);
+        // Saying the size it has is no resize either.
+        owner.resize_attachment(phone, small)?;
+        assert_eq!(lines(&log), ["resize 60x10", "resize 30x8"]);
+        Ok(())
+    }
+
+    #[test]
+    fn the_backing_follows_whether_any_client_may_size_the_session() -> Result<(), Fault> {
+        let log = Log::default();
+        let mut owner = owner_with(Box::new(Recording(Log::clone(&log))))?;
+        let phone_events = join(&mut owner, 1, true, None)?;
+        join(&mut owner, 2, false, None)?;
+        owner.sync_size_authority();
+        owner.sync_size_authority();
+        owner.attachments.remove(&AttachmentId(2));
+        owner.sizing.leave(AttachmentId(2));
+        owner.sync_size_authority();
+        owner.typed(AttachmentId(1), Instant::now())?;
+        drop(phone_events);
+        assert_eq!(
+            lines(&log),
+            [
+                "authority false",
+                "authority true",
+                "authority false",
+                "authority true"
+            ]
+        );
         Ok(())
     }
 }

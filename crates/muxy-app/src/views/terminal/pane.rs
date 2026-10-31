@@ -114,6 +114,12 @@ pub(crate) struct TerminalPane {
     /// The server that attached this pane, and its channel there.
     attachment: Option<(ServerId, ChannelId)>,
     viewport: Option<Size>,
+    /// The size the attach in flight asked for.
+    attach_size: Option<Size>,
+    /// The last size this pane told the server on its channel. A view resizes the
+    /// session only when its own cell grid changes, never because it attached,
+    /// took focus or repainted.
+    told: Option<(ChannelId, Size)>,
     pub(crate) palette: Palette,
     pub(crate) background_opacity: f32,
     pub(crate) native_vibrancy: bool,
@@ -223,6 +229,8 @@ impl TerminalPane {
             corner_radius: px(0.0),
             attachment: None,
             viewport: None,
+            attach_size: None,
+            told: None,
             palette,
             background_opacity: 1.0,
             native_vibrancy: false,
@@ -289,13 +297,32 @@ impl TerminalPane {
         cx.notify();
     }
 
+    /// Notes the size an attach is about to ask for, which the server then knows.
+    pub(crate) fn note_attach_size(&mut self, size: Size) {
+        self.attach_size = Some(size);
+    }
+
+    /// Whether the server must hear of `size` on `channel`: not when it was told already.
+    pub(crate) fn tell(&mut self, channel: ChannelId, size: Size) -> bool {
+        let changed = self.told != Some((channel, size));
+        self.told = Some((channel, size));
+        changed
+    }
+
     pub(crate) fn attach(
         &mut self,
         server: ServerId,
         attachment: Attachment,
         cx: &mut Context<Self>,
     ) -> Option<Size> {
-        let resized = self.viewport.filter(|size| *size != attachment.grid.size);
+        let requested = self.attach_size.take();
+        let resized = self
+            .viewport
+            .filter(|size| *size != attachment.grid.size && requested != Some(*size));
+        self.told = Some((
+            attachment.channel,
+            resized.or(requested).unwrap_or(attachment.grid.size),
+        ));
         self.reset_input();
         self.clear_selection();
         let history = if resized.is_none() && self.keeps_scroll(&attachment.grid) {
@@ -2624,6 +2651,47 @@ mod tests {
                 assert!(pane.scroll.view.is_none());
             });
         }
+    }
+
+    #[gpui::test]
+    fn a_pane_resizes_the_session_only_for_a_grid_it_has_not_told(cx: &mut TestAppContext) {
+        let pane = cx.new(|cx| {
+            TerminalPane::new(
+                Palette::new(true),
+                muxy_app_core::settings::TerminalSettings::default(),
+                cx,
+            )
+        });
+        let attachment = |channel: u32| Attachment {
+            channel: ChannelId(channel),
+            server_input: false,
+            grid: grid(),
+            title: String::new(),
+            directory: ServerPath(Vec::new()),
+            process: None,
+        };
+        let told = Size { cols: 30, rows: 8 };
+        pane.update(cx, |pane, cx| {
+            // Attached at the size this view asked for, though the session kept its own:
+            // the server was told, so attaching resizes nothing.
+            pane.viewport = Some(told);
+            pane.note_attach_size(told);
+            assert_eq!(pane.attach(ServerId::local(), attachment(1), cx), None);
+            assert!(!pane.tell(ChannelId(1), told));
+            // Its grid changes: that is news, once.
+            let next = Size { cols: 31, rows: 8 };
+            assert!(pane.tell(ChannelId(1), next));
+            assert!(!pane.tell(ChannelId(1), next));
+            // A new attachment starts afresh: asked at another size than the view has,
+            // the server is told what the view has.
+            pane.viewport = Some(told);
+            pane.note_attach_size(Size { cols: 80, rows: 24 });
+            assert_eq!(
+                pane.attach(ServerId::local(), attachment(2), cx),
+                Some(told)
+            );
+            assert!(!pane.tell(ChannelId(2), told));
+        });
     }
 
     #[gpui::test]

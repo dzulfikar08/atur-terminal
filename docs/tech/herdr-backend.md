@@ -34,8 +34,9 @@ default) keeps local PTYs. The server refuses to start if herdr does not answer 
 | Piece | File |
 |---|---|
 | What an owner needs from a process (`Backing` trait; the local PTY implements it) | `session/backing.rs` |
+| Which attached client sizes a session (decides control or observe) | `session/sizing.rs` |
 | herdr socket API client, one connection per request | `herdr/api.rs` |
-| Control stream (`herdr terminal session control`): frames, input, resize, mouse, reconnect | `herdr/control.rs` |
+| Control or observe stream (`herdr terminal session control` / `observe`): frames, input, resize, mouse, reconnect | `herdr/control.rs` |
 | Shared, short-lived `pane.list` copy: title, scrollback size, agent | `herdr/panes.rs` |
 | Scrollback via `pane.read` | `herdr/scrollback.rs` |
 | Session/project to herdr mapping, `herdr.json` | `herdr/store.rs` |
@@ -55,9 +56,9 @@ process or bytes go to herdr; everything else is the existing server code.
 | `ReadCatalog`, `MutateProject`, `ListProjectSessions`, `CancelCreation` | atur-term-server catalog, unchanged |
 | `ListSessions` | atur-term-server session table; sessions are adopted from herdr at start |
 | `CreateSession` | herdr: `workspace.create` (first session of a project; label = project name) or `tab.create`, with the project directory, `ATUR_TERM_*` environment and no tab label; then a control stream |
-| `Attach`, `Detach`, `Resize` (+ `ScreenFrame`, `FrameAck`, `Snapshot`, `Resized`) | atur-term-server owner. The first attach opens herdr's control stream and is answered when its first frame has painted the owner's terminal; the last detach closes the stream after 5 s. Resize goes to the control stream (`terminal.resize`) while it is open and is applied when it opens otherwise |
-| `WriteInput`, `Input`, `TerminalInput`, `Paste` | atur-term-server encodes keys. Bytes go to `terminal.input` while the stream is open and to `pane.send_text` otherwise (no stream is opened for input alone). Pastes are always bracketed because herdr re-wraps for the application's own mode |
-| `Mouse` | `terminal.mouse` / `terminal.scroll` on the control stream |
+| `Attach`, `Detach`, `Resize` (+ `ScreenFrame`, `FrameAck`, `Snapshot`, `Resized`) | atur-term-server owner. The first attach opens herdr's stream and is answered when its first frame has painted the owner's terminal; the last detach closes the stream after 5 s. While a client may size the session, Resize goes to the control stream (`terminal.resize`) and is applied when it opens otherwise; a session that only watchers show is observed at its size instead (see "Session size and watchers") |
+| `WriteInput`, `Input`, `TerminalInput`, `Paste` | atur-term-server encodes keys. Bytes go to `terminal.input` while a control stream is open and to `pane.send_text` otherwise, also while only an observer runs (no stream is opened for input alone). Pastes are always bracketed because herdr re-wraps for the application's own mode |
+| `Mouse` | `terminal.mouse` / `terminal.scroll` on the control stream; while only an observer runs, the owner encodes the event as input from its own terminal's modes |
 | `CellSize` | `terminal.resize` carries `cell_width_px`/`cell_height_px` |
 | `HistoryPage`, `Search` | herdr `pane.read` (`recent`, `visible`, ANSI) rendered to rows with a scratch libghostty terminal; the row count comes from `pane.list` `scroll.max_offset_from_bottom`. The screen part of a page of an unwatched session is read the same way (`pane.read visible`) and replaces the owner's terminal content first |
 | `ReadSavedScreen`, `SavedHistoryPage`, `DiscardSession` | atur-term-server archive. A herdr terminal is not checkpointed while it runs (herdr holds the content); the archive is written when the session ends, from `pane.read visible` if nobody was watching |
@@ -140,9 +141,9 @@ dropped no longer line up.
 herdr itself renders only the panes a client views. `atur-term-server` does the same:
 
 * No `terminal session control` child and no mirror-terminal parsing exist for a session nobody is attached to.
-* The first `Attach` opens the stream (`--takeover` at the client's size) and is answered when the first
-  frame, a full repaint, has arrived (1.5 s at most). The last `Detach` starts a 5 s grace; then the
-  stream is closed with `terminal.release`.
+* The first `Attach` opens the stream (`--takeover` at the client's size when a client may size the session,
+  else an observer, see below) and is answered when the first frame, a full repaint, has arrived (1.5 s at
+  most). The last `Detach` starts a 5 s grace; then the stream is closed with `terminal.release`.
 * Unwatched sessions need only cheap API calls: `pane.list` (one shared copy, 200 ms TTL) for title, agent,
   `agent_status`, scrollback size and liveness; `/proc` for directory and foreground process; `pane.read`
   for history, search and the saved screen; `pane.send_text` for input. A terminal that vanished from
@@ -150,13 +151,31 @@ herdr itself renders only the panes a client views. `atur-term-server` does the 
 * Whatever the owner's terminal holds for an unwatched session is stale; it is reseeded from
   `pane.read visible` before anything reads it (history/search pages, the checkpoint when the session ends).
 
+## Session size and watchers
+
+Who sizes a session is decided by `atur-term-server` for every backend (see [the protocol](protocol.md#session-size)):
+only the client whose keyboard the session follows may resize it, and a client that never typed only watches.
+With herdr the same decision picks the stream's mode, because a stream that `--takeover`s the terminal also
+resizes it, and herdr's own UI then loses its size:
+
+| Who is attached | Stream | Effect |
+|---|---|---|
+| A client that may size the session: the one that typed last, or, before anyone typed, a desktop or terminal app | `terminal session control --takeover` at the session's size | the terminal has the typist's size; `terminal.resize` follows it |
+| Only watchers (phones that did not type) | `terminal session observe` at the session's size | herdr's pane keeps its own size; the mirror shows it cropped or padded to the session's size, and nothing is sent to herdr's pane |
+
+The stream is replaced (not the terminal, not its process) when the mode changes: the control stream releases
+the terminal first, an observer is started again at a new size when the session's size changes, and neither
+counts towards the restart limit. Typing on a watching phone makes it the keyboard owner, which turns the
+stream into a takeover at the size the phone told. When the typing client detaches and only watchers are left,
+the takeover is given up and herdr's UI keeps the terminal.
+
 ## Identity mapping
 
 | Atur Terminal | herdr |
 |---|---|
 | `ProjectId` | one herdr workspace, created with the first session of the project (label = project name, the catalog's, never an id). Stored in `herdr.json` and recovered from the panes of adopted sessions |
 | `SessionId` (u64) | one tab holding one pane, **without a label**, so herdr numbers it (1, 2, 3, …) like the tabs the user opens. The pane's `terminal_id` and `pane_id` are stored in `herdr.json`, and the session id is in the shell's environment as `ATUR_TERM_SESSION_ID` |
-| Session size | owned by Atur Terminal: the control stream attaches with `--takeover` at the client's size and `terminal.resize` follows every `Resize` |
+| Session size | the client that last typed; while a client may size it the control stream attaches with `--takeover` at that client's size and `terminal.resize` follows every resize it sends, otherwise herdr's own size stands and the mirror only observes |
 
 herdr numbers terminals afresh after a server restart and **re-mints terminal ids on a live handoff**
 (observed: `term_…` ids changed, pane ids `w7:p3` and processes did not). So the saved terminal id is only
@@ -222,7 +241,9 @@ default number, so tabs that carry a legacy label keep it until the user renames
 * A herdr terminal is checkpointed only when its session ends; "saved screen" of a live session is not refreshed.
 * `atur-term server stop --force` leaves herdr terminals running; end them with `atur-term session end`.
 * Deleting a project does not remove its herdr workspace.
-* The mirror and herdr's own UI contend for the pane size (`--takeover`); the last one to resize wins.
+* While a client types through the herdr backend, the mirror and herdr's own UI contend for the pane size
+  (`--takeover`); the last one to resize wins. Only when nobody types (watchers only) is herdr's size left alone.
+* An observer's frame is herdr's terminal cropped or padded to the session's size, not re-wrapped to it.
 * Handoff of the whole stack on herdr's `update` command needs herdr ≥ 0.9.x with `live_handoff`.
 * Where `/proc` has no process environment (macOS), adoption cannot read a shell's session id: it relies on the
   saved terminal and pane ids (the pane id survives a handoff) and on legacy tab labels, so with `herdr.json`

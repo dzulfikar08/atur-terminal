@@ -42,6 +42,12 @@ impl RunGrid {
     }
 
     pub fn apply(&mut self, frame: &ScreenFrame) {
+        // The session's size is not always the one this view asked for: another client
+        // may size it, and a client that is only watching never does. A reset frame
+        // carries the whole screen, so the grid can follow it.
+        if frame.reset && frame.size != self.size {
+            self.resize(frame.size);
+        }
         if let Some(graphics) = &frame.graphics {
             self.graphics = graphics.clone();
         }
@@ -327,6 +333,20 @@ mod tests {
     }
 
     #[test]
+    fn a_reset_frame_of_another_size_resizes_the_grid_and_a_partial_one_does_not() {
+        let mut grid = RunGrid::from_snapshot(&snapshot());
+        let mut wide = frame(1, false, vec![row(0, "x")]);
+        wide.size = Size { cols: 20, rows: 5 };
+        grid.apply(&wide);
+        assert_eq!(grid.size, Size { cols: 10, rows: 3 });
+        wide.reset = true;
+        grid.apply(&wide);
+        assert_eq!(grid.size, Size { cols: 20, rows: 5 });
+        assert_eq!(grid.rows.len(), 5);
+        assert_eq!(grid.row_text(0), "x");
+    }
+
+    #[test]
     fn reset_after_a_delayed_larger_frame_returns_to_the_requested_height() {
         let mut grid = RunGrid::from_snapshot(&snapshot());
         grid.resize(Size { cols: 10, rows: 8 });
@@ -392,7 +412,7 @@ mod prompt_tests {
     fn future_marks_wait_for_frames_and_reset_frames_cannot_reuse_old_marks() {
         let mut grid = grid();
         let frame = |seq, reset| ScreenFrame {
-            size: Size { cols: 10, rows: 3 },
+            size: Size { cols: 10, rows: 4 },
             graphics: None,
             seq,
             reset,

@@ -188,6 +188,7 @@ mod tests {
                 let command = SessionCommand::AttachWithoutResize {
                     id,
                     channel: CHANNEL,
+                    watching: false,
                     sink: AttachmentSink::outbox(sink),
                 };
                 let _ = done.send(attaching.attach(CHANNEL, id, REQUEST, handle, command));

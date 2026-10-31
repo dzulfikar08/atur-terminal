@@ -45,6 +45,34 @@ sequenceDiagram
   screen.
 - History is never pushed. Apps page through it and search it on request.
 
+## Session size
+
+Several apps can show one session, but it has one size. The protocol is
+unchanged; the server decides whose size it is.
+
+- Every app tells the server the grid its view has: `Attach` with a size, then
+  `Resize` when that grid changes. An app sends `Resize` only for a change of its
+  own grid, never because it attached, took focus or redrew. Telling the same
+  size twice is a no-op, and the reply is the whole screen at the session's size.
+- Only the app whose keyboard the session follows may make the session that
+  big. That is the app that typed last (a key or a paste, not focus or mouse
+  events), once the previous typist has been quiet for 0.8 s, so two people
+  typing at once do not make the pane flip. The server keeps each app's last
+  told size and applies it the moment the app takes the keyboard.
+- An app that never typed only watches. Before anyone types, desktop and
+  terminal apps keep the old behaviour (the last size told wins), so a lone
+  desktop sizes its session as it always did. A phone (client kind `Mobile`)
+  always starts as a watcher; even its first `Attach` leaves the session's
+  size alone.
+- A `Resize` that the session does not take is still answered, with a reset
+  frame at the session's size. Apps follow a reset frame's size, so a watcher
+  shows the session as it is.
+- When the typing app detaches, the keyboard is free and the next app to type
+  takes it.
+
+With the herdr backend the same rule decides who controls herdr's terminal; see
+[the herdr backend](herdr-backend.md#session-size-and-watchers).
+
 ## Flow control
 
 Each attached session has a window of frames in flight to each app: at most 8

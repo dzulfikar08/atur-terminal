@@ -30,6 +30,14 @@ quit the app, and every app shows the same screen and history.
 See [Keyboard shortcuts](../user-guide/keyboard-shortcuts.md) for the full
 list.
 
+## One terminal in several apps
+
+When the same terminal is open in the desktop app, in `atur-term` and on a
+phone, it has one size: that of the app you typed in last. An app that only
+shows the terminal never resizes it, and a window that is resized or focused
+again does not either unless its own grid changed. With the herdr backend the
+terminal keeps herdr's own size while nobody types.
+
 ## Closing and detaching
 
 - Closing a pane ends its terminal, unless another pane in any app still shows

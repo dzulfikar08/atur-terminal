@@ -15,6 +15,8 @@ mod colors;
 mod input;
 #[path = "client/observe.rs"]
 mod observe;
+#[path = "client/sizing.rs"]
+mod sizing;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
