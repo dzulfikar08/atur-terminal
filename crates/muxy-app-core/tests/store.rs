@@ -582,3 +582,45 @@ fn a_version_3_file_moves_its_window_into_the_view_file_once() -> TestResult {
     assert_eq!(store::load(fixture.path())?, state);
     Ok(())
 }
+
+#[test]
+fn the_first_version_4_save_keeps_the_earlier_file_for_a_rollback() -> TestResult {
+    let fixture = Fixture::new()?;
+    let legacy = include_str!("fixtures/muxy-2/desktop-state.json");
+    fs::write(fixture.path(), legacy)?;
+    let copy = store::rollback_path(fixture.path());
+    assert_eq!(copy, fixture.0.join("state.v3.json"));
+
+    let mut state = store::load(fixture.path())?;
+    assert!(!copy.exists());
+    store::save(fixture.path(), &state)?;
+    assert_eq!(fs::read_to_string(&copy)?, legacy);
+
+    // Later saves leave the first copy alone.
+    let home = state.home().id;
+    state.open_terminal_tab(home)?;
+    store::save(fixture.path(), &state)?;
+    assert_eq!(fs::read_to_string(&copy)?, legacy);
+    let saved: Value = serde_json::from_slice(&fs::read(fixture.path())?)?;
+    assert_eq!(saved["version"], 4);
+
+    // Renaming it back gives the earlier release the file it wrote.
+    fs::rename(&copy, fixture.path())?;
+    let rolled_back: Value = serde_json::from_slice(&fs::read(fixture.path())?)?;
+    assert_eq!(rolled_back["version"], 3);
+    assert!(rolled_back.get("window").is_some());
+    assert!(store::load(fixture.path()).is_ok());
+    Ok(())
+}
+
+#[test]
+fn files_of_version_4_and_new_profiles_leave_no_rollback_copy() -> TestResult {
+    let fixture = Fixture::new()?;
+    let mut state = populated()?;
+    store::save(fixture.path(), &state)?;
+    let home = state.home().id;
+    state.open_terminal_tab(home)?;
+    store::save(fixture.path(), &state)?;
+    assert!(!store::rollback_path(fixture.path()).exists());
+    Ok(())
+}

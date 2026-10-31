@@ -62,7 +62,11 @@ The desktop app saves two kinds of file in the profile:
 - Version 4 of `desktop-state.json` has no `window`. Earlier versions, and
   files a backup restore writes, still hold one. Loading uses that window once
   and the next save moves it into the view file. Older releases can't read
-  version 4.
+  version 4, so that first save keeps the file it replaces as
+  `desktop-state.v3.json`, unless that file already exists. **To roll back to
+  2.2.0-12 or earlier, quit the app and rename `desktop-state.v3.json` to
+  `desktop-state.json`.** Changes made since the upgrade are lost, and the
+  `desktop-state.view*.json` files can stay or be deleted.
 - Backups carry the layout with the window of the computer that made them, as
   before; view files aren't part of a backup.
 
