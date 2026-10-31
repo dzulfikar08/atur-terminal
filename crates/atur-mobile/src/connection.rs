@@ -257,7 +257,8 @@ impl Connection {
         Ok(self.client.end_session(session(session_id)?)?)
     }
 
-    /// Attaches without resizing a session other clients already show.
+    /// Attaches as a watcher: the session keeps the size it has, and takes this device's
+    /// grid (the size given here, or the last `Terminal::resize`) only once the user types.
     pub fn attach(
         &self,
         session_id: u64,
@@ -269,13 +270,11 @@ impl Connection {
             .attaching
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        let attachment = self.client.attach(
-            session,
-            Size {
-                cols: columns,
-                rows,
-            },
-        )?;
+        let told = Size {
+            cols: columns,
+            rows,
+        };
+        let attachment = self.client.attach(session, told)?;
         let channel = attachment.channel;
         let (view, acknowledge) = self.terminals.install(session, attachment);
         self.track();
@@ -286,6 +285,7 @@ impl Connection {
             client: self.client.clone(),
             view,
             terminals: Arc::clone(&self.terminals),
+            told: Mutex::new(told),
         }))
     }
 

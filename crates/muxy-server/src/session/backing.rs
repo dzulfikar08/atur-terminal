@@ -29,6 +29,15 @@ pub(crate) trait Backing: Send {
 
     fn set_cell_size(&mut self, cell: CellSize) -> Result<(), Fault>;
 
+    /// Whether some attached client may size the session. False while only viewers
+    /// that never typed are attached: a backing whose process has another owner
+    /// then stops taking the size from this server and follows its own owner's.
+    /// The owner calls it when that changes, before the stream of an on-demand
+    /// backing opens.
+    fn set_size_authority(&mut self, authority: bool) {
+        let _ = authority;
+    }
+
     fn try_wait(&mut self) -> Option<ExitStatus>;
 
     fn wait(&mut self) -> Result<ExitStatus, Fault>;

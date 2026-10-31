@@ -40,8 +40,9 @@ screen and sends input.
 - Store `ServerCredential` in the Keychain or behind an Android Keystore key.
   Never log pairing links or credentials.
 - Never work around `IdentityMismatch`. The user must pair again.
-- Call `resize` and `endSession` only when the user asks. Both affect every
-  client showing the session.
+- Call `endSession` only when the user asks: it affects every client showing the
+  session. `resize` is safe to call whenever the view's grid changes; see
+  [Input](#input).
 - Don't edit the generated bindings. Change the Rust SDK in
   `crates/atur-mobile`, then rebuild it.
 - The SDK talks to any server that shares a protocol version with it; see
@@ -699,9 +700,13 @@ withContext(sdk) {
   the text as a paste when the program asks for that; otherwise pasted line
   breaks run as typed.
 - One call carries at most 1 MiB.
-- `resize(columns:rows:)` resizes the session for every client, and the
-  desktop's pane reflows to match. Offer it as an explicit action, such as
-  "Fit to phone".
+- A phone only watches until its user types. `attach` and `resize(columns:rows:)`
+  tell the server the grid of the phone's view, and the session keeps the size
+  other clients gave it. When the user types, the session takes the size told
+  last, and the desktop's pane reflows to match; it keeps it while this device
+  is the one typing, and goes back to the next client that types. So call
+  `resize` when the view's grid changes (rotation, font size), not on attach,
+  focus or redraw: telling the same grid again does nothing.
 
 ## Scrollback
 

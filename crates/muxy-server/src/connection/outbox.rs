@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use muxy_protocol::{
     AttachSnapshot, CONTROL, ChannelId, ErrorCode, ExitReason, ForegroundProcess, Message,
@@ -12,11 +13,16 @@ use crate::{AttachmentId, ServerError, SessionCommand, SessionHandle};
 
 use super::merge::{merge, weight};
 
+/// How often the session hears that a client keeps typing.
+const TYPED_REPORT: Duration = Duration::from_millis(100);
+
 struct Attachment {
     handle: SessionHandle,
     id: AttachmentId,
     waiting: Option<RequestId>,
     resizes: VecDeque<RequestId>,
+    /// When the session was last told that this client typed.
+    typed: Option<Instant>,
 }
 
 #[derive(Clone, Default)]
@@ -416,6 +422,7 @@ impl Outbox {
                 id,
                 waiting: Some(request),
                 resizes: VecDeque::new(),
+                typed: None,
             },
         );
         state.window.insert(channel, Window::default());
@@ -477,6 +484,29 @@ impl Outbox {
         })?;
         attachment.resizes.push_back(request);
         Ok(())
+    }
+
+    /// Tells the session that the client behind `channel` typed, at most once per
+    /// `TYPED_REPORT`: the session only needs to know who typed lately.
+    pub(super) fn typed(&self, channel: ChannelId) {
+        let mut state = self.lock();
+        let Some(attachment) = state.attachments.get_mut(&channel) else {
+            return;
+        };
+        let now = Instant::now();
+        if attachment
+            .typed
+            .is_some_and(|at| now.saturating_duration_since(at) < TYPED_REPORT)
+        {
+            return;
+        }
+        attachment.typed = Some(now);
+        let _ = attachment.handle.send(SessionCommand::Typed(attachment.id));
+    }
+
+    /// The kind of client on the other end of the connection.
+    pub(super) fn client_kind(&self) -> muxy_protocol::ClientKind {
+        self.lock().client.kind
     }
 
     pub(super) fn resized(&self, channel: ChannelId, frame: ScreenFrame) -> bool {

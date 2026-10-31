@@ -1932,6 +1932,9 @@ impl AppModel {
         if self.pending.insert(pane, server).is_some() {
             return;
         }
+        if let Some(view) = self.terminal(&pane).map(|pane| pane.view.clone()) {
+            view.update(cx, |pane, _| pane.note_attach_size(size));
+        }
         self.send(
             server,
             Work::Attach {
@@ -1963,7 +1966,14 @@ impl AppModel {
             return;
         }
         if let Some((server, channel)) = attachment {
-            self.send(server, Work::Resize(channel, size), cx);
+            // Only a change of this view's own grid is news to the server.
+            let told = self
+                .terminal(&id)
+                .map(|pane| pane.view.clone())
+                .is_none_or(|view| view.update(cx, |pane, _| pane.tell(channel, size)));
+            if told {
+                self.send(server, Work::Resize(channel, size), cx);
+            }
         } else {
             self.ensure_visible(cx);
         }

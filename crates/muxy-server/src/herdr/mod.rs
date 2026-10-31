@@ -219,6 +219,8 @@ pub(crate) struct HerdrBacking {
     target: Arc<Target>,
     size: Size,
     cell: CellSize,
+    /// Whether the stream controls the terminal at the session's size, or only watches.
+    takeover: bool,
     control: SharedControl,
     process: Mutex<ProcessInfo>,
 }
@@ -239,6 +241,7 @@ impl HerdrBacking {
             target: Arc::new(Target::new(terminal, pane)),
             size,
             cell: CellSize::default(),
+            takeover: true,
             control: Arc::new(Mutex::new(None)),
             process: Mutex::new(ProcessInfo {
                 shell: None,
@@ -274,6 +277,7 @@ impl HerdrBacking {
             Arc::clone(&self.herdr.api),
             Arc::clone(&self.target),
             self.size,
+            self.takeover,
             sink,
         )
         .map_err(ServerError::spawn_failed)?;
@@ -446,6 +450,13 @@ impl Backing for HerdrBacking {
         Ok(())
     }
 
+    fn set_size_authority(&mut self, authority: bool) {
+        self.takeover = authority;
+        if let Some(control) = self.control() {
+            control.set_takeover(authority);
+        }
+    }
+
     fn set_cell_size(&mut self, cell: CellSize) -> Result<(), Fault> {
         self.cell = cell;
         if let Some(control) = self.control() {
@@ -510,7 +521,9 @@ impl Backing for HerdrBacking {
 
     fn mouse(&mut self, event: &MouseEvent) -> Option<Result<(), Fault>> {
         Some(match self.control() {
-            Some(control) => control.mouse(event).map_err(Into::into),
+            Some(control) if control.controls() => control.mouse(event).map_err(Into::into),
+            // An observer cannot send it: the owner encodes the event as input.
+            Some(_) => return None,
             None => Ok(()),
         })
     }
@@ -680,5 +693,178 @@ mod tests {
         assert_eq!(saved.len(), 2);
         assert_eq!(saved[0].1.pane.as_deref(), Some("w1:p1"));
         assert_eq!(saved[1].1.pane.as_deref(), Some("w1:p2"));
+    }
+
+    /// A stand-in for the `herdr` binary: it logs the arguments it was started with,
+    /// one line per start, and every line it is sent.
+    struct Recorder {
+        fake: fake::Fake,
+        herdr: Arc<Herdr>,
+    }
+
+    impl Recorder {
+        fn start() -> Self {
+            use std::os::unix::fs::PermissionsExt;
+
+            let fake = fake::Fake::start();
+            let directory = fake.directory().to_path_buf();
+            let state = directory.join("state");
+            std::fs::create_dir_all(&state).expect("state");
+            let bin = directory.join("herdr");
+            std::fs::write(
+                &bin,
+                format!(
+                    "#!/bin/sh\necho \"$@\" >> \"{dir}/starts\"\n\
+                     while IFS= read -r line; do echo \"$line\" >> \"{dir}/input\"; done\n",
+                    dir = directory.display()
+                ),
+            )
+            .expect("script");
+            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755))
+                .expect("permissions");
+            let herdr = Herdr::open(
+                &HerdrConfig {
+                    bin: Some(bin),
+                    socket: Some(fake.socket().to_path_buf()),
+                },
+                &state,
+            )
+            .expect("open");
+            Self { fake, herdr }
+        }
+
+        fn terminal(&self) -> HerdrBacking {
+            let info = SessionInfo {
+                project: muxy_protocol::ProjectId::from_u128(5),
+                id: SessionId::new(1).expect("id"),
+                directory: muxy_protocol::ServerPath(b"/tmp".to_vec()),
+            };
+            self.herdr
+                .create(&NewTerminal {
+                    info: &info,
+                    project_name: "Atur Web",
+                    directory: Path::new("/tmp"),
+                    size: Size { cols: 80, rows: 24 },
+                    environment: Vec::new(),
+                })
+                .expect("create")
+        }
+
+        fn read(&self, log: &str) -> Vec<String> {
+            std::fs::read_to_string(self.fake.directory().join(log))
+                .unwrap_or_default()
+                .lines()
+                .map(str::to_owned)
+                .collect()
+        }
+
+        /// Waits until `log` has `count` lines and returns them.
+        fn starts(&self, count: usize) -> Vec<String> {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                let lines = self.read("starts");
+                if lines.len() >= count {
+                    return lines;
+                }
+                assert!(Instant::now() < deadline, "herdr was started {lines:?}");
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    }
+
+    #[test]
+    fn a_new_stream_takes_the_terminal_over_at_the_session_size() {
+        let recorder = Recorder::start();
+        let mut backing = recorder.terminal();
+        let (sink, _frames) = std::sync::mpsc::channel();
+        backing.set_streaming(true, &sink).expect("open");
+        let terminal = backing.target.terminal();
+        assert_eq!(
+            recorder.starts(1),
+            [format!(
+                "terminal session control {terminal} --takeover --cols 80 --rows 24"
+            )]
+        );
+    }
+
+    #[test]
+    fn the_stream_takes_over_only_while_a_client_may_size_the_session() {
+        let recorder = Recorder::start();
+        let mut backing = recorder.terminal();
+        let terminal = backing.target.terminal();
+        let (sink, _frames) = std::sync::mpsc::channel();
+
+        // Only viewers that never typed: herdr's own size stays, the mirror watches.
+        backing.set_size_authority(false);
+        backing.set_streaming(true, &sink).expect("open");
+        let starts = recorder.starts(1);
+        assert_eq!(
+            starts[0],
+            format!("terminal session observe {terminal} --cols 80 --rows 24")
+        );
+        assert!(!backing.control().expect("stream").controls());
+        // An observer cannot carry the mouse, and typing goes by the API instead.
+        assert!(
+            backing
+                .mouse(&MouseEvent {
+                    action: muxy_protocol::MouseAction::Motion,
+                    button: None,
+                    scroll: None,
+                    modifiers: muxy_protocol::Modifiers::default(),
+                    row: 1,
+                    column: 1,
+                })
+                .is_none()
+        );
+
+        // The session changes size: the observer starts again at the new size, still
+        // without taking the terminal over.
+        backing
+            .resize(Size {
+                cols: 100,
+                rows: 30,
+            })
+            .expect("resize");
+        let starts = recorder.starts(2);
+        assert_eq!(
+            starts[1],
+            format!("terminal session observe {terminal} --cols 100 --rows 30")
+        );
+
+        // A client types: the stream takes over at the session's size.
+        backing.set_size_authority(true);
+        let starts = recorder.starts(3);
+        assert_eq!(
+            starts[2],
+            format!("terminal session control {terminal} --takeover --cols 100 --rows 30")
+        );
+        // The owner sizes it through the stream, with no new stream.
+        backing.resize(Size { cols: 90, rows: 20 }).expect("resize");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !recorder
+            .read("input")
+            .iter()
+            .any(|line| line.contains("\"cols\":90") && line.contains("terminal.resize"))
+        {
+            assert!(Instant::now() < deadline, "the resize never reached herdr");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(recorder.read("starts").len(), 3);
+
+        // The owner becomes a watcher: the takeover is given up, not repeated.
+        backing.set_size_authority(false);
+        let starts = recorder.starts(4);
+        assert_eq!(
+            starts[3],
+            format!("terminal session observe {terminal} --cols 90 --rows 20")
+        );
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(recorder.read("starts").len(), 4, "no restart storm");
+
+        // Saying the same thing twice does not restart anything.
+        backing.set_size_authority(false);
+        backing.resize(Size { cols: 90, rows: 20 }).expect("resize");
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(recorder.read("starts").len(), 4);
     }
 }

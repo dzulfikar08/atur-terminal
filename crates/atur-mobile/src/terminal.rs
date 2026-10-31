@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use muxy_client::Client;
 use muxy_protocol::Size;
@@ -16,6 +16,8 @@ pub struct Terminal {
     pub(crate) client: Client,
     pub(crate) view: Arc<View>,
     pub(crate) terminals: Arc<Terminals>,
+    /// The grid last told to the server, which starts as the one attached with.
+    pub(crate) told: Mutex<Size>,
 }
 
 impl std::fmt::Debug for Terminal {
@@ -95,15 +97,21 @@ impl Terminal {
         Ok(self.client.send_mouse(self.view.channel, event)?)
     }
 
-    /// Resizes the session for every client viewing it, not just this device.
+    /// Tells the server the grid this device's view has, when it is not the one the server
+    /// was told last. The session takes that size only while this device is the one
+    /// typing: a phone that has not typed yet only watches, and follows the size the
+    /// session has. The screen changes size when the server's answer arrives.
     pub fn resize(&self, columns: u16, rows: u16) -> Result<(), MobileError> {
         let size = Size {
             cols: columns,
             rows,
         };
-        // Resize first so the server's full redraw lands on a grid of the new size.
-        self.view.lock().grid.resize(size);
-        Ok(self.client.resize(self.view.channel, size)?)
+        if *self.told.lock().unwrap_or_else(PoisonError::into_inner) == size {
+            return Ok(());
+        }
+        self.client.resize(self.view.channel, size)?;
+        *self.told.lock().unwrap_or_else(PoisonError::into_inner) = size;
+        Ok(())
     }
 
     /// Stops receiving this terminal; the session keeps running.

@@ -44,6 +44,10 @@ struct Slot {
 }
 
 #[derive(Debug)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "Independent stream state flags, each read by another thread"
+)]
 pub(super) struct Shared {
     launch: Launch,
     target: Arc<Target>,
@@ -51,6 +55,12 @@ pub(super) struct Shared {
     /// The size herdr was last asked for, packed as columns << 16 | rows. A frame of
     /// another size predates the last resize and would corrupt the owner's terminal.
     expected: AtomicU32,
+    /// Whether the stream controls the terminal (`--takeover`, which also sizes it) or
+    /// only observes it. An observer never resizes the terminal and cannot type.
+    takeover: AtomicBool,
+    /// The stream was ended to start another in the other mode or at another size:
+    /// not a death, so no storm accounting and no delay.
+    restart: AtomicBool,
     slot: Mutex<Slot>,
     connected: Condvar,
     /// The terminal no longer exists in herdr.
@@ -75,6 +85,7 @@ impl Control {
         api: Arc<Api>,
         target: Arc<Target>,
         size: Size,
+        takeover: bool,
         sink: Sender<OwnerEvent>,
     ) -> io::Result<Self> {
         let shared = Arc::new(Shared {
@@ -82,6 +93,8 @@ impl Control {
             target,
             api,
             expected: AtomicU32::new(pack(size)),
+            takeover: AtomicBool::new(takeover),
+            restart: AtomicBool::new(false),
             slot: Mutex::new(Slot {
                 stdin: None,
                 child: None,
@@ -103,7 +116,15 @@ impl Control {
     }
 
     pub(super) fn resize(&self, size: Size, cell: CellSize) -> io::Result<()> {
-        self.shared.expected.store(pack(size), Ordering::Release);
+        let previous = self.shared.expected.swap(pack(size), Ordering::AcqRel);
+        if !self.shared.takeover.load(Ordering::Acquire) {
+            // An observer is rendered at the size it connected with: another size
+            // takes another stream. The pixel size of a cell means nothing to it.
+            if previous != pack(size) {
+                self.shared.end_stream();
+            }
+            return Ok(());
+        }
         self.send(&json!({
             "type": "terminal.resize",
             "cols": size.cols,
@@ -113,7 +134,23 @@ impl Control {
         }))
     }
 
+    /// Whether the stream controls the terminal, so input and mouse can go through it.
+    pub(super) fn controls(&self) -> bool {
+        self.shared.takeover.load(Ordering::Acquire)
+    }
+
+    /// Switches between controlling the terminal and only observing it. The stream
+    /// is replaced; the terminal and its process are not touched.
+    pub(super) fn set_takeover(&self, takeover: bool) {
+        if self.shared.takeover.swap(takeover, Ordering::AcqRel) != takeover {
+            self.shared.end_stream();
+        }
+    }
+
     pub(super) fn input(&self, bytes: &[u8]) -> io::Result<()> {
+        if !self.controls() {
+            return Err(io::ErrorKind::Unsupported.into());
+        }
         self.send(&json!({"type": "terminal.input", "bytes": base64::encode(bytes)}))
     }
 
@@ -180,17 +217,40 @@ impl Shared {
         self.slot.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Spawns a control stream that takes over the terminal at the expected size.
+    /// Ends the running stream so `run` starts the next one, in the mode and at the
+    /// size now expected. Nothing happens to the terminal itself.
+    fn end_stream(&self) {
+        self.restart.store(true, Ordering::Release);
+        let mut slot = self.lock();
+        if let Some(stdin) = slot.stdin.as_mut() {
+            // Only a control stream reads this; it lets go of the terminal before the
+            // next stream, perhaps another controller, connects.
+            let _ = stdin.write_all(b"{\"type\":\"terminal.release\"}\n");
+        }
+        slot.stdin = None;
+        if let Some(mut child) = slot.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+
+    /// Spawns a stream at the expected size: one that controls the terminal and takes
+    /// it over, or one that only observes it.
     fn connect(&self) -> io::Result<BufReader<std::process::ChildStdout>> {
+        self.restart.store(false, Ordering::Release);
         let expected = self.expected.load(Ordering::Acquire);
-        let mut child = Command::new(&self.launch.bin)
-            .args([
-                "terminal",
-                "session",
-                "control",
-                &self.target.terminal(),
-                "--takeover",
-            ])
+        let takeover = self.takeover.load(Ordering::Acquire);
+        let mut command = Command::new(&self.launch.bin);
+        command.args([
+            "terminal",
+            "session",
+            if takeover { "control" } else { "observe" },
+        ]);
+        command.arg(self.target.terminal());
+        if takeover {
+            command.arg("--takeover");
+        }
+        let mut child = command
             .args(["--cols", &(expected >> 16).to_string()])
             .args(["--rows", &(expected & 0xffff).to_string()])
             .env("HERDR_SOCKET_PATH", &self.launch.socket)
@@ -209,6 +269,13 @@ impl Shared {
         slot.stdin = stdin;
         slot.child = Some(child);
         self.connected.notify_all();
+        drop(slot);
+        // The mode or size changed while this stream was starting: replace it.
+        if self.takeover.load(Ordering::Acquire) != takeover
+            || self.expected.load(Ordering::Acquire) != expected
+        {
+            self.end_stream();
+        }
         Ok(BufReader::with_capacity(64 * 1024, stdout))
     }
 
@@ -268,17 +335,21 @@ impl Shared {
             if self.detached.load(Ordering::Acquire) {
                 return;
             }
-            let now = Instant::now();
-            deaths.retain(|death| now.duration_since(*death) < STORM_WINDOW);
-            deaths.push(now);
-            if !self.alive() || deaths.len() > STORM_LIMIT {
-                log::info!("herdr terminal {} is gone", self.target.terminal());
-                self.gone.store(true, Ordering::Release);
-                self.connected.notify_all();
-                let _ = sink.send(PtyEvent::Closed.into());
-                return;
+            // A stream ended on purpose (another mode or size) comes back at once and is
+            // no sign of trouble.
+            if !self.restart.swap(false, Ordering::AcqRel) {
+                let now = Instant::now();
+                deaths.retain(|death| now.duration_since(*death) < STORM_WINDOW);
+                deaths.push(now);
+                if !self.alive() || deaths.len() > STORM_LIMIT {
+                    log::info!("herdr terminal {} is gone", self.target.terminal());
+                    self.gone.store(true, Ordering::Release);
+                    self.connected.notify_all();
+                    let _ = sink.send(PtyEvent::Closed.into());
+                    return;
+                }
+                thread::sleep(RECONNECT_DELAY);
             }
-            thread::sleep(RECONNECT_DELAY);
             match self.connect() {
                 Ok(stdout) => stream = Some(stdout),
                 Err(error) => {

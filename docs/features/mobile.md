@@ -66,6 +66,11 @@ A paired phone gets full terminal access: it can use projects, terminals, Git,
 and files. It can't manage mobile access, change server settings, stop the
 server, or run programs with `exec`.
 
+A phone only watches a terminal until you type in it. Opening a terminal on the
+phone never resizes it for the computer. When you start typing, the terminal
+takes the phone's size, and goes back to the computer's when you type there
+(the desktop app and `atur-term` do the same).
+
 Viewing and controlling this computer's screen is separate, and off for every
 phone until you allow it. Turn on **Screen** next to the phone in
 **Settings → Phones**, or run `atur-term mobile screen <id> on`. A phone

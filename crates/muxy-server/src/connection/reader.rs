@@ -11,8 +11,8 @@ use muxy_core::worker::WorkerPool;
 
 use muxy_protocol::wire::{Decoder, WireError};
 use muxy_protocol::{
-    CONTROL, ChannelId, ErrorCode, HistoryCursor, Message, ReplyBody, RequestBody, RequestId,
-    SearchSource, SessionId, Size,
+    CONTROL, ChannelId, ClientKind, ErrorCode, HistoryCursor, Message, ReplyBody, RequestBody,
+    RequestId, SearchSource, SessionId, Size, TerminalInput,
 };
 
 use crate::archive::SearchCache;
@@ -102,6 +102,7 @@ pub(super) fn run(
                     return Ok(Exit::Fatal);
                 }
                 if let Some(handle) = outbox.handle(channel) {
+                    outbox.typed(channel);
                     let _ = handle.send(SessionCommand::Input(bytes));
                 }
             }
@@ -112,6 +113,10 @@ pub(super) fn run(
                     if validation.is_err() {
                         outbox.close_with(fatal("invalid terminal input"));
                         return Ok(Exit::Fatal);
+                    }
+                    // Focus changes and a cleared screen are not typing.
+                    if matches!(input, TerminalInput::Key(_) | TerminalInput::Paste(_)) {
+                        outbox.typed(channel);
                     }
                     let _ = handle.send(SessionCommand::TerminalInput(input));
                 }
@@ -687,6 +692,7 @@ fn attach(
     // The session replies straight to the outbox, and the client may use the
     // channel as soon as it reads that reply; `last_channel` already counts it.
     let sink = AttachmentSink::outbox(OutboxSink::new(outbox, channel, session));
+    let watching = outbox.client_kind() == ClientKind::Mobile;
     outbox.attach(
         channel,
         id,
@@ -697,9 +703,15 @@ fn attach(
                 id,
                 channel,
                 size,
+                watching,
                 sink,
             },
-            None => SessionCommand::AttachWithoutResize { id, channel, sink },
+            None => SessionCommand::AttachWithoutResize {
+                id,
+                channel,
+                watching,
+                sink,
+            },
         },
     )
 }
