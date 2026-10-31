@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
@@ -9,15 +9,7 @@ use crate::{AppError, AppState, Project, ServerId, WindowState};
 impl AppState {
     pub fn bootstrap() -> Result<Self, AppError> {
         let home = new_home(home_directory()?)?;
-        let window = WindowState {
-            active_pane: None,
-            focus_history: Vec::new(),
-            current_project: home.id,
-            selected_tab: HashMap::new(),
-            bounds: None,
-            workspace: None,
-            remote_servers: false,
-        };
+        let window = WindowState::new(home.id);
         Ok(Self {
             servers: BTreeMap::new(),
             starting_directories: BTreeMap::new(),

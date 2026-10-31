@@ -95,7 +95,7 @@ fn migration_preserves_original_file_and_pending_creation_directory_and_token() 
     fs::write(directory.join("state.json"), &original)?;
     let path = directory.join("desktop-state.json");
     let mut migrated = store::load(&path)?;
-    assert_eq!(migrated.version(), 3);
+    assert_eq!(migrated.version(), 4);
     let initial = migrated.prepare_creation(pane, Path::new("/tmp"));
     store::save(&path, &migrated)?;
     let mut restored = store::load(&path)?;

@@ -38,6 +38,7 @@ const STAGING_IDENTITY: u128 = 0xa3e8_b2d4_c6f1_4970_b5d1_e2a7_c8f4_0b96;
 
 const STATE: &str = "desktop-state.json";
 const SETTINGS: &str = "settings.toml";
+const VIEW: &str = "desktop-state.view.json";
 const CHECKED: &str = "previous-profile-import-checked";
 
 fn server(id: &str) -> ServerId {
@@ -199,7 +200,7 @@ fn first_run_takes_the_previous_state_and_servers() -> TestResult {
         })
     );
     let state = load(profile.path());
-    assert_eq!(state.version(), 3);
+    assert_eq!(state.version(), 4);
     assert_eq!(tabs(&state, LOCAL_HOME), 1);
     assert_eq!(tabs(&state, APP), 2);
     assert_eq!(tabs(&state, BUILD_HOME), 1);
@@ -256,7 +257,7 @@ fn first_run_takes_the_previous_state_and_servers() -> TestResult {
         Some("~/.ssh/staging_ed25519")
     );
     // The new profile gets the files it needs and no temporary leftovers.
-    assert_eq!(names(profile.path()), [STATE, CHECKED, SETTINGS]);
+    assert_eq!(names(profile.path()), [STATE, VIEW, CHECKED, SETTINGS]);
     assert_eq!(snapshot(previous.path()), before);
     Ok(())
 }
