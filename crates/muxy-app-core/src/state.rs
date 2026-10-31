@@ -6,14 +6,17 @@ use muxy_protocol::SessionId;
 use serde::{Deserialize, Serialize};
 
 use crate::servers::ServerState;
+use crate::view::View;
 use crate::{
     AppError, Branch, Color, Direction, Pane, PaneContent, PaneId, Project, ProjectId,
     ProjectStatus, ServerId, Tab, TabId, WindowBounds, WindowState, Workspace,
 };
 
 /// The layout this build writes. Versions 1 and 2 kept one server's catalog
-/// and pending work at the top level; version 3 keeps them per server.
-pub(crate) const VERSION: u32 = 3;
+/// and pending work at the top level; version 3 keeps them per server;
+/// version 4 keeps each window's view in its own file, apart from the layout
+/// file.
+pub(crate) const VERSION: u32 = 4;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "StoredState")]
@@ -45,7 +48,10 @@ struct StoredState {
     projects: Vec<Project>,
     #[serde(default)]
     workspaces: Vec<Workspace>,
-    window: WindowState,
+    /// Absent from the layout file of version 4, whose windows keep their own
+    /// view.
+    #[serde(default)]
+    window: Option<WindowState>,
     /// Versions 1 and 2 kept the local server's state here, at the top level.
     #[serde(default)]
     catalog_server: Option<muxy_protocol::ServerIdentity>,
@@ -65,9 +71,86 @@ impl TryFrom<StoredState> for AppState {
     type Error = AppError;
 
     fn try_from(stored: StoredState) -> Result<Self, Self::Error> {
+        Self::assemble(stored)
+    }
+}
+
+impl StoredState {
+    /// Gives a layout file's state the window `view` saved for it, trimmed to
+    /// what the layout still holds: another window may have closed tabs and
+    /// panes since. Without a view the window shows the first tab of Home.
+    fn apply_view(&mut self, view: Option<View>) {
+        let view = view.unwrap_or_else(|| View {
+            version: crate::view::VERSION,
+            window: WindowState::new(
+                self.projects
+                    .first()
+                    .map_or_else(ProjectId::new, |project| project.id),
+            ),
+            zoomed: BTreeMap::new(),
+            group_selected: BTreeMap::new(),
+        });
+        let mut window = view.window;
+        let selected = self
+            .projects
+            .iter()
+            .find(|project| project.id == window.current_project)
+            .and_then(|project| {
+                let tab = window.selected_tab.get(&project.id)?;
+                project.tabs.iter().find(|candidate| candidate.id == *tab)
+            });
+        if window
+            .active_pane
+            .is_some_and(|pane| selected.is_none_or(|tab| !tab.layout.contains(pane)))
+        {
+            window.active_pane = None;
+        }
+        for project in &mut self.projects {
+            for tab in &mut project.tabs {
+                tab.zoomed = view
+                    .zoomed
+                    .get(&tab.id)
+                    .copied()
+                    .filter(|pane| tab.layout.contains(*pane));
+            }
+            if let Some(groups) = &mut project.groups {
+                groups.select_from(&view.group_selected);
+            }
+        }
+        self.window = Some(window);
+    }
+}
+
+impl AppState {
+    /// The state a layout file saves. A file without a window leaves it to
+    /// the window's own view, which `view` reads when needed; a file with
+    /// one, from before the split or from a restore, uses that window once.
+    pub(crate) fn from_saved(
+        bytes: &[u8],
+        view: impl FnOnce() -> Option<View>,
+    ) -> Result<Self, serde_json::Error> {
+        let mut stored: StoredState = serde_json::from_slice(bytes)?;
+        if stored.window.is_none() && stored.version >= 4 {
+            stored.apply_view(view());
+        }
+        Self::assemble(stored).map_err(serde::de::Error::custom)
+    }
+
+    /// The layout a layout file saves, under this window's view of it.
+    pub(crate) fn with_layout_of(&self, bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        let mut stored: StoredState = serde_json::from_slice(bytes)?;
+        stored.window = None;
+        stored.apply_view(Some(self.view()));
+        Self::assemble(stored).map_err(serde::de::Error::custom)
+    }
+
+    fn assemble(stored: StoredState) -> Result<Self, AppError> {
         if !(1..=VERSION).contains(&stored.version) {
             return Err(AppError::UnsupportedVersion(stored.version));
         }
+        let window = stored
+            .window
+            .ok_or_else(|| AppError::InvalidState("window state is missing".into()))?;
         let servers = if stored.version < 3 {
             BTreeMap::from([(
                 ServerId::local(),
@@ -91,7 +174,7 @@ impl TryFrom<StoredState> for AppState {
             version: VERSION,
             projects: stored.projects,
             workspaces: stored.workspaces,
-            window: stored.window,
+            window,
         };
         let previous_project = state.window.current_project;
         let previous_tab = state.window.selected_tab.get(&previous_project).copied();
@@ -139,7 +222,15 @@ impl TryFrom<StoredState> for AppState {
             .focus_history
             .retain(|pane| panes.contains(pane));
         state.validate()?;
-        let legacy_settings: Vec<_> = state
+        state.remove_legacy_settings()?;
+        state.validate()?;
+        Ok(state)
+    }
+
+    /// Settings used to be a pane. Panes of that kind are closed, and focus
+    /// moves to the selected tab when one had it.
+    fn remove_legacy_settings(&mut self) -> Result<(), AppError> {
+        let legacy_settings: Vec<_> = self
             .projects
             .iter()
             .flat_map(|project| &project.tabs)
@@ -147,21 +238,20 @@ impl TryFrom<StoredState> for AppState {
             .filter(|pane| pane.content == PaneContent::Settings)
             .map(|pane| pane.id)
             .collect();
-        let restore_focus = state
+        let restore_focus = self
             .window
             .active_pane
             .is_some_and(|pane| legacy_settings.contains(&pane));
         if restore_focus {
-            state.window.active_pane = None;
+            self.window.active_pane = None;
         }
         for pane in legacy_settings {
-            state.remove_pane(pane)?;
+            self.remove_pane(pane)?;
         }
         if restore_focus {
-            state.focus_selected_tab();
+            self.focus_selected_tab();
         }
-        state.validate()?;
-        Ok(state)
+        Ok(())
     }
 }
 

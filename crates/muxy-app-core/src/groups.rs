@@ -123,6 +123,32 @@ impl TabGroups {
         .or_else(|| self.groups.iter().find(|group| group.id != id))
     }
 
+    /// The tab each group shows.
+    pub(crate) fn selection(&self) -> impl Iterator<Item = (GroupId, TabId)> + '_ {
+        self.groups.iter().map(|group| (group.id, group.selected))
+    }
+
+    /// Selects each group's tab from `selected`, where the group holds it.
+    pub(crate) fn select_from(&mut self, selected: &BTreeMap<GroupId, TabId>) {
+        for group in &mut self.groups {
+            if let Some(tab) = selected.get(&group.id)
+                && group.tabs.contains(tab)
+            {
+                group.selected = *tab;
+            }
+        }
+    }
+
+    /// Every group shows its first tab, which is what the shared layout says:
+    /// which tab a group shows belongs to each window.
+    pub(crate) fn reset_selection(&mut self) {
+        for group in &mut self.groups {
+            if let Some(first) = group.tabs.first() {
+                group.selected = *first;
+            }
+        }
+    }
+
     pub(crate) fn remap_tabs(&mut self, tabs: &BTreeMap<TabId, TabId>) {
         for group in &mut self.groups {
             for tab in &mut group.tabs {

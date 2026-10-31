@@ -26,6 +26,7 @@ mod state;
 pub mod store;
 mod tab;
 pub mod title;
+mod view;
 pub mod webview;
 mod window;
 mod workspace;
@@ -38,6 +39,7 @@ pub use pane::{Pane, PaneContent};
 pub use project::{Color, PROJECT_COLORS, Project, ProjectKind, ProjectStatus, initial};
 pub use state::AppState;
 pub use tab::{Tab, TabCloseScope, TabSide};
+pub use view::MAIN_WINDOW;
 pub use window::{WindowBounds, WindowState};
 pub use workspace::Workspace;
 
