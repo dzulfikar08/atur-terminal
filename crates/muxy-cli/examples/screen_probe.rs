@@ -15,7 +15,7 @@
 //!                  Wait until the remote clipboard becomes TEXT.
 //! ```
 //!
-//! `--udp` reaches the server over the UDP transport: FAKE_SSH is a program that runs the
+//! `--udp` reaches the server over the UDP transport: `FAKE_SSH` is a program that runs the
 //! remote command on this computer, which starts the bridge, and the client then speaks UDP
 //! to 127.0.0.1.
 //!
