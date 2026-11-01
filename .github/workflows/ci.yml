@@ -184,7 +184,7 @@ jobs:
           name: screen-e2e-bin
           path: bin
       - run: chmod +x bin/*
-      - run: VARIANTS='default nofence nocont' bash scripts/screen-fps-lab.sh bin
+      - run: VARIANTS='default fence nocont' bash scripts/screen-fps-lab.sh bin
 
   # Prompt marks of a herdr session survive a restart of the server. Runs the
   # release herdr in isolation (own socket, config and home).

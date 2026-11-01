@@ -57,7 +57,8 @@ fn handshake_and_raw_update_with_any_chunking() {
         assert_eq!(pixel_at(&frame, 1, 2), [20, 21, 22, 255]);
         assert_eq!(pixel_at(&frame, 2, 2), [30, 31, 32, 255]);
         assert_eq!(pixel_at(&frame, 0, 0), [0, 0, 0, 255]);
-        assert_eq!(harness.server.read(10), update_request(true, 4, 3));
+        let requests = first_requests(4, 3);
+        assert_eq!(harness.server.read(requests.len()), requests);
 
         wait_for("every chunk to be processed", || {
             harness.server.processed.load(Ordering::SeqCst)
@@ -140,7 +141,8 @@ fn zrle_tiles_of_every_kind_with_any_chunking() {
         let frame = wait_frame(&harness.screen, |frame| pixel_at(frame, 129, 69)[0] == 250);
         assert_eq!(bgra(&frame), expected, "{chunking:?}");
         assert_eq!(harness.screen.stats().codec, "zrle");
-        assert_eq!(harness.server.settle().len(), 3 * 10);
+        // The first update opens the window of requests, each later one asks for one more.
+        assert_eq!(harness.server.settle().len(), (REQUEST_WINDOW + 2) * 10);
     }
 }
 
@@ -181,10 +183,11 @@ fn copy_rect_and_desktop_size() {
                 name: "fake-vm".to_owned()
             })
         );
-        // One incremental request per update, sent with its header; the resize's own
-        // update asked first at the old size, then for everything at the new one.
+        // The first update opens the window of requests, each later one asks for one
+        // more, sent with its header; the resize's own update asked first at the old size,
+        // then for everything at the new one.
         let expected = concat(&[
-            update_request(true, 4, 2),
+            first_requests(4, 2),
             update_request(true, 4, 2),
             update_request(true, 4, 2),
             update_request(false, 8, 6),
@@ -403,9 +406,9 @@ fn h264_frames_come_from_the_decoder_and_errors_ask_for_a_key_frame() {
     harness
         .server
         .push(&h264_update(0, &[0xff, 1]), Chunking::Whole);
-    // The failing update's header asked for the next one; the failure asks for a key frame.
+    // The failing update's header asked for one more; the failure asks for a key frame.
     let expected = concat(&[
-        update_request(true, 4, 4),
+        first_requests(4, 4),
         update_request(true, 4, 4),
         update_request(true, 4, 4),
         update_request(false, 4, 4),

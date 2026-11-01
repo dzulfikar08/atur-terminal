@@ -35,6 +35,11 @@ const FENCE_REQUEST: u32 = 1 << 31;
 /// The fence flags this client implements: block before, block after, sync next.
 const FENCE_UNDERSTOOD: u32 = 0x7;
 const UNBOUNDED_RECT_COUNT: u32 = 0xffff;
+/// How many update requests a server without continuous updates may hold at once. Each
+/// permits one update, so this many pictures can be on their way while the first request
+/// is still crossing the link: at a round trip of 150 ms, 8 requests carry 50 pictures a
+/// second, where one request at a time carries 7.
+pub(crate) const REQUEST_WINDOW: u32 = 8;
 
 /// The server violated the protocol or sent something this client cannot handle.
 /// The message is a complete English sentence meant for the user.
@@ -151,6 +156,8 @@ pub(crate) struct Machine {
     zrle: Zrle,
     h264: Option<Box<dyn H264Decoder>>,
     continuous: bool,
+    /// Requests the server has not answered with an update yet, as far as this end knows.
+    open_requests: u32,
     rects_left: u32,
     unbounded: bool,
     rect_count: u32,
@@ -171,6 +178,7 @@ impl Machine {
             zrle: Zrle::new(),
             h264,
             continuous: false,
+            open_requests: 0,
             rects_left: 0,
             unbounded: false,
             rect_count: 0,
@@ -339,6 +347,7 @@ impl Machine {
         msg::set_pixel_format(&mut self.out);
         msg::set_encodings(&mut self.out, &msg::encodings(self.h264.is_some()));
         msg::update_request(&mut self.out, false, width, height);
+        self.open_requests = 1;
         self.events.push(Event::Ready {
             width,
             height,
@@ -470,13 +479,18 @@ impl Machine {
         self.rects_left = if self.unbounded { 0 } else { count };
         self.rect_count = 0;
         self.update = UpdateInfo::default();
-        // Without continuous updates the server sends one update per request. The next
-        // request goes out as soon as an update starts, not when it has been received and
-        // decoded, so the server already holds the permission for the next picture while
-        // this one is still on the wire: updates follow each other without a round trip
-        // between them.
+        // Without continuous updates the server sends one update per request. Requests go
+        // out as soon as an update starts, not when it has been received and decoded, and
+        // enough of them to keep `REQUEST_WINDOW` open, so the server never waits a round
+        // trip for permission to send the next picture. One request at least answers each
+        // update, as a server that merges requests into one update still needs.
         if !self.continuous {
-            msg::update_request(&mut self.out, true, self.fb.width, self.fb.height);
+            self.open_requests = self.open_requests.saturating_sub(1);
+            let wanted = REQUEST_WINDOW.saturating_sub(self.open_requests).max(1);
+            for _ in 0..wanted {
+                msg::update_request(&mut self.out, true, self.fb.width, self.fb.height);
+            }
+            self.open_requests += wanted;
         }
         if count == 0 {
             self.finish_update();

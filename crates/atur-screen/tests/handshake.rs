@@ -40,8 +40,8 @@ fn first_update() -> Vec<u8> {
 fn expected() -> Vec<u8> {
     let mut bytes = handshake_reply(WIDTH, HEIGHT, false);
     bytes.extend_from_slice(&cut_text("early clipboard"));
-    // The first update is answered with an incremental request.
-    bytes.extend_from_slice(&update_request(true, WIDTH, HEIGHT));
+    // The first update is answered with incremental requests.
+    bytes.extend_from_slice(&first_requests(WIDTH, HEIGHT));
     bytes
 }
 
@@ -80,7 +80,8 @@ fn nothing_but_the_handshake_is_sent_until_server_init() {
     harness.server.push(&first_update(), Chunking::Whole);
     let clip = cut_text("early clipboard");
     assert_eq!(harness.server.read(clip.len()), clip);
-    assert_eq!(harness.server.read(10), update_request(true, WIDTH, HEIGHT));
+    let requests = first_requests(WIDTH, HEIGHT);
+    assert_eq!(harness.server.read(requests.len()), requests);
     assert!(harness.server.settle().is_empty());
 }
 

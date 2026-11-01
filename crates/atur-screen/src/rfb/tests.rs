@@ -66,6 +66,11 @@ fn incremental(width: usize, height: usize) -> Vec<u8> {
     bytes
 }
 
+/// What the first update draws: enough requests to fill the window.
+fn first_requests(width: usize, height: usize) -> Vec<u8> {
+    incremental(width, height).repeat(REQUEST_WINDOW as usize)
+}
+
 fn full(width: usize, height: usize) -> Vec<u8> {
     let mut bytes = Vec::new();
     msg::update_request(&mut bytes, false, width, height);
@@ -104,7 +109,6 @@ fn encodings_without_and_with_h264() {
             0,
             -223,
             -308,
-            -312,
             -313,
             msg::ENC_EXT_CLIPBOARD,
             -224
@@ -194,7 +198,7 @@ fn raw_rectangle_in_single_bytes() {
             dirty: true
         }]
     );
-    assert_eq!(machine.take_out(), incremental(4, 4));
+    assert_eq!(machine.take_out(), first_requests(4, 4));
 }
 
 #[test]
@@ -242,8 +246,8 @@ fn desktop_size_reallocates_and_requests_everything() {
             height: 6
         }
     );
-    // The incremental request goes out with the header, before the resize is read.
-    let mut expected = incremental(4, 4);
+    // The requests go out with the header, before the resize is read.
+    let mut expected = first_requests(4, 4);
     expected.extend_from_slice(&full(8, 6));
     assert_eq!(machine.take_out(), expected);
 }
@@ -286,13 +290,13 @@ fn continuous_updates_signal_switches_off_incremental_requests() {
     assert!(machine.take_out().is_empty());
 
     // The pseudo rectangle works as a signal as well. The update's header, which came
-    // first, still drew an incremental request.
+    // first, still drew its requests.
     let mut machine = ready(4, 4);
     let mut bytes = update_header(2);
     bytes.extend_from_slice(&rect_header(0, 0, 0, 0, -313));
     bytes.extend_from_slice(&rect_header(0, 0, 0, 0, -224));
     machine.feed(&bytes).unwrap();
-    let mut after_header = incremental(4, 4);
+    let mut after_header = first_requests(4, 4);
     after_header.extend_from_slice(&expected);
     assert_eq!(machine.take_out(), after_header);
 }
@@ -578,7 +582,7 @@ fn h264_is_advertised_only_with_a_decoder_and_errors_request_a_key_frame() {
     let mut bytes = update_header(1);
     bytes.extend_from_slice(&h264_rect(1, &[0, 0, 0, 1, 0x67]));
     feed_chunks(&mut machine, &bytes, 3).unwrap();
-    assert_eq!(machine.take_out(), incremental(4, 4));
+    assert_eq!(machine.take_out(), first_requests(4, 4));
     assert_eq!(
         machine.take_events(),
         [Event::Update {
@@ -604,4 +608,21 @@ fn h264_is_advertised_only_with_a_decoder_and_errors_request_a_key_frame() {
         *calls,
         [(vec![0, 0, 0, 1, 0x67], true), (vec![0xff, 1], false)]
     );
+}
+
+#[test]
+fn requests_keep_a_window_open_and_each_update_asks_for_one_more() {
+    let mut machine = ready(4, 4);
+    let update = || {
+        let mut bytes = update_header(1);
+        bytes.extend_from_slice(&rect_header(0, 0, 1, 1, 0));
+        bytes.extend_from_slice(&[1, 2, 3, 0]);
+        bytes
+    };
+    machine.feed(&update()).unwrap();
+    assert_eq!(machine.take_out(), first_requests(4, 4));
+    for _ in 0..20 {
+        machine.feed(&update()).unwrap();
+        assert_eq!(machine.take_out(), incremental(4, 4));
+    }
 }

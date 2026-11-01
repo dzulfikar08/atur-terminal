@@ -22,6 +22,18 @@ pub(crate) const MSG_ENABLE_CONTINUOUS_UPDATES: u8 = 150;
 pub(crate) const MSG_FENCE: u8 = 248;
 
 /// The encodings this client asks for, in order of preference.
+///
+/// `Fence` is left out, though the client answers a fence a server sends. neatvnc, which
+/// wayvnc is built on, pings the client with a fence after every picture and limits the
+/// pictures in flight to what its estimate of the link's bandwidth allows. The estimate
+/// reads the delay of a ping beyond the shortest one as queueing, so the stalls of a link
+/// that loses packets (the stream is ordered, so one lost packet holds up everything after
+/// it for about a round trip and a half) look like a full pipe, and it settles on one
+/// picture per round trip: 7 pictures a second at 146 ms, whatever the link carries. Without
+/// fences it has no estimate and sends as fast as the relay takes its bytes; the relay's
+/// window of unreported bytes is the flow control. Set `ATUR_SCREEN_FENCE` to ask for
+/// fences again, and `ATUR_SCREEN_NO_CONTINUOUS` to ask for no continuous updates, to
+/// compare in `scripts/screen-fps-lab.sh`.
 pub(crate) fn encodings(h264: bool) -> Vec<i32> {
     let mut list = Vec::with_capacity(10);
     if h264 {
@@ -34,7 +46,7 @@ pub(crate) fn encodings(h264: bool) -> Vec<i32> {
         ENC_DESKTOP_SIZE,
         ENC_EXT_DESKTOP_SIZE,
     ]);
-    if std::env::var_os("ATUR_SCREEN_NO_FENCE").is_none() {
+    if std::env::var_os("ATUR_SCREEN_FENCE").is_some() {
         list.push(ENC_FENCE);
     }
     if std::env::var_os("ATUR_SCREEN_NO_CONTINUOUS").is_none() {

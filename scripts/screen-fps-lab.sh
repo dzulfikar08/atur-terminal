@@ -10,9 +10,11 @@
 #
 #   scripts/screen-fps-lab.sh BIN_DIR [SCENARIO...]
 #
-# A scenario is RTT_MS[:LOSS_PERCENT[:JITTER_MS]], default "0 150 300 150:1 150:3 300:1".
-# Each runs once per VARIANT (default "default"; "nofence" starts the viewer without
-# the Fence pseudo-encoding).
+# A scenario is RTT_MS[:LOSS_PERCENT[:JITTER_MS[:MBIT_PER_SECOND]]], default
+# "0 150 300 150:1 150:3 300:1 150:0:0:4".
+# Each runs once per VARIANT (default "default", the viewer as shipped; "fence" asks
+# the server for fence pings, which the viewer used to; "nocont" asks for no continuous
+# updates, so the server answers one update request at a time).
 #
 # BIN_DIR holds atur-term, atur-term-server and screen_probe. Prints one JSON
 # object per run and appends them to $GITHUB_STEP_SUMMARY.
@@ -21,7 +23,7 @@ set -euo pipefail
 BIN=$(cd "${1:?usage: screen-fps-lab.sh BIN_DIR [SCENARIO...]}" && pwd)
 shift || true
 SCENARIOS=("$@")
-[[ ${#SCENARIOS[@]} -gt 0 ]] || SCENARIOS=(0 150 300 150:1 150:3 300:1)
+[[ ${#SCENARIOS[@]} -gt 0 ]] || SCENARIOS=(0 150 300 150:1 150:3 300:1 150:0:0:4)
 VARIANTS=(${VARIANTS:-default})
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
@@ -103,22 +105,27 @@ chmod +x "$WORK/fake-ssh"
 probe() { "$BIN/screen_probe" --udp "$WORK/fake-ssh" "$@"; }
 
 # Half the round trip each way; loss is per packet in each direction.
-shape() { # shape RTT_MS [LOSS_PERCENT [JITTER_MS]]
-  local rtt=$1 loss=${2:-0} jitter=${3:-0}
-  if [[ $rtt -eq 0 && $loss -eq 0 && $jitter -eq 0 ]]; then
+shape() { # shape RTT_MS [LOSS_PERCENT [JITTER_MS [MBIT_PER_SECOND]]]
+  local rtt=$1 loss=${2:-0} jitter=${3:-0} rate=${4:-0} limit=100000
+  if [[ $rtt -eq 0 && $loss -eq 0 && $jitter -eq 0 && $rate -eq 0 ]]; then
     tc qdisc del dev lo root 2>/dev/null || true
     return
   fi
   local args=(delay "$((rtt / 2))ms")
   [[ $jitter -gt 0 ]] && args+=("$((jitter / 2))ms")
   [[ $loss -gt 0 ]] && args+=(loss "${loss}%")
-  tc qdisc replace dev lo root netem "${args[@]}" limit 100000
+  if [[ $rate -gt 0 ]]; then
+    # A router's queue: some 300 packets, then it drops.
+    args+=(rate "${rate}mbit")
+    limit=300
+  fi
+  tc qdisc replace dev lo root netem "${args[@]}" limit "$limit"
 }
 
 run_probe() { # run_probe VARIANT COMMAND...
   local variant=$1; shift
   case $variant in
-    nofence) ATUR_SCREEN_NO_FENCE=1 probe "$@" ;;
+    fence) ATUR_SCREEN_FENCE=1 probe "$@" ;;
     nocont) ATUR_SCREEN_NO_CONTINUOUS=1 probe "$@" ;;
     *) probe "$@" ;;
   esac
@@ -129,8 +136,8 @@ note() { echo "$1"; REPORT+="$1"$'\n'; }
 
 echo "== how long a change takes to show, still desktop"
 for scenario in "${SCENARIOS[@]}"; do
-  IFS=: read -r rtt loss jitter <<<"$scenario"
-  [[ -n ${loss:-} || -n ${jitter:-} ]] && continue
+  IFS=: read -r rtt loss jitter rate <<<"$scenario"
+  [[ -n ${loss:-} || -n ${jitter:-} || -n ${rate:-} ]] && continue
   shape "$rtt"
   note "{\"rtt_ms\":$rtt,\"run\":$(probe colors 8)}"
 done
@@ -142,13 +149,15 @@ sleep 1
 
 echo "== pictures a second while a window animates"
 for scenario in "${SCENARIOS[@]}"; do
-  IFS=: read -r rtt loss jitter <<<"$scenario"
+  IFS=: read -r rtt loss jitter rate <<<"$scenario"
   for variant in "${VARIANTS[@]}"; do
-    shape "$rtt" "${loss:-0}" "${jitter:-0}"
+    shape "$rtt" "${loss:-0}" "${jitter:-0}" "${rate:-0}"
     withheld_before=$(grep -c "Exceeded bandwidth limit" "$WORK/wayvnc.log" || true)
     result=$(run_probe "$variant" fps "$SECONDS_PER_RUN" || echo '{"error":"probe failed"}')
     withheld_after=$(grep -c "Exceeded bandwidth limit" "$WORK/wayvnc.log" || true)
-    note "{\"rtt_ms\":$rtt,\"loss_percent\":${loss:-0},\"jitter_ms\":${jitter:-0},\"variant\":\"$variant\",\"frames_wayvnc_withheld\":$((withheld_after - withheld_before)),\"run\":$result}"
+    # How long a change takes to show while the animation keeps the link busy.
+    latency=$(run_probe "$variant" colors 6 || echo '{"error":"probe failed"}')
+    note "{\"rtt_ms\":$rtt,\"loss_percent\":${loss:-0},\"jitter_ms\":${jitter:-0},\"mbit\":${rate:-0},\"variant\":\"$variant\",\"frames_wayvnc_withheld\":$((withheld_after - withheld_before)),\"run\":$result,\"latency_under_load\":$latency}"
   done
 done
 shape 0
