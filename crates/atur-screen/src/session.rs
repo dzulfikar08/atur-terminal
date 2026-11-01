@@ -286,12 +286,19 @@ struct Io {
     pressed: Vec<u32>,
     last_wake: Option<Instant>,
     wake_pending: bool,
-    /// The handshake is over and the server accepts input messages. Before that the
-    /// server reads every client byte as part of the handshake, so an input message
-    /// sent early (a clipboard's type 6 as the chosen security type) breaks it.
-    input_open: bool,
-    /// The clipboard was set before `input_open` and still has to be announced.
-    clipboard_unsent: bool,
+    gate: Gate,
+}
+
+/// Whether the server accepts input messages. Until the handshake is over it reads
+/// every client byte as part of the handshake, so an input message sent early (a
+/// clipboard's type 6 as the chosen security type) breaks it.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Gate {
+    /// `clipboard_waits`: the clipboard was set meanwhile and still has to be announced.
+    Closed {
+        clipboard_waits: bool,
+    },
+    Open,
 }
 
 struct FrameSlot {
@@ -366,8 +373,9 @@ impl Shared {
                 pressed: Vec::new(),
                 last_wake: None,
                 wake_pending: false,
-                input_open: false,
-                clipboard_unsent: false,
+                gate: Gate::Closed {
+                    clipboard_waits: false,
+                },
             }),
             io_cv: Condvar::new(),
             view_only: AtomicBool::new(options.view_only),
@@ -437,12 +445,18 @@ impl Shared {
 
     /// Like `with_io` for input the user causes: dropped until the handshake is over.
     fn with_input(&self, action: impl FnOnce(&mut Io) -> Result<(), String>) {
-        self.with_input(|io| if io.input_open { action(io) } else { Ok(()) });
+        self.with_io(|io| {
+            if io.gate == Gate::Open {
+                action(io)
+            } else {
+                Ok(())
+            }
+        });
     }
 
     /// Sends bytes in order with everything else.
     fn send(&self, bytes: &[u8]) -> bool {
-        self.with_input(|_| self.transport.send(bytes));
+        self.with_io(|_| self.transport.send(bytes));
         !self.is_closed()
     }
 
@@ -450,15 +464,20 @@ impl Shared {
     /// clipboard that was set while connecting. Both happen under one lock, so
     /// no input can overtake `reply`.
     fn open_input(&self, reply: &[u8]) {
-        self.with_input(|io| {
+        self.with_io(|io| {
             if !reply.is_empty() {
                 self.transport.send(reply)?;
             }
-            io.input_open = true;
-            if !io.clipboard_unsent {
+            let clipboard_waits = matches!(
+                io.gate,
+                Gate::Closed {
+                    clipboard_waits: true
+                }
+            );
+            io.gate = Gate::Open;
+            if !clipboard_waits {
                 return Ok(());
             }
-            io.clipboard_unsent = false;
             let text = lock(&self.clipboard_out).clone();
             match text {
                 Some(text) => self.send_clipboard_bytes(&text),
@@ -646,7 +665,7 @@ impl Shared {
         if vertical.0 == 0 && horizontal.0 == 0 {
             return;
         }
-        self.with_io(|io| {
+        self.with_input(|io| {
             io.pos = (x, y);
             io.pending_move = false;
             io.last_move = Some(Instant::now());
@@ -667,7 +686,7 @@ impl Shared {
     }
 
     fn key(&self, keysym: u32, down: bool) {
-        self.with_io(|io| {
+        self.with_input(|io| {
             let mut bytes = Vec::with_capacity(16);
             Self::take_pending_move(io, &mut bytes);
             msg::key_event(&mut bytes, down, keysym);
@@ -683,7 +702,7 @@ impl Shared {
     }
 
     fn release_all(&self) {
-        self.with_io(|io| {
+        self.with_input(|io| {
             let mut bytes = Vec::new();
             Self::take_pending_move(io, &mut bytes);
             for keysym in io.pressed.drain(..) {
@@ -707,10 +726,12 @@ impl Shared {
         }
         *lock(&self.clipboard_out) = Some(text.to_owned());
         self.with_io(|io| {
-            if io.input_open {
+            if io.gate == Gate::Open {
                 self.send_clipboard_bytes(text)
             } else {
-                io.clipboard_unsent = true;
+                io.gate = Gate::Closed {
+                    clipboard_waits: true,
+                };
                 Ok(())
             }
         });
