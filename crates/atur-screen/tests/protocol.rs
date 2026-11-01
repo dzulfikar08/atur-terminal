@@ -181,11 +181,13 @@ fn copy_rect_and_desktop_size() {
                 name: "fake-vm".to_owned()
             })
         );
+        // One incremental request per update, sent with its header; the resize's own
+        // update asked first at the old size, then for everything at the new one.
         let expected = concat(&[
             update_request(true, 4, 2),
             update_request(true, 4, 2),
+            update_request(true, 4, 2),
             update_request(false, 8, 6),
-            update_request(true, 8, 6),
         ]);
         assert_eq!(harness.server.settle(), expected, "{chunking:?}");
     }
@@ -401,11 +403,12 @@ fn h264_frames_come_from_the_decoder_and_errors_ask_for_a_key_frame() {
     harness
         .server
         .push(&h264_update(0, &[0xff, 1]), Chunking::Whole);
+    // The failing update's header asked for the next one; the failure asks for a key frame.
     let expected = concat(&[
         update_request(true, 4, 4),
         update_request(true, 4, 4),
-        update_request(false, 4, 4),
         update_request(true, 4, 4),
+        update_request(false, 4, 4),
     ]);
     assert_eq!(harness.server.settle(), expected);
     // The session keeps going after the decoder error.

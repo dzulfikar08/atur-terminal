@@ -470,6 +470,14 @@ impl Machine {
         self.rects_left = if self.unbounded { 0 } else { count };
         self.rect_count = 0;
         self.update = UpdateInfo::default();
+        // Without continuous updates the server sends one update per request. The next
+        // request goes out as soon as an update starts, not when it has been received and
+        // decoded, so the server already holds the permission for the next picture while
+        // this one is still on the wire: updates follow each other without a round trip
+        // between them.
+        if !self.continuous {
+            msg::update_request(&mut self.out, true, self.fb.width, self.fb.height);
+        }
         if count == 0 {
             self.finish_update();
         } else {
@@ -484,9 +492,6 @@ impl Machine {
             codec: update.codec,
             dirty: update.dirty,
         });
-        if !self.continuous {
-            msg::update_request(&mut self.out, true, self.fb.width, self.fb.height);
-        }
     }
 
     /// Called after a rectangle was fully consumed.

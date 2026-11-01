@@ -33,11 +33,14 @@ pub(crate) fn encodings(h264: bool) -> Vec<i32> {
         ENC_RAW,
         ENC_DESKTOP_SIZE,
         ENC_EXT_DESKTOP_SIZE,
-        ENC_FENCE,
-        ENC_CONTINUOUS_UPDATES,
-        ENC_EXT_CLIPBOARD,
-        ENC_LAST_RECT,
     ]);
+    if std::env::var_os("ATUR_SCREEN_NO_FENCE").is_none() {
+        list.push(ENC_FENCE);
+    }
+    if std::env::var_os("ATUR_SCREEN_NO_CONTINUOUS").is_none() {
+        list.push(ENC_CONTINUOUS_UPDATES);
+    }
+    list.extend([ENC_EXT_CLIPBOARD, ENC_LAST_RECT]);
     list
 }
 

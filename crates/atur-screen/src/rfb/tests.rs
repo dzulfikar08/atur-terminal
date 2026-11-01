@@ -242,8 +242,9 @@ fn desktop_size_reallocates_and_requests_everything() {
             height: 6
         }
     );
-    let mut expected = full(8, 6);
-    expected.extend_from_slice(&incremental(8, 6));
+    // The incremental request goes out with the header, before the resize is read.
+    let mut expected = incremental(4, 4);
+    expected.extend_from_slice(&full(8, 6));
     assert_eq!(machine.take_out(), expected);
 }
 
@@ -284,13 +285,16 @@ fn continuous_updates_signal_switches_off_incremental_requests() {
     machine.feed(&bytes).unwrap();
     assert!(machine.take_out().is_empty());
 
-    // The pseudo rectangle works as a signal as well.
+    // The pseudo rectangle works as a signal as well. The update's header, which came
+    // first, still drew an incremental request.
     let mut machine = ready(4, 4);
     let mut bytes = update_header(2);
     bytes.extend_from_slice(&rect_header(0, 0, 0, 0, -313));
     bytes.extend_from_slice(&rect_header(0, 0, 0, 0, -224));
     machine.feed(&bytes).unwrap();
-    assert_eq!(machine.take_out(), expected);
+    let mut after_header = incremental(4, 4);
+    after_header.extend_from_slice(&expected);
+    assert_eq!(machine.take_out(), after_header);
 }
 
 #[test]
@@ -586,8 +590,8 @@ fn h264_is_advertised_only_with_a_decoder_and_errors_request_a_key_frame() {
     let mut bytes = update_header(1);
     bytes.extend_from_slice(&h264_rect(0, &[0xff, 1]));
     machine.feed(&bytes).unwrap();
-    let mut expected = full(4, 4);
-    expected.extend_from_slice(&incremental(4, 4));
+    let mut expected = incremental(4, 4);
+    expected.extend_from_slice(&full(4, 4));
     assert_eq!(machine.take_out(), expected);
 
     // A rectangle that only resets the context carries no picture.

@@ -8,16 +8,21 @@
 # each direction, so every packet meets real kernel delay. Needs root and
 # NET_ADMIN, so CI runs it in a privileged container.
 #
-#   scripts/screen-fps-lab.sh BIN_DIR [RTT_MS...]   # default: 0 150 300
+#   scripts/screen-fps-lab.sh BIN_DIR [SCENARIO...]
+#
+# A scenario is RTT_MS[:LOSS_PERCENT[:JITTER_MS]], default "0 150 300 150:1 150:3 300:1".
+# Each runs once per VARIANT (default "default"; "nofence" starts the viewer without
+# the Fence pseudo-encoding).
 #
 # BIN_DIR holds atur-term, atur-term-server and screen_probe. Prints one JSON
 # object per run and appends them to $GITHUB_STEP_SUMMARY.
 set -euo pipefail
 
-BIN=$(cd "${1:?usage: screen-fps-lab.sh BIN_DIR [RTT_MS...]}" && pwd)
+BIN=$(cd "${1:?usage: screen-fps-lab.sh BIN_DIR [SCENARIO...]}" && pwd)
 shift || true
-RTTS=("$@")
-[[ ${#RTTS[@]} -gt 0 ]] || RTTS=(0 150 300)
+SCENARIOS=("$@")
+[[ ${#SCENARIOS[@]} -gt 0 ]] || SCENARIOS=(0 150 300 150:1 150:3 300:1)
+VARIANTS=(${VARIANTS:-default})
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 export XDG_RUNTIME_DIR="$WORK/run"
@@ -97,21 +102,36 @@ chmod +x "$WORK/fake-ssh"
 
 probe() { "$BIN/screen_probe" --udp "$WORK/fake-ssh" "$@"; }
 
-# Half the round trip each way.
-delay() {
-  if [[ $1 -eq 0 ]]; then
+# Half the round trip each way; loss is per packet in each direction.
+shape() { # shape RTT_MS [LOSS_PERCENT [JITTER_MS]]
+  local rtt=$1 loss=${2:-0} jitter=${3:-0}
+  if [[ $rtt -eq 0 && $loss -eq 0 && $jitter -eq 0 ]]; then
     tc qdisc del dev lo root 2>/dev/null || true
-  else
-    tc qdisc replace dev lo root netem delay "$(($1 / 2))ms" limit 100000
+    return
   fi
+  local args=(delay "$((rtt / 2))ms")
+  [[ $jitter -gt 0 ]] && args+=("$((jitter / 2))ms")
+  [[ $loss -gt 0 ]] && args+=(loss "${loss}%")
+  tc qdisc replace dev lo root netem "${args[@]}" limit 100000
+}
+
+run_probe() { # run_probe VARIANT COMMAND...
+  local variant=$1; shift
+  case $variant in
+    nofence) ATUR_SCREEN_NO_FENCE=1 probe "$@" ;;
+    nocont) ATUR_SCREEN_NO_CONTINUOUS=1 probe "$@" ;;
+    *) probe "$@" ;;
+  esac
 }
 
 REPORT=""
 note() { echo "$1"; REPORT+="$1"$'\n'; }
 
 echo "== how long a change takes to show, still desktop"
-for rtt in "${RTTS[@]}"; do
-  delay "$rtt"
+for scenario in "${SCENARIOS[@]}"; do
+  IFS=: read -r rtt loss jitter <<<"$scenario"
+  [[ -n ${loss:-} || -n ${jitter:-} ]] && continue
+  shape "$rtt"
   note "{\"rtt_ms\":$rtt,\"run\":$(probe colors 8)}"
 done
 
@@ -121,14 +141,17 @@ wait_for "the animation window" bash -c 'swaymsg -t get_tree | grep -q weston'
 sleep 1
 
 echo "== pictures a second while a window animates"
-for rtt in "${RTTS[@]}"; do
-  delay "$rtt"
-  dropped_before=$(grep -c "Exceeded bandwidth limit" "$WORK/wayvnc.log" || true)
-  result=$(probe fps "$SECONDS_PER_RUN")
-  dropped_after=$(grep -c "Exceeded bandwidth limit" "$WORK/wayvnc.log" || true)
-  note "{\"rtt_ms\":$rtt,\"frames_wayvnc_withheld\":$((dropped_after - dropped_before)),\"run\":$result}"
+for scenario in "${SCENARIOS[@]}"; do
+  IFS=: read -r rtt loss jitter <<<"$scenario"
+  for variant in "${VARIANTS[@]}"; do
+    shape "$rtt" "${loss:-0}" "${jitter:-0}"
+    withheld_before=$(grep -c "Exceeded bandwidth limit" "$WORK/wayvnc.log" || true)
+    result=$(run_probe "$variant" fps "$SECONDS_PER_RUN" || echo '{"error":"probe failed"}')
+    withheld_after=$(grep -c "Exceeded bandwidth limit" "$WORK/wayvnc.log" || true)
+    note "{\"rtt_ms\":$rtt,\"loss_percent\":${loss:-0},\"jitter_ms\":${jitter:-0},\"variant\":\"$variant\",\"frames_wayvnc_withheld\":$((withheld_after - withheld_before)),\"run\":$result}"
+  done
 done
-delay 0
+shape 0
 
 {
   echo "### Screen mirroring over UDP, delayed loopback, headless sway, wayvnc $(wayvnc --version 2>&1 | head -1)"
