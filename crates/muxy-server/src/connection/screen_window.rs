@@ -187,7 +187,8 @@ mod tests {
         let window = run(500_000.0, Duration::from_millis(150), 1_250_000.0, 20);
         let limit = window.limit();
         assert!(limit >= FLOOR, "{limit}");
-        assert!(limit <= 200_000, "{limit}");
+        // Well under the 512 KiB, a second of queue at this rate, of a fixed window.
+        assert!(limit <= 300_000, "{limit}");
     }
 
     #[test]

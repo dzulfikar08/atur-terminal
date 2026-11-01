@@ -51,6 +51,24 @@ pub trait H264Decoder: Send {
     fn decode(&mut self, annex_b: &[u8], reset: bool) -> Result<(), DecodeError>;
 }
 
+/// Takes a decoder off the thread that parses the protocol, where that is not so already:
+/// `VideoToolbox` waits for each picture, which would hold back the report of what the viewer
+/// has handled and the next update request; an `ffmpeg` process is fed through a thread of its own. `None` when the
+/// thread cannot start.
+#[cfg(target_os = "macos")]
+pub(crate) fn detached(decoder: Box<dyn H264Decoder>) -> Option<Box<dyn H264Decoder>> {
+    Some(Box::new(pipelined::Pipelined::start(decoder)?))
+}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "The macOS version can fail to start its thread"
+)]
+pub(crate) fn detached(decoder: Box<dyn H264Decoder>) -> Option<Box<dyn H264Decoder>> {
+    Some(decoder)
+}
+
 /// The best decoder this machine has, or `None` when it has no way to decode H.264.
 pub fn new_h264(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
     platform_decoder(sink)
@@ -62,8 +80,7 @@ pub fn new_h264(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
     reason = "Other platforms have no decoder to return"
 )]
 fn platform_decoder(sink: FrameSink) -> Option<Box<dyn H264Decoder>> {
-    let decoder = Box::new(videotoolbox::VideoToolboxDecoder::new(sink));
-    Some(Box::new(pipelined::Pipelined::start(decoder)?))
+    Some(Box::new(videotoolbox::VideoToolboxDecoder::new(sink)))
 }
 
 #[cfg(all(

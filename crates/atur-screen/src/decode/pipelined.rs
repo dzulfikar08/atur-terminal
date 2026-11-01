@@ -17,9 +17,9 @@ struct Unit {
 }
 
 /// Runs a decoder that blocks (`VideoToolbox` waits for each picture) on a thread of its
-/// own, so decoding never holds up the protocol: the server's fence pings, which it times
-/// to estimate the link's bandwidth, and its next update are answered while the picture
-/// is still being decoded.
+/// own, so decoding never holds up the protocol: the viewer's report of what it has
+/// handled, which lets the relay send more, and its next update request go out while the
+/// picture is still being decoded.
 ///
 /// A failure shows on the next [`decode`](H264Decoder::decode) call, one access unit
 /// late, which is when the session asks the server for a key frame.

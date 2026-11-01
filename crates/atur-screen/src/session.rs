@@ -139,7 +139,9 @@ impl Screen {
         options: ScreenOptions,
         wake: impl Fn() + Send + Sync + 'static,
     ) -> Self {
-        Self::start_with_decoder(transport, options, wake, decode::new_h264)
+        Self::start_with_decoder(transport, options, wake, |sink| {
+            decode::new_h264(sink).and_then(decode::detached)
+        })
     }
 
     /// Like [`Screen::start`] with the H.264 decoder factory injected, for hosts whose
