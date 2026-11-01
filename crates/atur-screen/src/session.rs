@@ -294,10 +294,7 @@ struct Io {
 /// clipboard's type 6 as the chosen security type) breaks it.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Gate {
-    /// `clipboard_waits`: the clipboard was set meanwhile and still has to be announced.
-    Closed {
-        clipboard_waits: bool,
-    },
+    Closed,
     Open,
 }
 
@@ -348,6 +345,8 @@ struct Shared {
     fb_width: AtomicU32,
     fb_height: AtomicU32,
     ext_clipboard: AtomicBool,
+    /// The clipboard was set before the handshake ended and still has to be announced.
+    clipboard_held: AtomicBool,
     state: Mutex<ScreenState>,
     slot: Mutex<FrameSlot>,
     next_frame_id: AtomicU64,
@@ -373,9 +372,7 @@ impl Shared {
                 pressed: Vec::new(),
                 last_wake: None,
                 wake_pending: false,
-                gate: Gate::Closed {
-                    clipboard_waits: false,
-                },
+                gate: Gate::Closed,
             }),
             io_cv: Condvar::new(),
             view_only: AtomicBool::new(options.view_only),
@@ -383,6 +380,7 @@ impl Shared {
             fb_width: AtomicU32::new(0),
             fb_height: AtomicU32::new(0),
             ext_clipboard: AtomicBool::new(false),
+            clipboard_held: AtomicBool::new(false),
             state: Mutex::new(ScreenState::Connecting),
             slot: Mutex::new(FrameSlot {
                 frame: None,
@@ -468,14 +466,20 @@ impl Shared {
             if !reply.is_empty() {
                 self.transport.send(reply)?;
             }
-            let clipboard_waits = matches!(
-                io.gate,
-                Gate::Closed {
-                    clipboard_waits: true
-                }
-            );
             io.gate = Gate::Open;
-            if !clipboard_waits {
+            Ok(())
+        });
+    }
+
+    /// Announces a clipboard that was set while connecting. It waits for the server's
+    /// first words after the handshake, so that its clipboard capabilities are known and
+    /// the text goes out in the form the server understands best.
+    fn flush_clipboard(&self) {
+        if !self.clipboard_held.load(Ordering::SeqCst) {
+            return;
+        }
+        self.with_io(|io| {
+            if io.gate != Gate::Open || !self.clipboard_held.swap(false, Ordering::SeqCst) {
                 return Ok(());
             }
             let text = lock(&self.clipboard_out).clone();
@@ -726,12 +730,10 @@ impl Shared {
         }
         *lock(&self.clipboard_out) = Some(text.to_owned());
         self.with_io(|io| {
-            if io.gate == Gate::Open {
+            if io.gate == Gate::Open && !self.clipboard_held.load(Ordering::SeqCst) {
                 self.send_clipboard_bytes(text)
             } else {
-                io.gate = Gate::Closed {
-                    clipboard_waits: true,
-                };
+                self.clipboard_held.store(true, Ordering::SeqCst);
                 Ok(())
             }
         });
@@ -896,12 +898,16 @@ fn handle_chunk(
                     None => {}
                 }
                 publisher.dirty |= dirty;
+                shared.flush_clipboard();
             }
             Event::Clipboard(text) => {
                 *lock(&shared.clipboard_in) = Some(text);
                 changed = true;
             }
-            Event::ExtClipboard(usable) => shared.ext_clipboard.store(usable, Ordering::SeqCst),
+            Event::ExtClipboard(usable) => {
+                shared.ext_clipboard.store(usable, Ordering::SeqCst);
+                shared.flush_clipboard();
+            }
             Event::ClipboardRequest => {
                 let text = lock(&shared.clipboard_out).clone();
                 if let Some(text) = text {

@@ -32,9 +32,16 @@ fn fidget(harness: &Harness) {
     harness.screen.release_all();
 }
 
+/// The server's first words after `ServerInit`: a one pixel update.
+fn first_update() -> Vec<u8> {
+    update(&[raw_rect(0, 0, 1, 1, &[[0, 0, 0, 0]])])
+}
+
 fn expected() -> Vec<u8> {
     let mut bytes = handshake_reply(WIDTH, HEIGHT, false);
     bytes.extend_from_slice(&cut_text("early clipboard"));
+    // The first update is answered with an incremental request.
+    bytes.extend_from_slice(&update_request(true, WIDTH, HEIGHT));
     bytes
 }
 
@@ -66,8 +73,14 @@ fn nothing_but_the_handshake_is_sent_until_server_init() {
     // The security result and ServerInit, a byte at a time.
     harness.server.push(&hello[14..], Chunking::Each(1));
     wait_ready(&harness.screen);
-    let rest = &expected()[13..];
-    assert_eq!(harness.server.read(rest.len()), rest);
+    let reply = handshake_reply(WIDTH, HEIGHT, false);
+    assert_eq!(harness.server.read(reply.len() - 13), reply[13..]);
+    // The clipboard waits for the server's first words, so its capabilities are known.
+    assert!(harness.server.settle().is_empty());
+    harness.server.push(&first_update(), Chunking::Whole);
+    let clip = cut_text("early clipboard");
+    assert_eq!(harness.server.read(clip.len()), clip);
+    assert_eq!(harness.server.read(10), update_request(true, WIDTH, HEIGHT));
     assert!(harness.server.settle().is_empty());
 }
 
@@ -94,6 +107,7 @@ fn every_split_of_the_greeting_keeps_the_handshake_clean() {
         fidget(&harness);
         harness.server.push(&greeting[at..], Chunking::Whole);
         wait_ready(&harness.screen);
+        harness.server.push(&first_update(), Chunking::Whole);
         assert_eq!(
             harness.server.read(wanted.len()),
             wanted,
@@ -130,6 +144,7 @@ fn the_greeting_in_odd_chunks_keeps_the_handshake_clean() {
         harness.server.push(&greeting, chunking);
         racer.join().unwrap();
         wait_ready(&harness.screen);
+        harness.server.push(&first_update(), Chunking::Whole);
         // Keys that raced in after the handshake are fine; the stream must still
         // start with the handshake, exactly once, and carry the clipboard once.
         let sent = harness.server.settle();
@@ -153,6 +168,7 @@ fn a_clipboard_set_before_the_version_is_sent_after_the_handshake_in_legacy_form
         .server
         .push(&hello(WIDTH, HEIGHT), Chunking::Each(5));
     wait_ready(&harness.screen);
+    harness.server.push(&first_update(), Chunking::Whole);
     let reply = handshake_reply(WIDTH, HEIGHT, false);
     assert_eq!(harness.server.read(reply.len()), reply);
     assert_eq!(
