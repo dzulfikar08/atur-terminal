@@ -314,7 +314,7 @@ pub fn update_request(incremental: bool, width: usize, height: usize) -> Vec<u8>
 
 /// The requests a viewer without continuous updates keeps open with the server, so that
 /// pictures never wait a round trip for permission.
-pub const REQUEST_WINDOW: usize = 8;
+pub const REQUEST_WINDOW: usize = 16;
 
 /// What the first update draws: enough incremental requests to fill the window.
 pub fn first_requests(width: usize, height: usize) -> Vec<u8> {

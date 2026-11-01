@@ -5,6 +5,7 @@ mod outbox;
 mod policy;
 mod reader;
 mod screen;
+mod screen_window;
 mod sink;
 #[cfg(test)]
 mod tests;

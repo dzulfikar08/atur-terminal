@@ -37,9 +37,9 @@ const FENCE_UNDERSTOOD: u32 = 0x7;
 const UNBOUNDED_RECT_COUNT: u32 = 0xffff;
 /// How many update requests a server without continuous updates may hold at once. Each
 /// permits one update, so this many pictures can be on their way while the first request
-/// is still crossing the link: at a round trip of 150 ms, 8 requests carry 50 pictures a
-/// second, where one request at a time carries 7.
-pub(crate) const REQUEST_WINDOW: u32 = 8;
+/// is still crossing the link: at a round trip of 300 ms, 16 requests carry 53 pictures a
+/// second, where one request at a time carries 3.
+pub(crate) const REQUEST_WINDOW: u32 = 16;
 
 /// The server violated the protocol or sent something this client cannot handle.
 /// The message is a complete English sentence meant for the user.

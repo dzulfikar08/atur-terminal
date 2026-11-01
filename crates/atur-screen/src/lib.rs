@@ -5,10 +5,13 @@
 //!   a small bounded channel, a processor thread that owns the protocol state machine, and a
 //!   timer thread for coalesced pointer moves and rate-limited wake-ups.
 //! * `rfb` is a sans-IO state machine (security None, `ServerInit`, Raw, `CopyRect`, ZRLE,
-//!   H.264, `DesktopSize`, `ExtendedDesktopSize`, `ContinuousUpdates`, Fence, extended clipboard):
-//!   bytes in any split go in, framebuffer changes, events and reply bytes come out.
-//! * `decode` holds the H.264 decoders (`VideoToolbox`, or an `ffmpeg` process); the session
-//!   advertises H.264 only when a decoder exists, ZRLE works without one. Phones have no
+//!   H.264, `DesktopSize`, `ExtendedDesktopSize`, `ContinuousUpdates`, extended clipboard):
+//!   bytes in any split go in, framebuffer changes, events and reply bytes come out. The
+//!   server streams pictures on its own once it signals continuous updates; against one that
+//!   does not, 16 update requests stay open, so a picture never waits a round trip for
+//!   permission. Fences are answered but not asked for (see `rfb::msg::encodings`).
+//! * `decode` holds the H.264 decoders (`VideoToolbox` on a thread of its own, or an `ffmpeg`
+//!   process); the session advertises H.264 only when a decoder exists, ZRLE works without one. Phones have no
 //!   built-in decoder and inject theirs with [`Screen::start_with_decoder`].
 //! * The framebuffer is a persistent BGRA buffer; every finished update is copied into one
 //!   [`Frame`] in a single-slot mailbox, so video is never queued and a slow UI only

@@ -2,9 +2,11 @@
 //! channel, or straight to a VNC socket, so the two can be compared.
 //!
 //! ```text
-//! screen_probe (--server SOCKET | --direct VNC_SOCKET) COMMAND
+//! screen_probe (--server SOCKET | --direct VNC_SOCKET | --udp FAKE_SSH) COMMAND
 //!   colors N       Flip the desktop's background between two colours N times with
 //!                  `swaymsg`, and report how long each flip took to show in the frame.
+//!   fps [SECONDS]  Report how many pictures a second arrive while the desktop animates
+//!                  (scripts/screen-fps-lab.sh starts the animation).
 //!   expect R G B   Wait until the centre of the picture has this colour.
 //!   input          Move the pointer to the centre, click, and type "a" and "B".
 //!   clipboard-out TEXT [HOLD_SECONDS]
@@ -12,6 +14,10 @@
 //!   clipboard-in TEXT
 //!                  Wait until the remote clipboard becomes TEXT.
 //! ```
+//!
+//! `--udp` reaches the server over the UDP transport: FAKE_SSH is a program that runs the
+//! remote command on this computer, which starts the bridge, and the client then speaks UDP
+//! to 127.0.0.1.
 //!
 //! It prints one JSON object per command. The CI job `screen-e2e` runs it under a
 //! headless sway with `wayvnc`.

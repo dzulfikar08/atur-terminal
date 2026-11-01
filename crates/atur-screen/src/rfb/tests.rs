@@ -103,16 +103,7 @@ fn handshake_in_single_bytes_replies_exactly() {
 fn encodings_without_and_with_h264() {
     assert_eq!(
         msg::encodings(false),
-        [
-            16,
-            1,
-            0,
-            -223,
-            -308,
-            -313,
-            msg::ENC_EXT_CLIPBOARD,
-            -224
-        ]
+        [16, 1, 0, -223, -308, -313, msg::ENC_EXT_CLIPBOARD, -224]
     );
     assert_eq!(msg::encodings(true)[..2], [50, 16]);
 }

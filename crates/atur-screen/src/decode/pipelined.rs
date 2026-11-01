@@ -108,9 +108,14 @@ mod tests {
 
     use super::*;
 
+    type Seen = Arc<Mutex<Vec<(Vec<u8>, bool)>>>;
+
+    /// The depth of the queue, as a byte value for the units the tests send.
+    const UNITS: u8 = 3;
+
     /// Blocks in `decode` until released, records what it was given.
     struct Slow {
-        seen: Arc<Mutex<Vec<(Vec<u8>, bool)>>>,
+        seen: Seen,
         gate: mpsc::Receiver<()>,
         fail_on: Option<u8>,
     }
@@ -151,7 +156,8 @@ mod tests {
         assert_eq!(decoder.name(), "slow");
         // The decoder is blocked, yet the caller is not, for the depth of the queue.
         let started = Instant::now();
-        for unit in 0..PIPELINE_DEPTH as u8 {
+        assert_eq!(usize::from(UNITS), PIPELINE_DEPTH);
+        for unit in 0..UNITS {
             decoder.decode(&[unit], unit == 0).unwrap();
         }
         assert!(started.elapsed() < Duration::from_secs(2));
@@ -159,9 +165,8 @@ mod tests {
             release.send(()).unwrap();
         }
         wait_until(|| seen.lock().unwrap().len() == PIPELINE_DEPTH);
-        let expected: Vec<(Vec<u8>, bool)> = (0..PIPELINE_DEPTH as u8)
-            .map(|unit| (vec![unit], unit == 0))
-            .collect();
+        let expected: Vec<(Vec<u8>, bool)> =
+            (0..UNITS).map(|unit| (vec![unit], unit == 0)).collect();
         assert_eq!(*seen.lock().unwrap(), expected);
     }
 

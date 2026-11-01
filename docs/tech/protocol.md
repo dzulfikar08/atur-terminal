@@ -134,14 +134,28 @@ sequenceDiagram
   RFB conversation of one viewer. The server never interprets it. `ScreenClosed`
   (message 25, a reason that is empty for a normal end) follows the last bytes
   when `wayvnc` ends or stops reading.
-- **Flow control.** The server queues at most 512 KiB of a viewer's bytes, counting
-  bytes on the wire that the client has not reported. The client reports with
+- **Flow control.** The server queues a limited number of a viewer's bytes, counting
+  bytes on the wire that the client has not reported: 512 KiB until it has measured the
+  link, then the highest rate at which the client reported bytes over the last ten
+  seconds times one and a half round trips and a tenth of a second, between 160 KiB and
+  1 MiB. A fast, long link gets room to stay busy; a slow one is not given a queue of
+  seconds. The client reports with
   `FrameAck`, whose `seq` for a screen channel is the total bytes it has handled,
-  and sends it after it has decoded what it received, not when it arrived. Beyond
+  and sends it after it has parsed what it received, not when it arrived; H.264
+  decoding runs on a thread of its own, so it does not hold the ack back. Beyond
   the window the server stops reading `wayvnc`, whose own socket then fills and
   makes it send only the newest picture when the client catches up. Nothing is
   ever dropped from the byte stream, so the RFB messages inside stay whole, and
   there is never more than a fraction of a second of video in flight.
+- **Pictures per second on a long link.** Within the RFB conversation, the viewer
+  keeps the server streaming: it enables continuous updates when the server signals
+  them, so no request travels per picture. Against a server without them it keeps 8
+  update requests open, one more with each update's header, which carries 50 pictures
+  a second at a round trip of 150 ms. It does not ask for fences: `wayvnc` pings a
+  client that does after every picture and limits the pictures in flight to the
+  bandwidth it estimates from the pings, and the estimate reads the stall of one lost
+  packet in an ordered stream as a full pipe, settling on one picture per round trip.
+  `scripts/screen-fps-lab.sh` measures all of this on delayed and lossy links.
 - `Detach(channel)` ends a viewer; a connection that closes ends all of its viewers.
 - `wayvnc` starts for the first viewer and stops 15 seconds after the last one.
   It listens on a Unix socket in a private (mode 0700) folder of the runtime

@@ -12,6 +12,7 @@ use muxy_protocol::{
 use crate::{AttachmentId, ServerError, SessionCommand, SessionHandle};
 
 use super::merge::{merge, weight};
+use super::screen_window::ScreenWindow;
 
 /// How often the session hears that a client keeps typing.
 const TYPED_REPORT: Duration = Duration::from_millis(100);
@@ -61,11 +62,6 @@ struct Watches {
 const WINDOW_FRAMES: usize = 8;
 const WINDOW_BYTES: usize = 256 * 1024;
 
-/// Most bytes of a screen stream that may be queued or on the wire unreported
-/// by the client. At 20 Mbit/s this is a fifth of a second of video; a client
-/// further behind makes the capture program wait instead.
-const SCREEN_WINDOW: usize = 512 * 1024;
-
 /// One screen viewer's way out: bytes of the capture program's conversation
 /// waiting for the writer, and how many the client has reported handled.
 struct ScreenStream {
@@ -76,6 +72,8 @@ struct ScreenStream {
     /// Set when the stream ended; `ScreenClosed` follows the queued bytes.
     ending: Option<String>,
     viewer: Option<crate::screen::Viewer>,
+    /// How much may be unreported at once, measured from the client's reports.
+    window: ScreenWindow,
 }
 
 impl ScreenStream {
@@ -87,6 +85,7 @@ impl ScreenStream {
             acked: 0,
             ending: None,
             viewer: None,
+            window: ScreenWindow::default(),
         }
     }
 
@@ -616,6 +615,7 @@ impl Outbox {
         if let Some(stream) = state.screens.get_mut(&channel) {
             // A client cannot have handled more than was sent.
             stream.acked = stream.acked.max(seq.min(stream.sent));
+            stream.window.reported(stream.acked, Instant::now());
             self.space.notify_all();
             return;
         }
@@ -687,7 +687,7 @@ impl Outbox {
                 return false;
             }
             let unhandled = stream.unhandled();
-            if unhandled == 0 || unhandled + bytes.len() <= SCREEN_WINDOW {
+            if unhandled == 0 || unhandled + bytes.len() <= stream.window.limit() {
                 stream.queued += bytes.len();
                 stream.queue.push_back(bytes);
                 self.ready.notify_one();
@@ -777,6 +777,7 @@ impl Outbox {
                 if let Some(chunk) = stream.queue.pop_front() {
                     stream.queued -= chunk.len();
                     stream.sent += chunk.len() as u64;
+                    stream.window.sent(stream.sent, Instant::now());
                     return Some((channel, Message::ScreenData(chunk)));
                 }
                 if let Some(reason) = stream.ending.take() {
@@ -887,6 +888,7 @@ mod tests {
 
     use muxy_protocol::{Cursor, Modes, Row};
 
+    use super::super::screen_window;
     use super::*;
 
     #[test]
@@ -895,7 +897,8 @@ mod tests {
         let channel = ChannelId(3);
         assert!(outbox.reserve_screen(channel));
         let chunk = 16 * 1024;
-        for _ in 0..SCREEN_WINDOW / chunk {
+        let chunks = screen_window::START / chunk;
+        for _ in 0..chunks {
             assert!(outbox.push_screen(channel, vec![7; chunk]));
         }
         let (done, finished) = mpsc::channel();
@@ -906,17 +909,22 @@ mod tests {
         });
         assert!(finished.recv_timeout(Duration::from_millis(150)).is_err());
         // Sending is not handling: the window opens when the client reports it.
-        assert_eq!(
-            outbox.next(),
-            Some((channel, Message::ScreenData(vec![7; chunk])))
-        );
+        for _ in 0..chunks {
+            assert_eq!(
+                outbox.next(),
+                Some((channel, Message::ScreenData(vec![7; chunk])))
+            );
+        }
         assert!(finished.recv_timeout(Duration::from_millis(150)).is_err());
-        outbox.ack(channel, chunk as u64);
+        outbox.ack(channel, (chunks * chunk) as u64);
         assert_eq!(finished.recv_timeout(Duration::from_secs(5)), Ok(true));
         let _ = blocked.join();
         // An acknowledgement beyond what was sent counts only what was sent.
         outbox.ack(channel, u64::MAX);
-        assert_eq!(outbox.lock().screens[&channel].acked, chunk as u64);
+        assert_eq!(
+            outbox.lock().screens[&channel].acked,
+            (chunks * chunk) as u64
+        );
     }
 
     #[test]
@@ -943,7 +951,7 @@ mod tests {
         let outbox = Arc::new(Outbox::new(Arc::default()));
         let channel = ChannelId(5);
         assert!(outbox.reserve_screen(channel));
-        assert!(outbox.push_screen(channel, vec![1; SCREEN_WINDOW]));
+        assert!(outbox.push_screen(channel, vec![1; screen_window::START]));
         let pusher = Arc::clone(&outbox);
         let waiting = thread::spawn(move || pusher.push_screen(channel, vec![2; 1024]));
         thread::sleep(Duration::from_millis(100));
@@ -961,7 +969,7 @@ mod tests {
         let outbox = Arc::new(Outbox::new(Arc::default()));
         let channel = ChannelId(4);
         assert!(outbox.reserve_screen(channel));
-        assert!(outbox.push_screen(channel, vec![1; SCREEN_WINDOW]));
+        assert!(outbox.push_screen(channel, vec![1; screen_window::START]));
         let pusher = Arc::clone(&outbox);
         let waiting = thread::spawn(move || pusher.push_screen(channel, vec![2; 1024]));
         thread::sleep(Duration::from_millis(100));
