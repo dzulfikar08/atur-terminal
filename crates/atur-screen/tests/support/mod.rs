@@ -291,7 +291,6 @@ pub fn handshake_reply(width: usize, height: usize, h264: bool) -> Vec<u8> {
         0,
         -223,
         -308,
-        -312,
         -313,
         i32::from_be_bytes([0xc0, 0xa1, 0xe5, 0xce]),
         -224,
