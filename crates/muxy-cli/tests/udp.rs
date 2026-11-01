@@ -10,7 +10,8 @@ use std::process::Stdio;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
-use muxy_client::{Client, ClientEvent, Start, Transport, UdpSettings};
+use atur_screen::{Screen, ScreenOptions, ScreenState, ScreenTransport};
+use muxy_client::{Client, ClientEvent, ScreenEvent, ScreenLink, Start, Transport, UdpSettings};
 use muxy_protocol::transport::udp::{Options, Secret};
 use muxy_protocol::{ChannelId, Size};
 use remote::{FakeRemote, Result};
@@ -195,5 +196,169 @@ fn the_bridge_answers_only_the_holder_of_its_secret() -> Result {
     drop(bridge.stdin.take());
     let _ = bridge.kill();
     let _ = bridge.wait();
+    Ok(())
+}
+
+/// A stand-in for wayvnc as strict as the real one about the handshake: it
+/// reads exactly the version line, then exactly one security type byte, then
+/// `ClientInit`, and writes a line to its log for everything the viewer sends.
+/// A security type other than 1 is "Illegal security type", as in wayvnc.
+const STRICT_WAYVNC: &str = r#"#!/usr/bin/env python3
+import os, socket, struct, sys, threading, time
+
+parent = os.getppid()
+log = open(os.environ["FAKE_WAYVNC_LOG"], "a", buffering=1)
+path = sys.argv[-1][len("unix:"):]
+server = socket.socket(socket.AF_UNIX)
+server.bind(path)
+server.listen(4)
+
+def exact(connection, count):
+    data = b""
+    while len(data) < count:
+        chunk = connection.recv(count - len(data))
+        if not chunk:
+            raise EOFError
+        data += chunk
+    return data
+
+def serve(connection):
+    try:
+        connection.sendall(b"RFB 003.008\n")
+        version = exact(connection, 12)
+        log.write("version:%s\n" % version.decode().strip())
+        connection.sendall(bytes([1, 1]))
+        chosen = exact(connection, 1)[0]
+        if chosen != 1:
+            log.write("bad:security type %d\n" % chosen)
+            return
+        connection.sendall(struct.pack(">I", 0))
+        exact(connection, 1)
+        name = b"fake"
+        pixel = bytes([32, 24, 0, 1, 0, 255, 0, 255, 0, 255, 16, 8, 0, 0, 0, 0])
+        connection.sendall(struct.pack(">HH", 64, 48) + pixel + struct.pack(">I", len(name)) + name)
+        log.write("init\n")
+        sent = False
+        while True:
+            kind = exact(connection, 1)[0]
+            if kind == 0:
+                exact(connection, 19)
+            elif kind == 2:
+                count = struct.unpack(">H", exact(connection, 3)[1:])[0]
+                exact(connection, 4 * count)
+            elif kind == 3:
+                exact(connection, 9)
+                if not sent:
+                    sent = True
+                    rect = struct.pack(">HHHHi", 0, 0, 64, 48, 0)
+                    connection.sendall(bytes([0, 0, 0, 1]) + rect + bytes([30, 30, 200, 0]) * (64 * 48))
+            elif kind == 4:
+                exact(connection, 7)
+            elif kind == 5:
+                exact(connection, 5)
+            elif kind == 6:
+                length = struct.unpack(">I", exact(connection, 7)[3:])[0]
+                log.write("clip:%s\n" % exact(connection, length).decode("latin-1"))
+            elif kind == 150:
+                exact(connection, 9)
+            else:
+                log.write("bad:message type %d\n" % kind)
+                return
+    except EOFError:
+        pass
+    finally:
+        connection.close()
+
+def watch():
+    while os.getppid() == parent:
+        time.sleep(0.2)
+    os._exit(0)
+
+threading.Thread(target=watch, daemon=True).start()
+while True:
+    connection, _ = server.accept()
+    threading.Thread(target=serve, args=(connection,), daemon=True).start()
+"#;
+
+struct Channel(ScreenLink);
+
+impl ScreenTransport for Channel {
+    fn recv(&self) -> Option<Vec<u8>> {
+        match self.0.recv()? {
+            ScreenEvent::Data(bytes) => Some(bytes),
+            ScreenEvent::Closed(_) => None,
+        }
+    }
+
+    fn send(&self, bytes: &[u8]) -> std::result::Result<(), String> {
+        self.0.send(bytes).map_err(|error| error.to_string())
+    }
+
+    fn processed(&self, bytes: usize) {
+        self.0.processed(bytes);
+    }
+
+    fn close(&self) {
+        self.0.close();
+    }
+}
+
+fn wait_until(what: &str, mut condition: impl FnMut() -> bool) -> Result {
+    let deadline = Instant::now() + TIMEOUT;
+    while !condition() {
+        if Instant::now() >= deadline {
+            return Err(format!("timed out waiting for {what}").into());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    Ok(())
+}
+
+/// The screen channel over UDP, with a viewer that has a clipboard to announce
+/// and input to send from the first moment, as a Mac with text copied does.
+#[test]
+fn udp_carries_a_screen_handshake_with_input_ready_at_the_start() -> Result {
+    use std::os::unix::fs::PermissionsExt;
+
+    let remote = FakeRemote::detached_with_script(
+        "export ATUR_TERM_WAYVNC=\"$ATUR_TERM_DIR/wayvnc\" \
+         XDG_RUNTIME_DIR=\"$ATUR_TERM_DIR/run\" ATUR_TERM_SCREEN_GPU=0 \
+         FAKE_WAYVNC_LOG=\"$ATUR_TERM_DIR/wayvnc.log\"",
+    )?;
+    let program = remote.profile().join("wayvnc");
+    std::fs::write(&program, STRICT_WAYVNC)?;
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))?;
+    let run = remote.profile().join("run");
+    std::fs::create_dir(&run)?;
+    std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o700))?;
+    // A Wayland desktop is a socket named wayland-N in the runtime directory.
+    let _desktop = std::os::unix::net::UnixListener::bind(run.join("wayland-7"))?;
+    let log = remote.profile().join("wayvnc.log");
+
+    let target = remote
+        .target()?
+        .with_udp(settings(62_500..=62_599, "127.0.0.1"));
+    let client = Client::connect_ssh(&target, Start::IfNeeded)?;
+    assert_eq!(client.transport(), &Transport::Udp);
+    let link = client.open_screen()?;
+    let screen = Screen::start(Channel(link), ScreenOptions::default(), || {});
+    screen.send_clipboard("udp clipboard");
+    screen.key(0x61, true);
+    screen.key(0x61, false);
+
+    wait_until("the screen to be ready with a picture", || {
+        matches!(screen.state(), ScreenState::Ready(_)) && screen.frame().is_some()
+    })?;
+    wait_until("the clipboard to reach the capture", || {
+        std::fs::read_to_string(&log).is_ok_and(|text| text.contains("clip:udp clipboard"))
+    })?;
+    let seen = std::fs::read_to_string(&log)?;
+    assert!(seen.contains("version:RFB 003.008"), "{seen}");
+    assert!(!seen.contains("bad:"), "{seen}");
+    // The handshake finishes before the clipboard is announced.
+    let init = seen.find("init").ok_or("no init")?;
+    assert!(seen.find("clip:").ok_or("no clip")? > init, "{seen}");
+    screen.close();
+    client.disconnect();
     Ok(())
 }

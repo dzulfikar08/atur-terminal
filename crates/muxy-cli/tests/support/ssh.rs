@@ -38,6 +38,12 @@ impl FakeRemote {
         Self::build("", true)
     }
 
+    /// [`FakeRemote::with_script`] for a remote whose server outlives the fake ssh.
+    #[allow(dead_code)]
+    pub(super) fn detached_with_script(script: &str) -> Result<Self> {
+        Self::build(script, true)
+    }
+
     fn build(script: &str, detached: bool) -> Result<Self> {
         let directory = tempfile::Builder::new()
             .prefix("atur-ssh-")

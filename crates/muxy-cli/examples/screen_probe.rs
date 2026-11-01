@@ -116,6 +116,11 @@ fn main() -> Result {
             || {},
         )
     };
+    // Sent before the handshake finishes, as a Mac with text copied does; the viewer
+    // must hold it back until the server has read the handshake.
+    if command == "clipboard-out" {
+        screen.send_clipboard(rest.first().ok_or("text required")?);
+    }
     let (width, height) = wait_ready(&screen)?;
     let report = match command.as_str() {
         "colors" => colors(
@@ -139,7 +144,6 @@ fn main() -> Result {
             format!("{{\"via\":\"{via}\",\"command\":\"input\"}}")
         }
         "clipboard-out" => {
-            screen.send_clipboard(rest.first().ok_or("text required")?);
             // wayvnc owns the desktop's selection for as long as this client stays
             // connected: the caller reads it from the desktop while we hold on.
             let hold = rest.get(1).map_or(Ok(1), |seconds| seconds.parse())?;

@@ -286,6 +286,12 @@ struct Io {
     pressed: Vec<u32>,
     last_wake: Option<Instant>,
     wake_pending: bool,
+    /// The handshake is over and the server accepts input messages. Before that the
+    /// server reads every client byte as part of the handshake, so an input message
+    /// sent early (a clipboard's type 6 as the chosen security type) breaks it.
+    input_open: bool,
+    /// The clipboard was set before `input_open` and still has to be announced.
+    clipboard_unsent: bool,
 }
 
 struct FrameSlot {
@@ -360,6 +366,8 @@ impl Shared {
                 pressed: Vec::new(),
                 last_wake: None,
                 wake_pending: false,
+                input_open: false,
+                clipboard_unsent: false,
             }),
             io_cv: Condvar::new(),
             view_only: AtomicBool::new(options.view_only),
@@ -427,10 +435,46 @@ impl Shared {
         }
     }
 
+    /// Like `with_io` for input the user causes: dropped until the handshake is over.
+    fn with_input(&self, action: impl FnOnce(&mut Io) -> Result<(), String>) {
+        self.with_input(|io| if io.input_open { action(io) } else { Ok(()) });
+    }
+
     /// Sends bytes in order with everything else.
     fn send(&self, bytes: &[u8]) -> bool {
-        self.with_io(|_| self.transport.send(bytes));
+        self.with_input(|_| self.transport.send(bytes));
         !self.is_closed()
+    }
+
+    /// Sends the handshake's last bytes, then lets input through, announcing a
+    /// clipboard that was set while connecting. Both happen under one lock, so
+    /// no input can overtake `reply`.
+    fn open_input(&self, reply: &[u8]) {
+        self.with_input(|io| {
+            if !reply.is_empty() {
+                self.transport.send(reply)?;
+            }
+            io.input_open = true;
+            if !io.clipboard_unsent {
+                return Ok(());
+            }
+            io.clipboard_unsent = false;
+            let text = lock(&self.clipboard_out).clone();
+            match text {
+                Some(text) => self.send_clipboard_bytes(&text),
+                None => Ok(()),
+            }
+        });
+    }
+
+    fn send_clipboard_bytes(&self, text: &str) -> Result<(), String> {
+        let mut bytes = Vec::new();
+        if self.ext_clipboard.load(Ordering::SeqCst) {
+            clipboard::notify(&mut bytes, true);
+        } else if !msg::cut_text_latin1(&mut bytes, text) {
+            return Ok(());
+        }
+        self.transport.send(&bytes)
     }
 
     fn request_wake(&self) {
@@ -562,7 +606,7 @@ impl Shared {
         let Some((x, y)) = self.clamp(x, y) else {
             return;
         };
-        self.with_io(|io| {
+        self.with_input(|io| {
             let moved = io.pos != (x, y);
             io.pos = (x, y);
             let now = Instant::now();
@@ -662,13 +706,14 @@ impl Shared {
             return;
         }
         *lock(&self.clipboard_out) = Some(text.to_owned());
-        let mut bytes = Vec::new();
-        if self.ext_clipboard.load(Ordering::SeqCst) {
-            clipboard::notify(&mut bytes, true);
-        } else if !msg::cut_text_latin1(&mut bytes, text) {
-            return;
-        }
-        self.send(&bytes);
+        self.with_io(|io| {
+            if io.input_open {
+                self.send_clipboard_bytes(text)
+            } else {
+                io.clipboard_unsent = true;
+                Ok(())
+            }
+        });
     }
 
     /// A full update request for the whole framebuffer, in order with the input.
@@ -801,6 +846,12 @@ fn handle_chunk(
                 height,
                 name,
             } => {
+                // The handshake's last bytes go out, and input opens, before the UI
+                // can see the screen as ready.
+                shared.open_input(&std::mem::take(&mut reply));
+                if shared.is_closed() {
+                    return false;
+                }
                 shared.set_ready(width, height, name);
                 changed = true;
             }
