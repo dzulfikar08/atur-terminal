@@ -33,7 +33,7 @@ use std::time::{Duration, Instant};
 use atur_screen::{
     Pixels, PointerButtons, Screen, ScreenOptions, ScreenState, ScreenTransport, keys,
 };
-use muxy_client::{Client, ScreenEvent, ScreenLink};
+use muxy_client::{Client, ScreenEvent, ScreenLink, SshTarget, Start, Transport, UdpSettings};
 
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -96,12 +96,35 @@ fn main() -> Result {
     let (via, path) = match (arguments.next().as_deref(), arguments.next()) {
         (Some("--server"), Some(path)) => ("relay", PathBuf::from(path)),
         (Some("--direct"), Some(path)) => ("direct", PathBuf::from(path)),
-        _ => return Err("usage: screen_probe (--server SOCKET | --direct SOCKET) COMMAND".into()),
+        (Some("--udp"), Some(path)) => ("udp", PathBuf::from(path)),
+        _ => {
+            return Err(
+                "usage: screen_probe (--server SOCKET | --direct SOCKET | --udp FAKE_SSH) COMMAND"
+                    .into(),
+            );
+        }
     };
     let command = arguments.next().ok_or("a command is required")?;
     let rest: Vec<String> = arguments.collect();
-    let screen = if via == "relay" {
-        let client = Client::connect(&path)?;
+    let screen = if via == "relay" || via == "udp" {
+        let client = if via == "udp" {
+            // A fake ssh that runs the bridge on this computer; the UDP leg is real traffic
+            // on the loopback interface, which the lab shapes.
+            let target = SshTarget::new("box")?
+                .with_program(&path)
+                .with_udp(UdpSettings {
+                    host: Some("127.0.0.1".into()),
+                    connect_timeout: Duration::from_secs(10),
+                    ..UdpSettings::default()
+                });
+            let client = Client::connect_ssh(&target, Start::Never)?;
+            if client.transport() != &Transport::Udp {
+                return Err(format!("not on UDP: {:?}", client.transport()).into());
+            }
+            client
+        } else {
+            Client::connect(&path)?
+        };
         let link = client.open_screen()?;
         // The link keeps its own handle to the connection.
         Screen::start(Channel(link), ScreenOptions::default(), || {})
@@ -130,6 +153,11 @@ fn main() -> Result {
             height,
             rest.first().map_or(Ok(20), |n| n.parse())?,
         )?,
+        "fps" => fps(
+            via,
+            &screen,
+            rest.first().map_or(Ok(12), |seconds| seconds.parse())?,
+        ),
         "expect" => {
             let wanted = rgb(&rest)?;
             let started = Instant::now();
@@ -312,4 +340,33 @@ fn input(screen: &Screen, width: u32, height: u32) {
     }
     screen.scroll(x, y, 0, 1);
     thread::sleep(Duration::from_millis(300));
+}
+
+/// How many pictures a second reach the viewer while something on the desktop moves all
+/// the time: the viewer's own once-a-second count, averaged over `seconds` after a
+/// three second start-up.
+fn fps(via: &str, screen: &Screen, seconds: usize) -> String {
+    thread::sleep(Duration::from_secs(3));
+    let mut rates = Vec::new();
+    let mut rates_kbps = Vec::new();
+    for _ in 0..seconds {
+        thread::sleep(Duration::from_secs(1));
+        let stats = screen.stats();
+        rates.push(f64::from(stats.fps));
+        rates_kbps.push(f64::from(stats.kbps));
+    }
+    let stats = screen.stats();
+    let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len().max(1) as f64;
+    let low = rates.iter().copied().fold(f64::MAX, f64::min);
+    let high = rates.iter().copied().fold(0.0, f64::max);
+    format!(
+        "{{\"via\":\"{via}\",\"command\":\"fps\",\"seconds\":{seconds},\"codec\":\"{}\",\
+         \"fps_mean\":{:.1},\"fps_min\":{low:.1},\"fps_max\":{high:.1},\"kbps_mean\":{:.0},\
+         \"dropped\":{},\"decode_ms\":{:.1}}}",
+        stats.codec,
+        mean(&rates),
+        mean(&rates_kbps),
+        stats.dropped,
+        stats.decode_ms,
+    )
 }

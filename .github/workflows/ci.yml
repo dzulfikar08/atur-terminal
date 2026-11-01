@@ -140,7 +140,7 @@ jobs:
           cargo build --locked --release -p atur-mobile --example phone_probe
       - run: |
           mkdir bin
-          cp target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe target/release/examples/phone_probe bin/
+          cp target/release/atur-term target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe target/release/examples/phone_probe bin/
       - uses: actions/upload-artifact@v4
         with:
           name: screen-e2e-bin
@@ -165,6 +165,26 @@ jobs:
           path: bin
       - run: chmod +x bin/*
       - run: bash scripts/screen-e2e.sh bin
+
+  # Pictures a second over the UDP transport on delayed links, with the real
+  # wayvnc: the frame rate must not be bound by the round trip. The loopback
+  # interface is shaped with netem, which needs NET_ADMIN.
+  screen-fps-lab:
+    needs: screen-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: archlinux:latest
+      options: --privileged
+    steps:
+      - run: pacman -Syu --noconfirm sway swaybg wayvnc weston ffmpeg iproute2 procps-ng git
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-e2e-bin
+          path: bin
+      - run: chmod +x bin/*
+      - run: bash scripts/screen-fps-lab.sh bin 0 150 300
 
   # Prompt marks of a herdr session survive a restart of the server. Runs the
   # release herdr in isolation (own socket, config and home).
