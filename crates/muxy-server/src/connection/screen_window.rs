@@ -13,10 +13,16 @@
 //!
 //! So the window follows the link, in the manner of a bottleneck-bandwidth estimate: the
 //! highest rate at which the client reported bytes handled over the last ten seconds,
-//! times one and a half round trips (the shortest seen) plus a tenth of a second: room for
-//! a burst, such as a key frame, to pass without waiting for an acknowledgement, and for
-//! the acknowledgements' own delay, but on a link that is the limit never more than a
-//! round trip's half and a tenth of a second of queue.
+//! times one and a half round trips (the shortest this stream has seen) plus a tenth of a
+//! second: room for a burst, such as a key frame, to pass without waiting for an
+//! acknowledgement, and for the acknowledgements' own delay, but on a link that is the
+//! limit never more than half a round trip and a tenth of a second of queue.
+//!
+//! The shortest round trip is never replaced by a longer one. Samples taken while the
+//! window itself keeps a queue standing include that queue's delay; believing them would
+//! raise the window, deepen the queue and so lengthen the samples again, up to the
+//! ceiling. A route that gets slower only leaves the window at the floor, which still
+//! carries a few Mbit/s at 300 ms.
 //! Before the first measurement it is [`START`], which is what a fixed window gave.
 //! Pauses in the stream do not lower the estimate: only a higher sample, or ten seconds,
 //! replace it.
@@ -44,8 +50,8 @@ pub(super) struct ScreenWindow {
     /// Bytes sent so far when each chunk went out, and when, until reported.
     sent: VecDeque<(u64, Instant)>,
     reported: u64,
-    /// The shortest time from sending to the client's report, and when it was seen.
-    round_trip: Option<(Duration, Instant)>,
+    /// The shortest time from sending to the client's report.
+    round_trip: Option<Duration>,
     /// Where the span being measured began, and what was reported within it.
     span: Option<Instant>,
     span_bytes: u64,
@@ -81,16 +87,13 @@ impl ScreenWindow {
         }
         if let Some(at) = last {
             let sample = now.saturating_duration_since(at);
-            if self
-                .round_trip
-                .is_none_or(|(shortest, seen)| sample <= shortest || now - seen > MEMORY)
-            {
-                self.round_trip = Some((sample, now));
+            if self.round_trip.is_none_or(|shortest| sample < shortest) {
+                self.round_trip = Some(sample);
             }
         }
         let Some(start) = self.span else { return };
         let elapsed = now.saturating_duration_since(start);
-        let shortest = self.round_trip.map_or(Duration::ZERO, |(rtt, _)| rtt);
+        let shortest = self.round_trip.unwrap_or(Duration::ZERO);
         if elapsed >= shortest.max(SHORTEST_SPAN) {
             #[allow(
                 clippy::cast_precision_loss,
@@ -110,7 +113,7 @@ impl ScreenWindow {
 
     /// The most bytes that may be queued or outstanding.
     pub(super) fn limit(&self) -> usize {
-        let (Some((rate, _)), Some((round_trip, _))) = (self.rate, self.round_trip) else {
+        let (Some((rate, _)), Some(round_trip)) = (self.rate, self.round_trip) else {
             return START;
         };
         let window = rate * (ROUND_TRIPS * round_trip.as_secs_f64() + QUEUE.as_secs_f64());
