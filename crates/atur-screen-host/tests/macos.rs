@@ -215,8 +215,8 @@ fn distance(a: [u8; 3], b: [u8; 3]) -> u8 {
 #[test]
 fn the_encoded_pattern_decodes_in_the_viewer_with_its_colours() {
     let program = Program::start("pattern", &["synthetic", "--size", "640x360"]);
-    let status = program.wait_ready();
-    assert_eq!((status.width, status.height), (640, 360));
+    let ready = program.wait_ready();
+    assert_eq!((ready.width, ready.height), (640, 360));
     let screen = connect(&program.socket());
     let deadline = Instant::now() + TIMEOUT;
     let mut seen: Vec<[u8; 3]> = Vec::new();

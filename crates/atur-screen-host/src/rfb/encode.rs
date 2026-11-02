@@ -74,7 +74,10 @@ pub fn changed_area(previous: Option<Pixels<'_>>, current: Pixels<'_>) -> Option
             }
         }
     }
-    (first_x != usize::MAX).then_some(Rect {
+    if first_x == usize::MAX {
+        return None;
+    }
+    Some(Rect {
         x: first_x,
         y: first_y,
         w: last_x - first_x,
