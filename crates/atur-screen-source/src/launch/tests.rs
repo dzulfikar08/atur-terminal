@@ -449,7 +449,7 @@ fn a_helper_run_through_open_is_stopped_by_its_process_number() {
     let bundle = fake_bundle(
         &scratch,
         &format!(
-            "echo \"$@\" > \"{}\"\napp=\"\"\nwhile [ $# -gt 0 ]; do\n  case \"$1\" in\n    -a) app=\"$2\"; shift 2 ;;\n    --args) shift; break ;;\n    *) shift ;;\n  esac\ndone\n\"$app/Contents/MacOS/{EXECUTABLE}\" \"$@\" </dev/null >/dev/null 2>&1 &\nexit 0\n",
+            "printf '%s\\n' \"$*\" > \"{}\"\napp=\"\"\nwhile [ $# -gt 0 ]; do\n  case \"$1\" in\n    -a) app=\"$2\"; shift 2 ;;\n    --args) shift; break ;;\n    *) shift ;;\n  esac\ndone\n\"$app/Contents/MacOS/{EXECUTABLE}\" \"$@\" </dev/null >/dev/null 2>&1 &\nexit 0\n",
             log.display()
         ),
         &format!(

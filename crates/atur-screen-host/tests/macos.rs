@@ -4,12 +4,14 @@
 //! the screen is not exercised, everything after it is.
 #![cfg(target_os = "macos")]
 #![allow(
+    unsafe_code,
     missing_debug_implementations,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic
 )]
 
+use std::ffi::c_void;
 use std::io::{Read, Write};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
@@ -22,6 +24,44 @@ use std::time::{Duration, Instant};
 use atur_screen::{Pixels, Screen, ScreenOptions, ScreenState, ScreenTransport};
 use atur_screen_host::synthetic;
 use atur_screen_source::status::{State, Status};
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CgPoint {
+    x: f64,
+    y: f64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CgRect {
+    origin: CgPoint,
+    size: CgPoint,
+}
+
+#[link(name = "CoreGraphics", kind = "framework")]
+unsafe extern "C" {
+    fn CGEventCreate(source: *const c_void) -> *mut c_void;
+    fn CGEventGetLocation(event: *mut c_void) -> CgPoint;
+    fn CGMainDisplayID() -> u32;
+    fn CGDisplayBounds(display: u32) -> CgRect;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    fn CFRelease(object: *const c_void);
+}
+
+/// Where the system says the pointer is, in points.
+fn pointer_location() -> (f64, f64) {
+    // SAFETY: an event created from no source holds the current pointer position.
+    unsafe {
+        let event = CGEventCreate(std::ptr::null());
+        let at = CGEventGetLocation(event);
+        CFRelease(event.cast_const());
+        (at.x, at.y)
+    }
+}
 
 const PROGRAM: &str = env!("CARGO_BIN_EXE_atur-term-screen");
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -283,14 +323,59 @@ fn the_screen_is_shared_or_the_missing_permission_is_reported() {
             eprintln!("capture skipped: {}", status.message);
         }
         State::Ready => {
+            eprintln!(
+                "capturing the real screen: {}x{}, accessibility {:?}, {:?}",
+                status.width, status.height, status.accessibility, status.message
+            );
             let screen = connect(&program.socket());
             let deadline = Instant::now() + TIMEOUT;
             while screen.frame().is_none() {
                 assert!(Instant::now() < deadline, "no picture of the real screen");
                 thread::sleep(Duration::from_millis(50));
             }
-            assert!(screen.stats().codec.starts_with("h264"));
+            let stats = screen.stats();
+            eprintln!("viewer codec {:?}", stats.codec);
+            assert!(stats.codec.starts_with("h264"));
+            let ScreenState::Ready(info) = screen.state() else {
+                panic!("the viewer is not ready");
+            };
+            assert_eq!((info.width, info.height), (status.width, status.height));
+            if status.accessibility == Some(true) {
+                move_the_pointer(&screen, (info.width, info.height));
+            } else {
+                eprintln!("pointer check skipped: Accessibility is not allowed here");
+            }
         }
         State::Starting | State::Ended => panic!("unexpected status {status:?}"),
+    }
+}
+
+/// A pointer event sent by the viewer arrives as the system's pointer position,
+/// scaled from picture pixels to the display's points.
+fn move_the_pointer(screen: &Screen, picture: (u32, u32)) {
+    // SAFETY: plain queries of the main display.
+    let bounds = unsafe { CGDisplayBounds(CGMainDisplayID()) };
+    let (x, y) = (picture.0 / 4, picture.1 / 4);
+    let expected = (
+        bounds.origin.x + f64::from(x) / f64::from(picture.0 - 1) * (bounds.size.x - 1.0),
+        bounds.origin.y + f64::from(y) / f64::from(picture.1 - 1) * (bounds.size.y - 1.0),
+    );
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        screen.pointer(
+            i32::try_from(x).unwrap(),
+            i32::try_from(y).unwrap(),
+            atur_screen::PointerButtons::default(),
+        );
+        let at = pointer_location();
+        if (at.0 - expected.0).abs() <= 2.0 && (at.1 - expected.1).abs() <= 2.0 {
+            eprintln!("the pointer moved to {at:?}, expected {expected:?}");
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the pointer is at {at:?}, expected {expected:?}"
+        );
+        thread::sleep(Duration::from_millis(100));
     }
 }
