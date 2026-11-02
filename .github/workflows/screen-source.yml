@@ -60,6 +60,9 @@ jobs:
           cargo clippy --locked -p atur-screen-host -p atur-screen-source
           --all-targets --all-features -- -D warnings
       - run: cargo test --locked -p atur-screen-host -p atur-screen-source -- --nocapture
+      - run: cargo doc --locked -p atur-screen-host -p atur-screen-source --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
       - name: What this runner allows the screen program to do
         if: runner.os == 'macOS'
         run: |
@@ -94,3 +97,8 @@ jobs:
       - run: >-
           ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
           cargo test --locked -p muxy-server -p muxy-cli --all-features -- screen
+      - run: >-
+          ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
+          cargo doc --locked -p muxy-server -p muxy-cli --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
