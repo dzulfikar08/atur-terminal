@@ -18,6 +18,15 @@ use crate::error::ServerError;
 
 pub(crate) type Fault = Box<dyn Error + Send + Sync>;
 
+/// Images a backing shows beside the terminal the owner mirrors, when the byte
+/// stream it delivers carries none (herdr's does not): protocol images and their
+/// placements in the terminal's cells. An empty scene shows nothing.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Scene {
+    pub(crate) images: Vec<muxy_protocol::GraphicImage>,
+    pub(crate) placements: Vec<muxy_protocol::GraphicPlacement>,
+}
+
 /// A terminal's process and its byte stream, as the session owner sees it.
 pub(crate) trait Backing: Send {
     /// Starts delivering the terminal's output to `sink`; ends with `PtyEvent::Closed`.

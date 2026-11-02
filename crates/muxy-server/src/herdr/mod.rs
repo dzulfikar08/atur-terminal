@@ -12,8 +12,10 @@ mod base64;
 mod control;
 #[cfg(test)]
 mod fake;
+mod images;
 mod panes;
 mod scrollback;
+mod shell;
 mod store;
 mod target;
 
@@ -32,6 +34,7 @@ use serde_json::{Value, json};
 
 use api::Api;
 use control::{Control, Launch};
+use images::Images;
 use panes::{Lookup, PaneState, Panes};
 use store::Store;
 use target::Target;
@@ -47,6 +50,10 @@ pub struct HerdrConfig {
     pub bin: Option<PathBuf>,
     /// The API socket, `$HERDR_SOCKET_PATH` or herdr's default when unset.
     pub socket: Option<PathBuf>,
+    /// Whether the images herdr holds are shown; `None` for yes. They are read through a
+    /// connection of the kind herdr's own app makes, which moves herdr's focus to the
+    /// watched session's tab (see `images`).
+    pub images: Option<bool>,
 }
 
 impl HerdrConfig {
@@ -66,6 +73,11 @@ impl HerdrConfig {
                     .join("herdr")
                     .join("herdr.sock")
             })
+    }
+
+    /// Whether images are brought from herdr: on unless turned off.
+    fn images(&self) -> bool {
+        self.images.unwrap_or(true)
     }
 }
 
@@ -222,6 +234,8 @@ pub(crate) struct HerdrBacking {
     /// Whether the stream controls the terminal at the session's size, or only watches.
     takeover: bool,
     control: SharedControl,
+    /// The connection that brings herdr's images, while the stream is open.
+    images: Mutex<Option<Images>>,
     process: Mutex<ProcessInfo>,
 }
 
@@ -243,6 +257,7 @@ impl HerdrBacking {
             cell: CellSize::default(),
             takeover: true,
             control: Arc::new(Mutex::new(None)),
+            images: Mutex::new(None),
             process: Mutex::new(ProcessInfo {
                 shell: None,
                 foreground: None,
@@ -278,19 +293,44 @@ impl HerdrBacking {
             Arc::clone(&self.target),
             self.size,
             self.takeover,
-            sink,
+            sink.clone(),
         )
         .map_err(ServerError::spawn_failed)?;
         if self.cell != CellSize::default() {
             let _ = control.resize(self.size, self.cell);
         }
         *slot = Some(control);
+        if self.herdr.config.images() {
+            match Images::start(
+                Arc::clone(&self.herdr.api),
+                Arc::clone(&self.target),
+                self.size,
+                self.cell,
+                self.takeover,
+                sink,
+            ) {
+                Ok(images) => *lock(&self.images) = Some(images),
+                Err(error) => {
+                    log::warn!("images of {}: not started: {error}", self.target.terminal())
+                }
+            }
+        }
         Ok(())
     }
 
     fn close(&self) {
+        if let Some(images) = lock(&self.images).take() {
+            images.stop();
+        }
         if let Some(control) = lock(&self.control).take() {
             control.detach();
+        }
+    }
+
+    /// Tells the image connection what the session needs now.
+    fn configure_images(&self) {
+        if let Some(images) = lock(&self.images).as_ref() {
+            images.configure(self.size, self.cell, self.takeover);
         }
     }
 
@@ -447,6 +487,7 @@ impl Backing for HerdrBacking {
         if let Some(control) = self.control() {
             control.resize(size, self.cell)?;
         }
+        self.configure_images();
         Ok(())
     }
 
@@ -455,6 +496,7 @@ impl Backing for HerdrBacking {
         if let Some(control) = self.control() {
             control.set_takeover(authority);
         }
+        self.configure_images();
     }
 
     fn set_cell_size(&mut self, cell: CellSize) -> Result<(), Fault> {
@@ -462,6 +504,7 @@ impl Backing for HerdrBacking {
         if let Some(control) = self.control() {
             control.resize(self.size, cell)?;
         }
+        self.configure_images();
         Ok(())
     }
 
@@ -650,6 +693,7 @@ mod tests {
             &HerdrConfig {
                 bin: None,
                 socket: Some(fake.socket().to_path_buf()),
+                images: Some(false),
             },
             &state,
         )
@@ -726,6 +770,7 @@ mod tests {
                 &HerdrConfig {
                     bin: Some(bin),
                     socket: Some(fake.socket().to_path_buf()),
+                    images: Some(false),
                 },
                 &state,
             )

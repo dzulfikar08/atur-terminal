@@ -15,7 +15,7 @@ use muxy_terminal::pty::{ExitStatus, PtyEvent};
 use crate::archive::{Archive, bound_history_page, history_range};
 use crate::error::ServerError;
 use crate::search::Search;
-use crate::session::backing::{Backing, Fault};
+use crate::session::backing::{Backing, Fault, Scene};
 use crate::session::checkpoint::Checkpoint;
 use crate::session::metadata::Metadata;
 use crate::session::prompt_marks::PromptMarks;
@@ -50,6 +50,8 @@ pub(crate) enum OwnerEvent {
     Command(SessionCommand),
     Pty(PtyEvent),
     WriteFailed(io::Error),
+    /// The images the backing shows now, in place of the last ones.
+    Graphics(Scene),
 }
 
 impl From<PtyEvent> for OwnerEvent {
@@ -134,6 +136,8 @@ struct Owner {
     cursor_blinking: bool,
     links: Vec<muxy_protocol::LinkRow>,
     graphics: muxy_protocol::Graphics,
+    /// The images of a backing whose stream carries none, shown with the terminal's.
+    scene: Option<Scene>,
     prompts: Vec<u16>,
     /// Whether the backing drops OSC 133 marks, so `marks` finds the prompts instead.
     detect_prompts: bool,
@@ -266,6 +270,7 @@ pub(crate) fn start(
                 cursor_blinking: true,
                 links: Vec::new(),
                 graphics: muxy_protocol::Graphics::default(),
+                scene: None,
                 prompts: Vec::new(),
                 detect_prompts,
                 marks,
@@ -361,6 +366,12 @@ impl Owner {
                 }
                 Wake::Event(OwnerEvent::Pty(PtyEvent::Closed)) => {
                     self.output_state = OutputState::Closed;
+                }
+                Wake::Event(OwnerEvent::Graphics(scene)) => {
+                    if self.stream != Stream::Closed {
+                        self.scene = (scene != Scene::default()).then_some(scene);
+                        self.output_pending = true;
+                    }
                 }
                 Wake::Event(OwnerEvent::WriteFailed(error)) => return Err(error.into()),
                 Wake::Event(OwnerEvent::Command(SessionCommand::Input(bytes))) => {
@@ -569,6 +580,8 @@ impl Owner {
                 if now.duration_since(since) >= STREAM_GRACE {
                     self.pty.set_streaming(false, &self.sender)?;
                     self.stream = Stream::Closed;
+                    // Nothing keeps the images current any more.
+                    self.scene = None;
                     self.next_alive = now + ALIVE_POLL;
                 } else {
                     self.next_metadata = self.next_metadata.min(since + STREAM_GRACE);
@@ -864,6 +877,17 @@ impl Owner {
         self.sizing.retain(&present);
     }
 
+    /// The images on the screen: those the terminal's own engine holds, or the
+    /// backing's scene when it has one, as herdr does (its stream carries no images).
+    fn graphics(&mut self) -> Result<muxy_protocol::Graphics, muxy_terminal::TerminalError> {
+        let mut graphics = self.terminal.graphics()?;
+        if let Some(scene) = &self.scene {
+            graphics.images.clone_from(&scene.images);
+            graphics.placements.clone_from(&scene.placements);
+        }
+        Ok(graphics)
+    }
+
     /// Answers a resize that left the session as it was: the whole screen goes to
     /// the asking client, whose view may have assumed another size.
     fn repaint(&mut self, id: AttachmentId) -> Result<(), Fault> {
@@ -871,7 +895,7 @@ impl Owner {
             return Ok(());
         }
         let rows = self.terminal.screen()?;
-        let graphics = self.terminal.graphics()?;
+        let graphics = self.graphics()?;
         let cursor = self.terminal.cursor()?;
         let modes = self.terminal.modes()?;
         let Some(attachment) = self.attachments.get_mut(&id) else {
@@ -1030,7 +1054,7 @@ impl Owner {
                     .filter_map(|row| u16::try_from(history.len() + usize::from(row)).ok()),
             );
             Some(SavedScreen {
-                graphics: self.terminal.graphics().map_err(terminal_error)?,
+                graphics: self.graphics().map_err(terminal_error)?,
                 size: self.size,
                 rows: self.terminal.screen().map_err(terminal_error)?,
                 cursor: self.terminal.cursor().map_err(terminal_error)?,
@@ -1277,7 +1301,7 @@ impl Owner {
                     }))
             });
         }
-        let graphics = self.terminal.graphics()?;
+        let graphics = self.graphics()?;
         let graphics_changed = graphics != self.graphics || self.resize_pending;
         self.graphics = graphics;
         let frame = ScreenFrame {
@@ -1424,6 +1448,7 @@ mod tests {
         let detect_prompts = pty.drops_prompt_marks();
         Ok(Owner {
             graphics: muxy_protocol::Graphics::default(),
+            scene: None,
             info: SessionInfo {
                 project: muxy_protocol::ProjectId::from_u128(1),
                 id: SessionId::from(NonZeroU64::MIN),
@@ -1895,6 +1920,63 @@ mod tests {
                 .count();
         }
         assert_eq!(frames, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_scene_from_the_backing_reaches_viewers_new_and_old_and_deletes_with_the_next()
+    -> Result<(), Fault> {
+        let mut owner = owner()?;
+        let (sink, events) = mpsc::channel();
+        owner.attach(AttachmentId(1), ChannelId(1), owner.size, sink.into())?;
+        events.try_iter().for_each(drop);
+        let scene = Scene {
+            images: vec![muxy_protocol::GraphicImage {
+                id: 1,
+                generation: 9,
+                width: 1,
+                height: 1,
+                rgba: vec![1, 2, 3, 4].into(),
+            }],
+            placements: vec![muxy_protocol::GraphicPlacement {
+                image: 1,
+                id: 1,
+                column: 2,
+                row: 1,
+                offset: [0, 0],
+                size: [16, 32],
+                source: [0, 0, 1, 1],
+                z: 0,
+            }],
+        };
+        let graphics_of = |events: &mpsc::Receiver<AttachmentEvent>| {
+            events.try_iter().find_map(|event| match event {
+                AttachmentEvent::Frame(frame) => frame.graphics,
+                _ => None,
+            })
+        };
+
+        owner.scene = Some(scene.clone());
+        owner.output_pending = true;
+        owner.tick()?;
+        let shown = graphics_of(&events).ok_or("the placed image reaches a viewer")?;
+        assert_eq!(shown.images, scene.images);
+        assert_eq!(shown.placements, scene.placements);
+
+        let (late, late_events) = mpsc::channel();
+        owner.attach(AttachmentId(2), ChannelId(2), owner.size, late.into())?;
+        let AttachmentEvent::Snapshot { snapshot, .. } = late_events.recv()? else {
+            return Err("a snapshot comes first".into());
+        };
+        assert_eq!(snapshot.graphics.images, scene.images);
+        assert_eq!(snapshot.graphics.placements, scene.placements);
+
+        // The next scene replaces it: an empty one deletes the image.
+        owner.scene = None;
+        owner.output_pending = true;
+        owner.tick()?;
+        let deleted = graphics_of(&events).ok_or("the deletion reaches a viewer")?;
+        assert!(deleted.images.is_empty() && deleted.placements.is_empty());
         Ok(())
     }
 

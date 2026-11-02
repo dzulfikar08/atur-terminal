@@ -5,7 +5,7 @@ name: ci
 # releases do not ship them.
 on:
   push:
-    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror, feat/mac-screen-source]
+    branches: [main, atur-terminal, feat/herdr-backend, feat/screen-mirror, feat/mac-screen-source, feat/herdr-images]
   pull_request:
   workflow_call:
 
@@ -46,6 +46,16 @@ jobs:
       - run: python3 scripts/check-desktop-macos.py
       - run: python3 scripts/protocol_fixtures.py last-release
       - run: python3 scripts/smoke-desktop-tui.py
+      # Kitty images of a herdr pane, with the herdr built for macOS.
+      - run: cargo build --locked -p muxy-server -p muxy-cli --bins --example herdr_images_probe
+      - run: |
+          mkdir -p bin
+          cp target/debug/atur-term target/debug/atur-term-server target/debug/examples/herdr_images_probe bin/
+          gh release download v0.9.5 -R herdrdev/herdr -p herdr-macos-aarch64 -O bin/herdr
+          chmod +x bin/herdr
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: bash scripts/herdr-images-e2e.sh bin bin/herdr
       # The Mac as a screen source: the server starts the screen program, which encodes
       # H.264 and serves it to the real viewer (the test pattern always; the real screen
       # when this machine allows the capture, else the missing permission is reported).
@@ -137,14 +147,14 @@ jobs:
       # The Zig wrapper builds for a baseline CPU: the binaries run on another runner.
       - run: >-
           ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
-          cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe --example herdr_marks_probe
+          cargo build --locked --release -p muxy-server -p muxy-cli --bins --example screen_probe --example herdr_marks_probe --example herdr_images_probe
       # The phone core's probe: it drives the screen through the facade the phone apps use.
       - run: >-
           ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
           cargo build --locked --release -p atur-mobile --example phone_probe
       - run: |
           mkdir bin
-          cp target/release/atur-term target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe target/release/examples/phone_probe bin/
+          cp target/release/atur-term target/release/atur-term-server target/release/examples/screen_probe target/release/examples/herdr_marks_probe target/release/examples/herdr_images_probe target/release/examples/phone_probe bin/
       - uses: actions/upload-artifact@v4
         with:
           name: screen-e2e-bin
@@ -209,3 +219,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - run: bash scripts/herdr-marks-e2e.sh bin bin/herdr
+
+  # Kitty images of a herdr pane reach an Atur Terminal client: shown with their pixels
+  # and cells, scrolled, resized, deleted, and again after the server restarts. The
+  # release herdr runs in isolation, as for the prompt marks.
+  herdr-images:
+    needs: screen-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-e2e-bin
+          path: bin
+      - run: |
+          chmod +x bin/*
+          gh release download v0.9.5 -R herdrdev/herdr -p herdr-linux-x86_64 -O bin/herdr
+          chmod +x bin/herdr
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: bash scripts/herdr-images-e2e.sh bin bin/herdr

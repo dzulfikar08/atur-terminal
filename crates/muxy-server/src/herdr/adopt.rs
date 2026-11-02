@@ -326,6 +326,7 @@ mod tests {
                 &HerdrConfig {
                     bin: None,
                     socket: Some(self.fake.socket().to_path_buf()),
+                    images: Some(false),
                 },
                 &self.state,
             )
