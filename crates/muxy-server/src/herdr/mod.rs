@@ -311,7 +311,7 @@ impl HerdrBacking {
             ) {
                 Ok(images) => *lock(&self.images) = Some(images),
                 Err(error) => {
-                    log::warn!("images of {}: not started: {error}", self.target.terminal())
+                    log::warn!("images of {}: not started: {error}", self.target.terminal());
                 }
             }
         }
