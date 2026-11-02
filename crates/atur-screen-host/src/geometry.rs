@@ -76,6 +76,6 @@ mod tests {
             pixels_height: 1080,
         };
         assert_eq!(geometry.point(0, 0), (-1920.0, 100.0));
-        assert_eq!(geometry.point(960, 540).0, -1920.0 + 960.0);
+        assert!((geometry.point(960, 540).0 - (-1920.0 + 960.0)).abs() < 1e-6);
     }
 }

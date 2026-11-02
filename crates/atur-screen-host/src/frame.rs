@@ -18,6 +18,20 @@ pub enum FrameData {
     Surface(crate::mac::pixel::PixelBuffer),
 }
 
+impl fmt::Debug for FrameData {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cpu { stride, bytes } => formatter
+                .debug_struct("Cpu")
+                .field("stride", stride)
+                .field("bytes", &bytes.len())
+                .finish(),
+            #[cfg(target_os = "macos")]
+            Self::Surface(buffer) => formatter.debug_tuple("Surface").field(buffer).finish(),
+        }
+    }
+}
+
 impl fmt::Debug for Frame {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter

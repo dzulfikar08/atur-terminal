@@ -199,7 +199,7 @@ fn serve_screen(serve: &Serve, injector: Option<Injector>) -> i32 {
         Err(StartError::Permission(_)) => return needs_permission(&serve.status, accessibility),
         Err(StartError::Failed(message)) => return failed(&serve.status, message),
     };
-    let dyn_host: Arc<dyn Host> = Arc::clone(&host);
+    let dyn_host: Arc<dyn Host> = Arc::<MacHost>::clone(&host);
     let server = match Server::bind(
         &serve.socket,
         dyn_host,

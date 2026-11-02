@@ -313,11 +313,13 @@ fn modifier_key(keysym: u32, style: KeyStyle) -> Option<(Modifier, bool)> {
     let modifier = match (group, style) {
         (Group::Shift, _) => Modifier::Shift,
         (Group::CapsLock, _) => Modifier::CapsLock,
-        (Group::Control, KeyStyle::Command) => Modifier::Command,
-        (Group::Control, KeyStyle::Literal) => Modifier::Control,
+        (Group::Control, KeyStyle::Command) | (Group::Super, KeyStyle::Literal) => {
+            Modifier::Command
+        }
+        (Group::Control, KeyStyle::Literal) | (Group::Super, KeyStyle::Command) => {
+            Modifier::Control
+        }
         (Group::Alt, _) => Modifier::Option,
-        (Group::Super, KeyStyle::Command) => Modifier::Control,
-        (Group::Super, KeyStyle::Literal) => Modifier::Command,
     };
     Some((modifier, right))
 }
@@ -410,10 +412,18 @@ mod tests {
         resolve(keysym, style, &Layout::ansi_us())
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "compared with the Option that `resolve` returns"
+    )]
     fn modifier(modifier: Modifier, right: bool) -> Option<Resolved> {
         Some(Resolved::Modifier { modifier, right })
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "compared with the Option that `resolve` returns"
+    )]
     fn key(keycode: u16, flags: Flags) -> Option<Resolved> {
         Some(Resolved::Key { keycode, flags })
     }

@@ -154,6 +154,7 @@ fn u32_at(data: &[u8], at: usize) -> u32 {
 }
 
 /// One message at the start of `data` and its length; `None` when incomplete.
+#[allow(clippy::too_many_lines, reason = "one arm per message type")]
 fn parse_one(data: &[u8]) -> Result<Option<(ClientMessage, usize)>, String> {
     let Some(&kind) = data.first() else {
         return Ok(None);

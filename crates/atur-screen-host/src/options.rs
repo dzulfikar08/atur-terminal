@@ -62,6 +62,8 @@ where
     let mut size = (1280, 720);
     while let Some(flag) = words.next() {
         match flag.as_str() {
+            // Launch Services may add its process serial number.
+            psn if psn.starts_with("-psn_") => {}
             "--view-only" => view_only = true,
             "--socket" | "--status" | "--owner" | "--fps" | "--max-edge" | "--keys" | "--name"
             | "--size" => {
@@ -187,6 +189,11 @@ mod tests {
         .unwrap();
         assert!(matches!(mode, Mode::Synthetic(_, (640, 360))));
         assert!(parse(args("synthetic --socket s --status f --owner 1 --size 4x4")).is_err());
+    }
+
+    #[test]
+    fn the_process_serial_number_of_launch_services_is_ignored() {
+        assert!(parse(args("check -psn_0_12345 --status f")).is_ok());
     }
 
     #[test]

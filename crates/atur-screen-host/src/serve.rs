@@ -215,6 +215,10 @@ impl Broadcast {
 
 /// What the viewer asked for with `SetEncodings`.
 #[derive(Clone, Copy, Debug, Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one flag per encoding a viewer may list"
+)]
 struct Wanted {
     h264: bool,
     zrle: bool,
@@ -238,6 +242,10 @@ impl Wanted {
     }
 }
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent switches of one viewer's conversation"
+)]
 struct ViewerState {
     wanted: Wanted,
     format: PixelFormat,

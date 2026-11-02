@@ -86,10 +86,17 @@ static void atur_report(NSError *error, const char *fallback, char *buffer, size
 
 @end
 
+// Held for the life of the process: while the screen is shared the program is
+// doing work the user is waiting for, so the system must not nap it or sleep.
+static id atur_activity;
+
 void atur_app_init(void) {
     @autoreleasepool {
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+        atur_activity = [[NSProcessInfo processInfo]
+            beginActivityWithOptions:(NSActivityUserInitiated | NSActivityLatencyCritical)
+                              reason:@"Sharing this Mac's screen"];
     }
 }
 
@@ -201,7 +208,7 @@ void atur_capture_stop(void *handle) {
         AturCapture *capture = (__bridge_transfer AturCapture *)handle;
         capture.alive = NO;
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
-        [capture.stream stopCaptureWithCompletionHandler:^(NSError *failure) {
+        [capture.stream stopCaptureWithCompletionHandler:^(__unused NSError *failure) {
             dispatch_semaphore_signal(stopped);
         }];
         dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC));

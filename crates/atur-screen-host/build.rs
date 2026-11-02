@@ -20,6 +20,7 @@ fn main() {
         "CoreFoundation",
         "CoreGraphics",
         "CoreMedia",
+        "CoreServices",
         "CoreVideo",
         "Foundation",
         "ScreenCaptureKit",

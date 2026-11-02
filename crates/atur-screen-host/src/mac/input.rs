@@ -433,8 +433,6 @@ unsafe extern "C" {
     fn CGEventPost(tap: u32, event: *mut c_void);
 }
 
-#[link(name = "Carbon", kind = "framework")]
-#[link(name = "CoreServices", kind = "framework")]
 #[allow(clippy::too_many_arguments, reason = "mirrors the C declaration")]
 unsafe extern "C" {
     fn TISCopyCurrentKeyboardLayoutInputSource() -> *mut c_void;
