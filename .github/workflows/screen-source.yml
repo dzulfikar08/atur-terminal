@@ -12,6 +12,8 @@ on:
       - 'crates/atur-screen/**'
       - 'crates/atur-screen-host/**'
       - 'crates/atur-screen-source/**'
+      - 'crates/muxy-server/**'
+      - 'crates/muxy-cli/**'
       - '.github/workflows/screen-source.yml'
       - 'Cargo.lock'
   pull_request:
@@ -19,6 +21,8 @@ on:
       - 'crates/atur-screen/**'
       - 'crates/atur-screen-host/**'
       - 'crates/atur-screen-source/**'
+      - 'crates/muxy-server/**'
+      - 'crates/muxy-cli/**'
       - '.github/workflows/screen-source.yml'
       - 'Cargo.lock'
   workflow_call:
@@ -61,3 +65,32 @@ jobs:
         run: |
           target/debug/atur-term-screen check --status "$RUNNER_TEMP/permissions.json"
           cat "$RUNNER_TEMP/permissions.json"; echo
+
+  # The server's half (hub, launcher, the Mac source with a stand-in program) and
+  # the `atur-term screen` command, linted and tested on Linux, where the stand-in
+  # program is a shell script.
+  server:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+          components: clippy
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: screen-source-server
+          cache-on-failure: true
+      # The Zig wrapper builds for a baseline CPU, as the release does.
+      - run: >-
+          ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
+          cargo clippy --locked -p muxy-server -p muxy-cli --all-targets --all-features
+          -- -D warnings
+      - run: >-
+          ATUR_TERM_ZIG="$(which zig)" PATH="$PWD/scripts/zig:$PATH"
+          cargo test --locked -p muxy-server -p muxy-cli --all-features -- screen

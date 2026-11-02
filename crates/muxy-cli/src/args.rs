@@ -39,7 +39,7 @@ pub(crate) enum Mobile {
     Screen { device: String, allowed: bool },
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Screen {
     Status,
     Permission,
