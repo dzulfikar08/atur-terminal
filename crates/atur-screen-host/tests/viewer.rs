@@ -209,6 +209,10 @@ impl Drop for Fixture {
 
 fn corner(screen: &Screen) -> Option<(u32, u32, [u8; 3])> {
     let frame = screen.frame()?;
+    #[allow(
+        irrefutable_let_patterns,
+        reason = "macOS pictures can also be surfaces"
+    )]
     let Pixels::Bgra(bytes) = &frame.pixels else {
         return None;
     };

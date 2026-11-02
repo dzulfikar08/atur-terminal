@@ -699,9 +699,9 @@ fn translate(
             modifiers,
             keyboard_type,
             UC_NO_DEAD_KEYS,
-            &mut dead_keys,
+            &raw mut dead_keys,
             units.len(),
-            &mut length,
+            &raw mut length,
             units.as_mut_ptr(),
         )
     };
