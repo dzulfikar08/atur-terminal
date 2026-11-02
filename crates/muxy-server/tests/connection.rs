@@ -823,10 +823,10 @@ fn clients_from_before_v2_are_told_to_update_in_their_own_framing() -> TestResul
     Ok(())
 }
 
-/// What a server on this platform lists: mirroring a desktop only where `wayvnc` could run.
+/// What a server on this platform lists: mirroring a desktop where `wayvnc` could run, or on a Mac.
 fn features() -> Vec<muxy_protocol::Feature> {
     let mut features = muxy_protocol::FEATURES.to_vec();
-    if cfg!(target_os = "linux") {
+    if cfg!(any(target_os = "linux", target_os = "macos")) {
         features.push(muxy_protocol::Feature::SCREEN);
     }
     features
