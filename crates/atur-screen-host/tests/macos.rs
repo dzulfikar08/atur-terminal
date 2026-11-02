@@ -8,7 +8,8 @@
     missing_debug_implementations,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::panic
+    clippy::panic,
+    clippy::print_stderr
 )]
 
 use std::ffi::c_void;
@@ -333,9 +334,9 @@ fn the_screen_is_shared_or_the_missing_permission_is_reported() {
                 assert!(Instant::now() < deadline, "no picture of the real screen");
                 thread::sleep(Duration::from_millis(50));
             }
-            let stats = screen.stats();
-            eprintln!("viewer codec {:?}", stats.codec);
-            assert!(stats.codec.starts_with("h264"));
+            let codec = screen.stats().codec;
+            eprintln!("viewer codec {codec:?}");
+            assert!(codec.starts_with("h264"));
             let ScreenState::Ready(info) = screen.state() else {
                 panic!("the viewer is not ready");
             };
