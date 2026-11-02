@@ -1949,7 +1949,7 @@ mod tests {
                 z: 0,
             }],
         };
-        let graphics_of = |events: &mpsc::Receiver<AttachmentEvent>| {
+        let graphics_of = |events: &Receiver<AttachmentEvent>| {
             events.try_iter().find_map(|event| match event {
                 AttachmentEvent::Frame(frame) => frame.graphics,
                 _ => None,

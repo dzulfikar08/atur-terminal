@@ -110,5 +110,12 @@ Themes are in **Settings → Appearance**. See
 
 - `Cmd+=` and `Cmd+-` change the focused pane's font size. `Cmd+0` resets it.
 - `Option` acts as `Alt` by default (configurable in Terminal settings).
-- Images use the Kitty graphics protocol. Sixel and iTerm2 images are not
-  supported.
+- Images use the Kitty graphics protocol: `kitty +kitten icat`, an agent that
+  shows a picture, and Unicode placeholders all work. They are placed where the
+  program printed them, move with the text and are removed when the program
+  deletes them. Sixel and iTerm2 images are not supported. The phone apps do
+  not show images.
+- With the herdr backend the images come from herdr's pane while a client
+  watches the session; see [the herdr backend](../tech/herdr-backend.md#images).
+  Only what is on the screen shows: an image that scrolled into the history is
+  not drawn there.

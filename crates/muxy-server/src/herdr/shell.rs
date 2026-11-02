@@ -145,7 +145,7 @@ pub(super) fn read_frame(reader: &mut impl Read, frame: &mut Vec<u8>) -> io::Res
     reader.read_exact(frame)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(super) enum Format {
     Rgb,
     Rgba,

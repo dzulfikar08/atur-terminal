@@ -422,11 +422,11 @@ struct Cache {
 /// or length this server cannot show.
 fn rgba(key: &AssetKey, data: &[u8]) -> Option<Arc<[u8]>> {
     let pixels = usize::try_from(u64::from(key.width).checked_mul(u64::from(key.height))?).ok()?;
-    let rgba_len = pixels.checked_mul(4)?;
-    let rgb_len = pixels.checked_mul(3)?;
+    let four = pixels.checked_mul(4)?;
+    let three = pixels.checked_mul(3)?;
     match key.format {
-        Format::Rgba if data.len() == rgba_len => Some(Arc::from(data)),
-        Format::Rgb if data.len() == rgb_len => Some(
+        Format::Rgba if data.len() == four => Some(Arc::from(data)),
+        Format::Rgb if data.len() == three => Some(
             data.chunks_exact(3)
                 .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
                 .collect(),

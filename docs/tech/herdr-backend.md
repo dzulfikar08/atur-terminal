@@ -23,9 +23,11 @@ Nothing is forked: herdr is used through its documented socket API and
 kind = "herdr"
 herdr_bin = "/usr/local/bin/herdr"                   # default: herdr on PATH
 herdr_socket = "/home/me/.config/herdr/herdr.sock"   # default: $HERDR_SOCKET_PATH, else herdr's own
+images = true                                        # default: show the Kitty images of herdr's panes
 ```
 
-`ATUR_TERM_BACKEND`, `ATUR_TERM_HERDR_BIN` and `ATUR_TERM_HERDR_SOCKET` override the file. `kind = "local"` (the
+`ATUR_TERM_BACKEND`, `ATUR_TERM_HERDR_BIN`, `ATUR_TERM_HERDR_SOCKET` and `ATUR_TERM_HERDR_IMAGES` (`0` or `1`) override the
+file. `kind = "local"` (the
 default) keeps local PTYs. The server refuses to start if herdr does not answer `ping`. Over SSH
 (`atur-term --host`) the setting is read on the remote machine, where `atur-term stdio` starts the server.
 
@@ -42,6 +44,7 @@ default) keeps local PTYs. The server refuses to start if herdr does not answer 
 | Session/project to herdr mapping, `herdr.json` | `herdr/store.rs` |
 | Adoption of survivors (saved ids, shell environment, legacy labels) | `herdr/adopt.rs` |
 | Creation and the `Backing` implementation | `herdr/mod.rs` |
+| Images: a client shell connection that turns herdr's scene into images and placements | `herdr/images.rs`, `herdr/shell.rs` |
 | Socket API stand-in for tests | `herdr/fake.rs` (test only) |
 | Backend selection | `backend.rs` (binary crate) |
 
@@ -69,6 +72,7 @@ process or bytes go to herdr; everything else is the existing server code.
 | `ReadActivity`, `AcknowledgeActivity`, `ClaimActivity`, activity events | atur-term-server; provider and state come from herdr's `agent` / `agent_status` (see below) |
 | Metadata events: title, directory, foreground process, bell, clipboard, input modes, links, cursor blinking | title: `pane.list`; directory and foreground process: `/proc` (the shell pid from `pane.process_info` once, then the shell's `tpgid`; same host); the rest from the mirror terminal (limits below) |
 | Prompt marks (`AttachSnapshot` / `HistoryPage` `prompts`, `ScreenPrompts`) | found by the owner from what clients submit, see "Prompt marks" |
+| Images in `ScreenFrame`, `AttachSnapshot`, `HistoryPage` | a second connection to herdr's client socket while the session is watched, see "Images" |
 
 ## Frame source: re-parse herdr's ANSI, not semantic frames
 
@@ -135,6 +139,62 @@ Limits: only messages submitted through this server are marked (not typing in he
 content and drops them; a message that wraps within its first ten characters, or that the agent does
 not echo on screen, is not found; marks above what herdr's scrollback cap (`scrollback_limit_bytes`)
 dropped no longer line up.
+
+## Images
+
+Kitty graphics (`kitty +kitten icat`, an agent that prints a picture, Unicode placeholders) show on the screen of
+every client, as they do with local PTYs.
+
+**Why they were missing.** herdr's terminal stream (`terminal session control` and `observe`) is ANSI text that herdr
+draws from its own grid, and it has no images in it. herdr keeps the images an application sent in its own terminal and
+shows them only to its own client shells, the connection its app makes: there each image comes once, with the pixels,
+and every update of the surface lists the placements, already clipped to the pane. Neither the socket API
+(`pane.graphics.*` is gone) nor `pane.read` (text only) has them. So the mirror terminal of `atur-term-server` never
+saw an image, and no client of it could show one.
+
+**How they get here.** While a session is watched, `atur-term-server` opens a second connection to herdr's client
+socket (`herdr/images.rs`, `herdr/shell.rs`), the way herdr's app does, and asks for the tab of the session's pane.
+The cells of the surfaces it receives are walked over and thrown away; the images and placements of the session's pane
+are kept. They become the same list of images and placements a local PTY produces, and the session owner puts that in
+place of the mirror's own (which is empty). From there nothing is special: clients get it with the screen, a client that
+attaches later is told of it in its snapshot, and a resize or a new cell size sends it again.
+
+| What happens in the pane | What clients see |
+|---|---|
+| An image is sent in chunks (`m=1`) and placed at once (`a=T`), or sent (`a=t`) and placed (`a=p`) | It appears at the cell where it was placed, in the size of its cells |
+| Unicode placeholders (U+10EEEE) | One placement for each row of cells, over the placeholder text |
+| Output scrolls | The image moves up with the text, is cropped at the top, and is gone when it left the screen |
+| The application deletes it, or the screen is cleared | It disappears |
+| The session or the cell size changes | It is placed again for the new size |
+| A client attaches, or `atur-term-server` restarts | It is shown again as soon as the session is watched: herdr sends every image once to each new connection |
+
+**Cost.** The image bytes cross from herdr once for each connection, are kept once, and are shared with the frames:
+nothing is copied or compared per frame, and a frame carries images only when the images or their placements changed.
+An update that changes only text is a small patch that is skipped without being read. Memory is capped like the
+native path: 8 MiB of image data and 1024 placements for a session; an image that does not fit is not shown. What
+costs more is on herdr's side: it renders one more surface for each watched pane, about what an ANSI observer costs.
+
+**What it does to herdr.** The connection is a viewer for herdr, so:
+
+* herdr's session-wide focus (what a script's `pane current` or a newly started herdr app shows) follows it: it is the
+  watched session's tab. The tab each open herdr app shows does not change.
+* It lays the tab out at a size of its own. It starts at herdr's own layout size, which changes nothing; on the session's
+  tab it is the session's size plus the column herdr keeps for a scrollbar while a control stream sizes the terminal (the
+  terminal then stays at the session's size) and herdr's layout size otherwise, which leaves herdr's size alone.
+* While another client's request moves it off the session's tab, it asks for that tab again, at most once a second.
+
+`images = false` in `backend.toml`, or `ATUR_TERM_HERDR_IMAGES=0`, turns the connection off: no images, none of the above.
+
+**Limits.** Only what is on the screen is shown: an image that scrolled into the scrollback is not drawn when a client
+scrolls back to it. Only the session's own pane is looked at, not the other panes of its tab. The phone apps drop images.
+Sixel and iTerm2 images are not shown (herdr keeps only Kitty ones).
+
+**What is tested.** CI runs the real herdr 0.9.5 on Linux and macOS (`scripts/herdr-images-e2e.sh`): a program in the pane
+prints images with `scripts/kitty_image.py` (a chunked `a=T`, `a=t` then `a=p`, placeholders, `a=d`), and the probe
+`herdr_images_probe`, a client of the server, requires on its screen the pixels, the cells and the pixel size of every
+placement, after the output scrolled it, after a resize and a new cell size, after the application deleted it, for a
+client that attaches later, and for the same pane after `atur-term-server` was killed and started again. The frames
+herdr sends are read by `herdr/shell.rs`, whose tests build them the way herdr does.
 
 ## Streaming only watched sessions
 
@@ -237,7 +297,8 @@ default number, so tabs that carry a legacy label keep it until the user renames
 * Application input modes that herdr does not put into the frames (application cursor keys, kitty keyboard
   protocol, focus events) are not known to the mirror terminal, so arrow keys and similar may be encoded for
   the default mode. Bracketed paste is handled.
-* Graphics (Kitty/Sixel) and OSC 8 links appear only if herdr's ANSI re-render carries them; not verified.
+* Sixel and iTerm2 images are not shown (herdr keeps only Kitty images); Kitty images are, see "Images". OSC 8 links
+  appear only if herdr's ANSI re-render carries them; not verified.
 * A herdr terminal is checkpointed only when its session ends; "saved screen" of a live session is not refreshed.
 * `atur-term server stop --force` leaves herdr terminals running; end them with `atur-term session end`.
 * Deleting a project does not remove its herdr workspace.
