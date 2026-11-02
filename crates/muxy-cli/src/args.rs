@@ -17,6 +17,8 @@ pub(crate) enum Command {
     Interactive,
     Manage(Box<crate::manage::args::Invocation>),
     Mobile(Mobile),
+    /// Shows or asks for this Mac's screen sharing permissions.
+    Screen(Screen),
     /// Joins stdin and stdout to the server, for clients on other computers.
     /// With UDP, it also offers a port to connect to instead of ssh.
     Stdio(Start, Option<UdpRelay>),
@@ -37,11 +39,17 @@ pub(crate) enum Mobile {
     Screen { device: String, allowed: bool },
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Screen {
+    Status,
+    Permission,
+}
+
 /// Reads the command, and the other computer whose server it uses when it
 /// starts with `--host DESTINATION`. Help, version and build info describe
 /// this computer's Atur Terminal, a bridge must never reach on to another computer,
-/// and browser tabs live in this computer's desktop app, so none of them
-/// takes `--host`.
+/// and browser tabs live in this computer's desktop app, and screen sharing
+/// permissions belong to this Mac, so none of them takes `--host`.
 pub(crate) fn parse(arguments: &[OsString]) -> io::Result<(Option<SshTarget>, Command)> {
     match arguments {
         [flag, destination, rest @ ..] if flag == "--host" => {
@@ -67,6 +75,7 @@ pub(crate) fn parse(arguments: &[OsString]) -> io::Result<(Option<SshTarget>, Co
                     | Command::Stdio(..)
                     | Command::Open(_)
                     | Command::Browser(_)
+                    | Command::Screen(_)
                     | Command::InstallSkills(_),
                     [word, ..],
                 ) => Err(invalid(&format!(
@@ -96,6 +105,10 @@ fn command(arguments: &[OsString]) -> io::Result<Command> {
             Ok(Command::Usage(help::MOBILE))
         }
         [command, rest @ ..] if command == "mobile" => mobile(rest).map(Command::Mobile),
+        [command, .., flag] if command == "screen" && (flag == "--help" || flag == "-h") => {
+            Ok(Command::Usage(help::SCREEN))
+        }
+        [command, rest @ ..] if command == "screen" => screen(rest).map(Command::Screen),
         [command, rest @ ..] if command == "stdio" => {
             stdio(rest).map(|(start, udp)| Command::Stdio(start, udp))
         }
@@ -152,6 +165,17 @@ fn mobile(arguments: &[OsString]) -> io::Result<Mobile> {
         [Some("screen"), ..] => Err(invalid("usage: atur-term mobile screen <device> on|off")),
         _ => Err(invalid(
             "unknown mobile command; run atur-term mobile --help",
+        )),
+    }
+}
+
+fn screen(arguments: &[OsString]) -> io::Result<Screen> {
+    match arguments {
+        [] => Ok(Screen::Status),
+        [action] if action == "status" => Ok(Screen::Status),
+        [action] if action == "permission" => Ok(Screen::Permission),
+        _ => Err(invalid(
+            "unknown screen command; run atur-term screen --help",
         )),
     }
 }
@@ -342,6 +366,37 @@ mod tests {
         for args in [
             vec!["--host", "example", "browser", "list"],
             vec!["help", "nothing"],
+        ] {
+            assert!(words(&args).is_err(), "{args:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn screen_commands_stay_on_this_mac_and_have_help() -> io::Result<()> {
+        assert_eq!(words(&["screen"])?.1, Command::Screen(Screen::Status));
+        assert_eq!(
+            words(&["screen", "status"])?.1,
+            Command::Screen(Screen::Status)
+        );
+        assert_eq!(
+            words(&["screen", "permission"])?.1,
+            Command::Screen(Screen::Permission)
+        );
+        for args in [
+            vec!["screen", "--help"],
+            vec!["screen", "permission", "-h"],
+            vec!["help", "screen"],
+        ] {
+            assert_eq!(words(&args)?.1, Command::Usage(help::SCREEN), "{args:?}");
+        }
+        assert!(!names_folder(OsStr::new("screen")));
+        for args in [
+            vec!["screen", "grant"],
+            vec!["screen", "permission", "now"],
+            vec!["screen", "status", "permission"],
+            vec!["--host", "example", "screen"],
+            vec!["--host", "example", "screen", "permission"],
         ] {
             assert!(words(&args).is_err(), "{args:?}");
         }

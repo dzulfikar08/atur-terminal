@@ -56,6 +56,7 @@ atur-term --help          # all commands; atur-term <command> --help for details
 | `atur-term exec <project> -- <program> [args]` | Runs a program in the project folder, without a shell. |
 | `atur-term git`, `atur-term files` | Run raw server Git and file actions as JSON. Advanced; the JSON shape follows the protocol and may change. |
 | `atur-term mobile [enable\|disable\|pair\|revoke <phone>\|screen <phone> on\|off]` | Lists paired phones and whether each may view the screen; turns on phone access, pairs phones, revokes them, and lets a phone view and control this computer's screen. See [Mobile](mobile.md). |
+| `atur-term screen permission` | On a Mac, shows the prompts that let Atur Terminal Screen record the screen and use the mouse and keyboard, so [Screen](screen.md) can share this Mac. Run it at the Mac. |
 | `atur-term install-skills` | Installs the Atur Terminal CLI skill for the AI agents found in your home folder. `--dir <path>` adds another skills folder. |
 | `atur-term stdio` | Joins stdin and stdout to the server. Used by `--host` over SSH; you don't run it yourself. |
 

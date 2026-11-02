@@ -1,13 +1,17 @@
 //! Desktop mirroring: relays the RFB (VNC) conversation between a viewer on a
 //! client's connection and a capture program that this server owns.
 //!
-//! The capture program is `wayvnc` on a Wayland desktop. It is started when
-//! the first viewer opens a screen and stopped [`GRACE`] after the last one
-//! leaves. It only ever listens on a socket inside a private folder of the
-//! user's runtime directory, or, for an older `wayvnc` that cannot, on
-//! 127.0.0.1; never on another address. No VNC password is used: the viewer
-//! reached this server through an authenticated connection (a local socket or
-//! ssh), and that is the whole access control.
+//! The capture program is `wayvnc` on a Wayland desktop, and on a Mac the
+//! `atur-term-screen` helper (module `macos`), which is started through Launch
+//! Services so that macOS holds the helper, not this server, to the Screen
+//! Recording and Accessibility permissions. It is started when the first
+//! viewer opens a screen and stopped [`GRACE`] after the last one leaves. It
+//! only ever listens on a socket inside a private folder (of the user's
+//! runtime directory for `wayvnc`, of the temporary directory for the Mac
+//! helper) or, for an older `wayvnc` that cannot, on 127.0.0.1; never on
+//! another address. No VNC password is used: the viewer reached this server
+//! through an authenticated connection (a local socket or ssh), and that is
+//! the whole access control.
 //!
 //! Bounded buffering lives in the connection's outbox: a viewer's bytes wait
 //! there only up to a window the client has not yet reported handled, and the
@@ -27,6 +31,21 @@ use muxy_protocol::ErrorCode;
 
 use crate::ServerError;
 
+#[cfg_attr(
+    not(target_os = "macos"),
+    allow(
+        dead_code,
+        reason = "only a Mac starts it; other systems build it for its tests"
+    )
+)]
+mod macos;
+#[cfg_attr(
+    target_os = "macos",
+    allow(
+        dead_code,
+        reason = "a Mac shares its screen through the macos module instead"
+    )
+)]
 mod wayvnc;
 
 /// How long the capture program keeps running with nobody watching, so that a
@@ -42,7 +61,7 @@ const INPUT_QUEUE: usize = 256;
 
 /// Whether this server offers screen mirroring at all.
 pub(crate) fn offered() -> bool {
-    cfg!(target_os = "linux") && !disabled()
+    (cfg!(target_os = "linux") || cfg!(target_os = "macos")) && !disabled()
 }
 
 fn disabled() -> bool {
@@ -65,6 +84,11 @@ pub(crate) trait Capture: Send + Sync + 'static {
     /// A viewer saw the stream end before any data came: the way it was
     /// started does not work here, so the next start should try another.
     fn failed_to_serve(&self);
+    /// Why it ended, in its own words, when it said. Asked when a viewer's
+    /// stream ends without this side having closed it.
+    fn ended_reason(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Where a viewer's bytes go. The outbox of a connection implements it.
@@ -155,13 +179,14 @@ impl std::fmt::Debug for Hub {
     }
 }
 
-/// The server's one hub, driving `wayvnc`.
+/// The server's one hub, driving `wayvnc`, or on a Mac `atur-term-screen`.
 pub(crate) fn hub() -> &'static Arc<Hub> {
     static HUB: LazyLock<Arc<Hub>> = LazyLock::new(|| {
-        Arc::new(Hub::new(
-            Box::new(wayvnc::Wayvnc::from_environment()),
-            GRACE,
-        ))
+        #[cfg(target_os = "macos")]
+        let capture: Box<dyn Capture> = Box::new(macos::Source::from_environment());
+        #[cfg(not(target_os = "macos"))]
+        let capture: Box<dyn Capture> = Box::new(wayvnc::Wayvnc::from_environment());
+        Arc::new(Hub::new(capture, GRACE))
     });
     &HUB
 }
@@ -372,16 +397,18 @@ impl Relay {
         }
         self.socket.shutdown();
         if !self.local_close.load(Ordering::Acquire) {
+            // Asked first: stopping a capture that never served removes what it says.
+            let reason = self.hub.capture.ended_reason();
             if received == 0 {
                 self.hub.capture.failed_to_serve();
-                self.downstream.finish(
+                self.downstream.finish(reason.unwrap_or_else(|| {
                     "The screen sharing program closed the connection before sending anything. \
                      Try again."
-                        .into(),
-                );
+                        .into()
+                }));
             } else {
                 self.downstream
-                    .finish("The screen sharing program stopped.".into());
+                    .finish(reason.unwrap_or_else(|| "The screen sharing program stopped.".into()));
             }
         }
         drop(self.lease);

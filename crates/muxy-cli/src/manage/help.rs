@@ -16,6 +16,7 @@ Usage: atur-term [--host DESTINATION [--udp]] [COMMAND]
   files         Run a server file action using JSON
   exec          Execute a program in a server project
   mobile        Enable access, pair, revoke and allow the screen for phones
+  screen        Check or allow this Mac's permissions to share its screen
   browser       Drive browser tabs in the desktop app on this computer
   install-skills
                 Install the atur-term-cli skill for AI coding agents
@@ -52,6 +53,20 @@ pub(crate) const MOBILE: &str = "Usage: atur-term mobile [action]
 Pairing codes list the server's own addresses. --address puts a DNS name or
 IPv4 address first, for a server that phones reach by another name, such as a
 cloud server's public name. Repeat it for more, up to 8 addresses in all.";
+pub(crate) const SCREEN: &str = "Usage: atur-term screen [action]
+  (no action) | status      Whether this Mac lets Atur Terminal share its screen and use its
+                            mouse and keyboard
+  permission                Show the permission prompts on this Mac and wait until they are
+                            allowed (up to 2 minutes; Ctrl-C stops waiting)
+
+Sharing a Mac's screen is done by a small program inside the Atur Terminal app, named
+Atur Terminal Screen in System Settings. macOS asks for two permissions, once, for that
+program: Screen & System Audio Recording, and Accessibility. In each prompt click Open
+System Settings and turn the program on. macOS may offer to quit and reopen it; choose
+Later or Quit & Reopen, nothing else is needed. Without Accessibility the screen can
+be viewed but not controlled.
+The command exits with 0 only when both are allowed. It works on this Mac only; on
+other computers it does nothing.";
 pub(crate) const BROWSER: &str = "Usage: atur-term browser <action>
   open [url] [--split] [--project PROJECT] [--worktree WORKTREE]
        [--profile PROFILE]          Open a tab and print its ID
@@ -214,6 +229,7 @@ pub(crate) fn topic(group: &str) -> Option<&'static str> {
         "files" => FILES,
         "exec" => EXEC,
         "mobile" => MOBILE,
+        "screen" => SCREEN,
         "install-skills" => INSTALL_SKILLS,
         "browser" => BROWSER,
         _ => return None,

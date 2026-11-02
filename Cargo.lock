@@ -616,6 +616,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "atur-screen-host"
+version = "2.0.0-beta-0"
+dependencies = [
+ "atur-screen",
+ "atur-screen-source",
+ "cc",
+ "core-foundation 0.10.0",
+ "core-video",
+ "flate2",
+ "libc",
+ "log",
+]
+
+[[package]]
+name = "atur-screen-source"
+version = "2.0.0-beta-0"
+dependencies = [
+ "log",
+ "rustix 1.1.4",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4720,6 +4744,7 @@ name = "muxy-cli"
 version = "2.0.0-beta-0"
 dependencies = [
  "atur-screen",
+ "atur-screen-source",
  "image",
  "muxy-app-core",
  "muxy-client",
@@ -4775,6 +4800,7 @@ dependencies = [
 name = "muxy-server"
 version = "2.0.0-beta-0"
 dependencies = [
+ "atur-screen-source",
  "getrandom 0.3.4",
  "libproc",
  "log",

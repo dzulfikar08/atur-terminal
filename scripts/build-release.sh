@@ -55,20 +55,30 @@ if [[ -e "$OUTPUT_DIR" ]]; then
 fi
 
 cd "$ROOT"
-echo "==> Building app, CLI and server for $TARGET"
+echo "==> Building app, CLI, server and screen helper for $TARGET"
 cargo clean -p libghostty-vt-sys
-cargo build --locked --release --target "$TARGET" -p muxy-app -p muxy-cli -p muxy-server
+cargo build --locked --release --target "$TARGET" -p muxy-app -p muxy-cli -p muxy-server -p atur-screen-host
 BIN_DIR="$CARGO_TARGET_DIR/$TARGET/release"
 
 mkdir -p "$(dirname "$OUTPUT_DIR")"
 STAGING="$(mktemp -d "$(dirname "$OUTPUT_DIR")/.${ARCH}.XXXXXX")"
 trap 'rm -rf "$STAGING"' EXIT
 APP="$STAGING/dmg/$APP_NAME.app"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$STAGING/symbols" "$STAGING/artifacts"
+# The screen helper is a small app of its own: macOS asks for Screen Recording and
+# Accessibility on behalf of the app that captures, and lists it by its own name.
+HELPER_BINARY=atur-term-screen
+HELPER_NAME="$(python3 "$ROOT/scripts/release.py" helper-name "$VERSION")"
+HELPER_APP="$APP/Contents/Helpers/$HELPER_NAME.app"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$HELPER_APP/Contents/MacOS" \
+    "$HELPER_APP/Contents/Resources" "$STAGING/symbols" "$STAGING/artifacts"
 
-for BINARY in atur-terminal atur-term atur-term-server; do
-    install -m 755 "$BIN_DIR/$BINARY" "$APP/Contents/MacOS/$BINARY"
-    EXECUTABLE="$APP/Contents/MacOS/$BINARY"
+for BINARY in atur-terminal atur-term atur-term-server "$HELPER_BINARY"; do
+    if [[ "$BINARY" == "$HELPER_BINARY" ]]; then
+        EXECUTABLE="$HELPER_APP/Contents/MacOS/$BINARY"
+    else
+        EXECUTABLE="$APP/Contents/MacOS/$BINARY"
+    fi
+    install -m 755 "$BIN_DIR/$BINARY" "$EXECUTABLE"
     if [[ "$(lipo -archs "$EXECUTABLE")" != "$ARCH" ]]; then
         echo "Error: $BINARY does not contain exactly $ARCH" >&2
         exit 1
@@ -88,6 +98,10 @@ done
 python3 "$ROOT/scripts/release.py" plist "$VERSION" "$APP/Contents/Info.plist" ${BUILD_NUMBER:+--build "$BUILD_NUMBER"}
 plutil -lint "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+python3 "$ROOT/scripts/release.py" helper-plist "$VERSION" "$HELPER_APP/Contents/Info.plist" ${BUILD_NUMBER:+--build "$BUILD_NUMBER"}
+plutil -lint "$HELPER_APP/Contents/Info.plist"
+printf 'APPL????' > "$HELPER_APP/Contents/PkgInfo"
+HELPER_ID="$(plutil -extract CFBundleIdentifier raw -o - "$HELPER_APP/Contents/Info.plist")"
 python3 "$ROOT/scripts/release.py" licenses > "$APP/Contents/Resources/LICENSE"
 
 ICONSET="$STAGING/AppIcon.iconset"
@@ -100,6 +114,7 @@ for SIZE in 16 32 128 256 512; do
         --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
 done
 iconutil --convert icns --output "$APP/Contents/Resources/AppIcon.icns" "$ICONSET"
+cp "$APP/Contents/Resources/AppIcon.icns" "$HELPER_APP/Contents/Resources/AppIcon.icns"
 
 SIGN_ARGS=(--force --sign "$SIGN_IDENTITY")
 if [[ "$SIGN_IDENTITY" == - ]]; then
@@ -107,7 +122,12 @@ if [[ "$SIGN_IDENTITY" == - ]]; then
 else
     SIGN_ARGS+=(--options runtime --timestamp)
 fi
-# Sign every executable before sealing the bundle.
+# Sign inside out: the helper app, then every executable, then the outer app.
+# The helper needs no entitlements: screen capture and accessibility are privacy
+# permissions the user grants, not entitlements.
+codesign "${SIGN_ARGS[@]}" --identifier "$HELPER_ID" "$HELPER_APP/Contents/MacOS/$HELPER_BINARY"
+codesign "${SIGN_ARGS[@]}" --identifier "$HELPER_ID" "$HELPER_APP"
+codesign --verify --deep --strict --verbose=2 "$HELPER_APP"
 for BINARY in atur-term atur-term-server atur-terminal; do
     if [[ "$BINARY" == atur-terminal ]]; then
         codesign "${SIGN_ARGS[@]}" --entitlements "$ROOT/packaging/macos/AturTerminal.entitlements" "$APP/Contents/MacOS/$BINARY"

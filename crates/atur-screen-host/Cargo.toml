@@ -1,0 +1,36 @@
+[package]
+name = "atur-screen-host"
+description = "Shares this Mac's screen over RFB: ScreenCaptureKit, VideoToolbox H.264 and CGEvent input"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "atur-term-screen"
+path = "src/bin/atur-term-screen.rs"
+
+[dependencies]
+atur-screen-source = { path = "../atur-screen-source" }
+flate2 = "1"
+log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+libc = "0.2"
+
+[build-dependencies]
+cc = "1"
+
+[dev-dependencies]
+atur-screen = { path = "../atur-screen" }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+core-video = { version = "0.4.3", features = ["metal"] }

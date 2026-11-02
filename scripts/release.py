@@ -26,6 +26,9 @@ LICENSE_FILES = (
     "crates/muxy-server/src/detection/LICENSE-herdr",
     "crates/muxy-cli/src/manage/shot/LICENSE-noto-font",
 )
+# The screen helper: a small app inside the main app, so macOS asks for Screen Recording and
+# Accessibility on its own behalf and lists it by its own name in System Settings.
+HELPER_EXECUTABLE = "atur-term-screen"
 TAG_PATTERN = re.compile(r"atur-v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*|-[1-9][0-9]*)?")
 
 
@@ -172,6 +175,35 @@ def bundle_info(version, build):
     }
 
 
+def helper_app_name(version):
+    return f"{APPS[channel(version)][0]} Screen"
+
+
+def helper_bundle_info(version, build):
+    """Info.plist of the screen helper app; it shares the main app's version and build."""
+    info = bundle_info(version, build)
+    name = helper_app_name(version)
+    app_name = info["CFBundleName"]
+    return {
+        "CFBundleDevelopmentRegion": "en",
+        "CFBundleDisplayName": name,
+        "CFBundleName": name,
+        "CFBundleExecutable": HELPER_EXECUTABLE,
+        "CFBundleIdentifier": f"{info['CFBundleIdentifier']}.screen",
+        "CFBundleIconFile": "AppIcon",
+        "CFBundleInfoDictionaryVersion": "6.0",
+        "CFBundlePackageType": "APPL",
+        "CFBundleShortVersionString": info["CFBundleShortVersionString"],
+        "CFBundleVersion": info["CFBundleVersion"],
+        "CFBundleGetInfoString": f"{name} {version}",
+        "AturVersion": version,
+        "LSMinimumSystemVersion": "14.0",
+        "LSUIElement": True,
+        "NSHighResolutionCapable": True,
+        "NSScreenCaptureUsageDescription": f"{app_name} shows this Mac's screen in Atur Terminal on your other computers and phone.",
+    }
+
+
 def update_metadata(version, repository, directory, tag):
     channel(version)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
@@ -237,10 +269,10 @@ def main():
     metadata.add_argument("directory", type=Path)
     metadata.add_argument("tag")
     commands.add_parser("licenses")
-    for command in ("stamp", "check-version", "channel", "app-name", "plist"):
+    for command in ("stamp", "check-version", "channel", "app-name", "helper-name", "plist", "helper-plist"):
         subparser = commands.add_parser(command)
         subparser.add_argument("version")
-        if command == "plist":
+        if command in ("plist", "helper-plist"):
             subparser.add_argument("output", type=Path)
             subparser.add_argument("--build", help="commit count; a beta's is in its version")
     args = parser.parse_args()
@@ -262,6 +294,8 @@ def main():
             print(channel(args.version))
         elif args.command == "app-name":
             print(APPS[channel(args.version)][0])
+        elif args.command == "helper-name":
+            print(helper_app_name(args.version))
         elif args.command == "licenses":
             sys.stdout.write(license_text())
         elif args.command == "update":
@@ -271,7 +305,8 @@ def main():
             if args.build is None and channel(args.version) == "stable":
                 raise ValueError("a stable release needs --build <commit count>")
             build = args.build or build_number(args.version)
-            args.output.write_bytes(plistlib.dumps(bundle_info(args.version, build)))
+            info = helper_bundle_info if args.command == "helper-plist" else bundle_info
+            args.output.write_bytes(plistlib.dumps(info(args.version, build)))
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"error: {error}\n")
 

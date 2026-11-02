@@ -1,0 +1,63 @@
+name: screen-source
+
+# The program that shares a Mac's screen (crates/atur-screen-host) and how the
+# server starts it (crates/atur-screen-source): built, linted and tested on a
+# Mac and on Linux. What a runner cannot do is stated in the test output: it
+# has no Screen Recording permission, so the capture itself is skipped, while
+# the encoder, the RFB server and the viewer are exercised end to end with a
+# test pattern, and the report of the missing permission is checked.
+on:
+  push:
+    paths:
+      - 'crates/atur-screen/**'
+      - 'crates/atur-screen-host/**'
+      - 'crates/atur-screen-source/**'
+      - '.github/workflows/screen-source.yml'
+      - 'Cargo.lock'
+  pull_request:
+    paths:
+      - 'crates/atur-screen/**'
+      - 'crates/atur-screen-host/**'
+      - 'crates/atur-screen-source/**'
+      - '.github/workflows/screen-source.yml'
+      - 'Cargo.lock'
+  workflow_call:
+
+concurrency:
+  group: screen-source-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: screen-source-${{ matrix.os }}
+          cache-on-failure: true
+      - run: cargo fmt -p atur-screen-host -p atur-screen-source --check
+      - run: >-
+          cargo clippy --locked -p atur-screen-host -p atur-screen-source
+          --all-targets --all-features -- -D warnings
+      - run: cargo test --locked -p atur-screen-host -p atur-screen-source -- --nocapture
+      - name: What this runner allows the screen program to do
+        if: runner.os == 'macOS'
+        run: |
+          target/debug/atur-term-screen check --status "$RUNNER_TEMP/permissions.json"
+          cat "$RUNNER_TEMP/permissions.json"; echo

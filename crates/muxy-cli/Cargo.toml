@@ -21,6 +21,7 @@ muxy-core = { path = "../muxy-core" }
 muxy-protocol = { path = "../muxy-protocol" }
 muxy-client = { path = "../muxy-client" }
 muxy-app-core = { path = "../muxy-app-core" }
+atur-screen-source = { path = "../atur-screen-source" }
 serde_json.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1.0", features = ["derive"] }

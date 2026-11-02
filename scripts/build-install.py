@@ -99,16 +99,29 @@ def package_app(directory, binaries, version, identity):
     resources.mkdir()
     for name in (*BINARIES, "atur-terminal"):
         shutil.copy2(binaries / name, executables / name)
-    from release import build_number, bundle_info, license_text
+    from release import (HELPER_EXECUTABLE, build_number, bundle_info, helper_bundle_info,
+                         license_text)
     if version == "2.0.0-beta-0":
         # Keep unstamped local builds identifiable without stamping the source checkout.
         info = bundle_info("2.0.0-beta.1", "1")
         info.update(CFBundleVersion="0", AturVersion=version,
                     CFBundleGetInfoString=f"{APPS['beta'][0]} {version}")
+        helper_info = helper_bundle_info("2.0.0-beta.1", "1")
+        helper_info.update(CFBundleVersion="0", AturVersion=version,
+                           CFBundleGetInfoString=f"{helper_info['CFBundleName']} {version}")
     else:
         info = bundle_info(version, build_number(version))
+        helper_info = helper_bundle_info(version, build_number(version))
     (contents / "Info.plist").write_bytes(plistlib.dumps(info))
     (contents / "PkgInfo").write_bytes(b"APPL????")
+    # The screen helper is an app of its own, so macOS asks for Screen Recording and
+    # Accessibility on its behalf and lists it by its own name.
+    helper = contents / "Helpers" / f"{helper_info['CFBundleName']}.app"
+    (helper / "Contents/MacOS").mkdir(parents=True)
+    (helper / "Contents/Resources").mkdir()
+    shutil.copy2(binaries / HELPER_EXECUTABLE, helper / "Contents/MacOS" / HELPER_EXECUTABLE)
+    (helper / "Contents/Info.plist").write_bytes(plistlib.dumps(helper_info))
+    (helper / "Contents/PkgInfo").write_bytes(b"APPL????")
     (resources / "LICENSE").write_text(license_text())
     iconset = directory / "AppIcon.iconset"
     iconset.mkdir()
@@ -118,7 +131,11 @@ def package_app(directory, binaries, version, identity):
                 ROOT / "packaging/macos/AppIcon.png", "--out",
                 iconset / f"icon_{size}x{size}{suffix}.png", stdout=subprocess.DEVNULL)
     run("iconutil", "--convert", "icns", "--output", resources / "AppIcon.icns", iconset)
+    shutil.copy2(resources / "AppIcon.icns", helper / "Contents/Resources/AppIcon.icns")
     sign = ("codesign", "--force", "--sign", identity, "--options", "runtime", "--timestamp")
+    helper_sign = (*sign, "--identifier", helper_info["CFBundleIdentifier"])
+    run(*helper_sign, helper / "Contents/MacOS" / HELPER_EXECUTABLE)
+    run(*helper_sign, helper)
     for name in BINARIES:
         run(*sign, executables / name)
     entitlements = ("--entitlements", ROOT / "packaging/macos/AturTerminal.entitlements")
@@ -223,7 +240,7 @@ def main():
     if system == "Darwin":
         env["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
         env["SDKROOT"] = output("xcrun", "--sdk", "macosx", "--show-sdk-path")
-    packages = ["muxy-cli", "muxy-server"] + (["muxy-app"] if system == "Darwin" else [])
+    packages = ["muxy-cli", "muxy-server"] + (["muxy-app", "atur-screen-host"] if system == "Darwin" else [])
     print(f"==> Building for {target}", flush=True)
     run("cargo", "build", "--locked", "--release", "--target", target,
         *(arg for package in packages for arg in ("-p", package)), cwd=ROOT, env=env)

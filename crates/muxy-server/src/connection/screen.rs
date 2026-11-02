@@ -34,7 +34,7 @@ pub(super) fn open(
     if !screen::offered() {
         return Err(ServerError::new(
             ErrorCode::Unsupported,
-            "Screen mirroring needs a Linux computer with a Wayland desktop.",
+            "Screen mirroring needs a Linux computer with a Wayland desktop, or a Mac.",
         ));
     }
     let channel = ChannelId(

@@ -29,6 +29,7 @@ muxy-protocol = { path = "../muxy-protocol" }
 serde_json.workspace = true
 log = { version = "0.4", features = ["std"] }
 muxy-core = { path = "../muxy-core" }
+atur-screen-source = { path = "../atur-screen-source" }
 serde = { version = "1", features = ["derive"] }
 signal-hook = "0.4"
 toml = "1.1"

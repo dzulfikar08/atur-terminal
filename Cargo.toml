@@ -12,6 +12,8 @@ members = [
     "crates/muxy-ui",
     "crates/atur-mobile",
     "crates/atur-screen",
+    "crates/atur-screen-source",
+    "crates/atur-screen-host",
 ]
 
 # Current boundary policy, not a permanent crate list. Structural changes update
@@ -20,20 +22,23 @@ members = [
 muxy-core = []
 muxy-protocol = []
 muxy-terminal = ["muxy-protocol"]
-muxy-server = ["muxy-core", "muxy-protocol", "muxy-terminal"]
+muxy-server = ["muxy-core", "muxy-protocol", "muxy-terminal", "atur-screen-source"]
 muxy-app-core = ["muxy-core", "muxy-protocol"]
 muxy-client = ["muxy-core", "muxy-protocol"]
-muxy-cli = ["muxy-core", "muxy-protocol", "muxy-client", "muxy-app-core"]
+muxy-cli = ["muxy-core", "muxy-protocol", "muxy-client", "muxy-app-core", "atur-screen-source"]
 muxy-app = ["muxy-core", "muxy-app-core", "muxy-client", "muxy-protocol", "muxy-ui", "atur-screen"]
 muxy-ui = ["muxy-core"]
 atur-mobile = ["atur-screen", "muxy-client", "muxy-protocol"]
 atur-screen = []
+atur-screen-source = []
+atur-screen-host = ["atur-screen-source"]
 
 [workspace.metadata.architecture.allowed-dev-dependencies]
 muxy-app = ["muxy-server", "muxy-terminal"]
 muxy-client = ["muxy-server"]
 muxy-cli = ["muxy-terminal", "atur-screen"]
 atur-mobile = ["muxy-server"]
+atur-screen-host = ["atur-screen"]
 
 [workspace.package]
 version = "2.0.0-beta-0"

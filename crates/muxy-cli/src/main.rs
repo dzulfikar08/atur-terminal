@@ -8,6 +8,7 @@ mod manage;
 mod mobile;
 mod open;
 mod projects;
+mod screen;
 mod scroll;
 mod selection;
 mod skills;
@@ -47,6 +48,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Command::Manage(command) => manage::run(*command, host)?,
         Command::Open(folder) => open::run(&folder)?,
         Command::Browser(invocation) => browser::run(*invocation)?,
+        Command::Screen(command) => screen::run(command)?,
         Command::InstallSkills(directories) => {
             let home = std::env::home_dir();
             let mut stdout = io::stdout().lock();

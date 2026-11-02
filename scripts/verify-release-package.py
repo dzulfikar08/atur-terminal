@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import plistlib
 import shutil
 import signal
 import subprocess
@@ -18,7 +19,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
-from release import APPS, channel  # noqa: E402
+from release import APPS, HELPER_EXECUTABLE, channel, helper_app_name  # noqa: E402
 
 
 def run(*command, **kwargs):
@@ -63,6 +64,15 @@ def verify(args):
                 run('codesign', '--verify', '--deep', '--strict', app)
                 for name in ('atur-term', 'atur-term-server'):
                     assert (app / 'Contents/MacOS' / name).read_bytes() == (extracted / name).read_bytes()
+                helper = app / 'Contents/Helpers' / f'{helper_app_name(args.version)}.app'
+                helper_info = plistlib.loads((helper / 'Contents/Info.plist').read_bytes())
+                assert helper_info['CFBundleIdentifier'] == f'{APPS[channel(args.version)][1]}.screen'
+                assert helper_info['CFBundleExecutable'] == HELPER_EXECUTABLE
+                assert helper_info['LSUIElement'] is True
+                helper_binary = helper / 'Contents/MacOS' / HELPER_EXECUTABLE
+                assert helper_binary.is_file() and os.access(helper_binary, os.X_OK)
+                assert subprocess.check_output(['lipo', '-archs', helper_binary], text=True).strip() == platform.machine()
+                run('codesign', '--verify', '--deep', '--strict', helper)
                 if args.notarized:
                     run('spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', args.dmg)
             finally:

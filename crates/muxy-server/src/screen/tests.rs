@@ -105,14 +105,14 @@ impl Capture for Shared {
 }
 
 #[derive(Default)]
-struct Collected {
+pub(super) struct Collected {
     bytes: Mutex<Vec<u8>>,
     finished: Mutex<Option<String>>,
     changed: Condvar,
 }
 
 impl Collected {
-    fn wait_bytes(&self, wanted: &[u8]) -> bool {
+    pub(super) fn wait_bytes(&self, wanted: &[u8]) -> bool {
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut bytes = self.bytes.lock().unwrap_or_else(PoisonError::into_inner);
         while !bytes.ends_with(wanted) {
@@ -129,7 +129,7 @@ impl Collected {
         true
     }
 
-    fn wait_finished(&self) -> Option<String> {
+    pub(super) fn wait_finished(&self) -> Option<String> {
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             if let Some(reason) = self
@@ -163,7 +163,7 @@ impl Downstream for Collected {
     }
 }
 
-fn eventually(mut condition: impl FnMut() -> bool) -> bool {
+pub(super) fn eventually(mut condition: impl FnMut() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
         if condition() {

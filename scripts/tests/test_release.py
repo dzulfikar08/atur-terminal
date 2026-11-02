@@ -62,6 +62,34 @@ class BetaVersionTests(unittest.TestCase):
             with self.subTest(version=version, build=build), self.assertRaises(ValueError):
                 release.bundle_info(version, build)
 
+    def test_the_screen_helper_is_its_own_app_inside_each_channel(self):
+        keys = ("CFBundleName", "CFBundleIdentifier", "CFBundleExecutable", "CFBundleShortVersionString", "CFBundleVersion")
+        info = release.helper_bundle_info("2.1.0-beta.1234", "1234")
+        self.assertEqual([info[key] for key in keys], [
+            "Atur Terminal Beta Screen", "com.joyodigitama.atur-terminal-beta.screen", "atur-term-screen", "2.1.0", "1234"])
+        self.assertEqual(release.helper_app_name("2.1.0-beta.1234"), "Atur Terminal Beta Screen")
+        info = release.helper_bundle_info("2.1.0", "1234")
+        self.assertEqual([info[key] for key in keys], [
+            "Atur Terminal Screen", "com.joyodigitama.atur-terminal.screen", "atur-term-screen", "2.1.0", "1234"])
+        self.assertEqual(info["CFBundleDisplayName"], "Atur Terminal Screen")
+        self.assertEqual(info["CFBundlePackageType"], "APPL")
+        self.assertIs(info["LSUIElement"], True)
+        self.assertEqual(info["LSMinimumSystemVersion"], "14.0")
+        self.assertEqual(info["AturVersion"], "2.1.0")
+        self.assertIn("Atur Terminal", info["NSScreenCaptureUsageDescription"])
+        self.assertNotIn("NSAppleEventsUsageDescription", info)
+        for version, build in (("2.1.0-beta.1234", "1235"), ("2.1.0", "0"), ("2.1.0", "x")):
+            with self.subTest(version=version, build=build), self.assertRaises(ValueError):
+                release.helper_bundle_info(version, build)
+
+    def test_the_helper_shares_the_main_apps_version_and_build(self):
+        for version, build in (("2.1.0-beta.7", "7"), ("2.1.0", "42")):
+            main_info = release.bundle_info(version, build)
+            helper = release.helper_bundle_info(version, build)
+            for key in ("CFBundleShortVersionString", "CFBundleVersion", "AturVersion"):
+                self.assertEqual(helper[key], main_info[key])
+            self.assertEqual(helper["CFBundleIdentifier"], main_info["CFBundleIdentifier"] + ".screen")
+
 
 class PromotionTests(unittest.TestCase):
     """A repository whose main has three commits and a side branch from the second."""
