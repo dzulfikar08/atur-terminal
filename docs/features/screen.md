@@ -87,6 +87,8 @@ time, because it reminds you periodically which apps record the screen.
 - The picture follows what changes on the display: a still screen sends
   nothing. The frame rate goes up to 60 frames per second, and on a good
   connection the delay is a few frames.
+- While someone is viewing, the Mac does not go to sleep on its own. Its
+  display can still go to sleep, which freezes the picture until you wake it.
 - Text on the clipboard is shared both ways. The clipboard shortcuts work as
   described under [Keyboard](#keyboard).
 
