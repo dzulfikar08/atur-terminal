@@ -254,7 +254,7 @@ struct ViewerState {
     /// Updates the viewer has asked for and not yet got.
     requests: u32,
     /// A non-incremental request, or a change of encoding, wants the whole picture
-    /// and a key frame.
+    /// and a key frame, with the next update the viewer has asked for.
     full: bool,
     /// The viewer answered our clipboard capabilities, so Notify/Request/Provide works.
     clipboard_flow: bool,
@@ -448,7 +448,7 @@ fn serve_viewer(
             format: PixelFormat::NATIVE,
             continuous: false,
             requests: 0,
-            full: true,
+            full: false,
             clipboard_flow: false,
             announced_continuous: false,
             outgoing: VecDeque::new(),
@@ -709,7 +709,7 @@ impl Writer {
     fn step(&mut self) -> io::Result<bool> {
         let wants = {
             let state = self.viewer.state();
-            state.continuous || state.requests > 0 || state.full
+            state.continuous || state.requests > 0
         };
         let snapshot = self.viewer.broadcast.wait(self.seen, wants, IDLE);
         if snapshot.closed {
@@ -749,13 +749,11 @@ impl Writer {
     /// Takes one of the viewer's open requests when a picture is due.
     fn plan(&self, new_frame: bool) -> Option<Plan> {
         let mut state = self.viewer.state();
+        // Nothing is sent that the viewer has not asked for (or switched on).
         let ready = state.continuous || state.requests > 0;
         let full = state.full;
-        if !(full || (ready && new_frame)) {
+        if !(ready && (full || new_frame)) {
             return None;
-        }
-        if !state.continuous {
-            state.requests = state.requests.saturating_sub(1);
         }
         state.full = false;
         Some(Plan {
@@ -763,6 +761,16 @@ impl Writer {
             format: state.format,
             full,
         })
+    }
+
+    /// An update went out: it answers one of the viewer's open requests. Only
+    /// updates that were really sent count, or the viewer would believe in
+    /// requests this side has forgotten.
+    fn spent(&self) {
+        let mut state = self.viewer.state();
+        if !state.continuous {
+            state.requests = state.requests.saturating_sub(1);
+        }
     }
 
     /// Tells the viewer when the picture changed size, and starts over for it.
@@ -780,6 +788,7 @@ impl Writer {
         let height = usize::try_from(frame.height).unwrap_or(usize::MAX);
         self.stream
             .write_all(&message::desktop_size(width, height, extended))?;
+        self.spent();
         self.size = (frame.width, frame.height);
         self.encoder = None;
         self.h264_failed = false;
@@ -794,12 +803,16 @@ impl Writer {
             return Ok(());
         };
         match encoder.encode(frame, reset) {
-            Ok(unit) if unit.is_empty() => {}
+            Ok(unit) if unit.is_empty() => {
+                // Nothing went out, so a request for the whole picture still stands.
+                self.viewer.state().full |= plan.full;
+            }
             Ok(unit) => {
                 let width = usize::try_from(frame.width).unwrap_or(usize::MAX);
                 let height = usize::try_from(frame.height).unwrap_or(usize::MAX);
                 self.stream
                     .write_all(&message::h264_update(width, height, &unit, reset))?;
+                self.spent();
                 self.key_pending = false;
             }
             Err(reason) => {
@@ -829,6 +842,7 @@ impl Writer {
         };
         let bytes = pixel_update(&frame, area, plan, &mut self.zrle)?;
         self.stream.write_all(&bytes)?;
+        self.spent();
         self.previous = Some(frame);
         Ok(())
     }

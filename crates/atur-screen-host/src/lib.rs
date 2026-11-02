@@ -8,7 +8,7 @@
 //! the pasteboard.
 //!
 //! The protocol and the server are portable and tested everywhere; everything
-//! that touches macOS lives in [`mac`].
+//! that touches macOS lives in the `mac` module.
 //!
 //! It runs as a small application of its own (`Atur Terminal Screen.app`, inside
 //! the Atur Terminal app) so that macOS asks for Screen Recording and
