@@ -1,4 +1,4 @@
-//! ScreenCaptureKit capture of one display and the pasteboard, through the
+//! `ScreenCaptureKit` capture of one display and the pasteboard, through the
 //! small Objective-C layer in `capture.m`.
 #![allow(
     unsafe_code,
@@ -41,7 +41,7 @@ unsafe extern "C" {
     fn atur_free(pointer: *mut c_void);
 }
 
-/// Connects this process to the window server, as ScreenCaptureKit needs.
+/// Connects this process to the window server, as `ScreenCaptureKit` needs.
 /// Call it first, on the main thread.
 pub fn init_application() {
     // SAFETY: called once on the main thread before anything else.

@@ -1,4 +1,4 @@
-//! Compiles the Objective-C part of the macOS capture (ScreenCaptureKit and the
+//! Compiles the Objective-C part of the macOS capture (`ScreenCaptureKit` and the
 //! pasteboard are Objective-C APIs) and links the frameworks the program uses.
 //! On other systems there is nothing to build.
 

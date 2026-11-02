@@ -13,7 +13,7 @@ pub struct Frame {
 pub enum FrameData {
     /// B, G, R, A bytes, `stride` bytes per row.
     Cpu { stride: usize, bytes: Vec<u8> },
-    /// A `CoreVideo` pixel buffer (an `IOSurface`) as ScreenCaptureKit delivers it.
+    /// A `CoreVideo` pixel buffer (an `IOSurface`) as `ScreenCaptureKit` delivers it.
     #[cfg(target_os = "macos")]
     Surface(crate::mac::pixel::PixelBuffer),
 }

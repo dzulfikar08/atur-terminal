@@ -65,7 +65,8 @@ Sharing:
    & Reopen** or **Later**, either is fine.
 3. In **Privacy & Security → Accessibility**, turn on **Atur Terminal
    Screen**. This lets your mouse and keyboard work. Without it the screen is
-   shown but is view only, and the name of the Screen view says so.
+   shown but your mouse and keyboard do nothing; `atur-term screen` on the
+   Mac tells you when that is the case.
 4. In the Screen view, choose **Retry connection**.
 
 Until the permission is given, the Screen view shows: "Screen recording
@@ -204,5 +205,5 @@ On a Mac:
 - If the permission was turned off later, the message names the setting:
   **Privacy & Security → Screen & System Audio Recording → Atur Terminal
   Screen**. Turn it on and choose **Retry connection**.
-- If the view is view only, turn on **Atur Terminal Screen** in **Privacy &
-  Security → Accessibility**, then choose **Retry connection**.
+- If the mouse and keyboard do nothing, turn on **Atur Terminal Screen** in
+  **Privacy & Security → Accessibility**, then choose **Retry connection**.

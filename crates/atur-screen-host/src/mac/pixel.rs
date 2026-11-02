@@ -1,4 +1,4 @@
-//! `CoreVideo` pixel buffers: the pictures ScreenCaptureKit delivers (backed by
+//! `CoreVideo` pixel buffers: the pictures `ScreenCaptureKit` delivers (backed by
 //! an `IOSurface`, so the encoder reads them without a copy).
 #![allow(
     unsafe_code,

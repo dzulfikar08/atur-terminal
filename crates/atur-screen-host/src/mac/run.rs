@@ -1,6 +1,6 @@
 //! The program: modes `serve`, `synthetic`, `check` and `request`.
 //!
-//! The main thread runs the application's run loop, which ScreenCaptureKit and
+//! The main thread runs the application's run loop, which `ScreenCaptureKit` and
 //! the permission prompts need; the work happens on threads of its own and ends
 //! with `process::exit`.
 #![allow(
