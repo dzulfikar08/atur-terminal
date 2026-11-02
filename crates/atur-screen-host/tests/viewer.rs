@@ -308,11 +308,13 @@ fn the_clipboard_travels_both_ways() {
     let fixture = Fixture::start((320, 200));
     let screen = fixture.viewer();
     wait_ready(&screen);
-    // Until the viewer knows the extended clipboard works it sends legacy text; both arrive.
+    // Legacy text or the extended flow, whichever the viewer has by now; both arrive.
+    screen.send_clipboard("h\u{e9}llo");
     wait_for("the clipboard to reach the host", || {
-        screen.send_clipboard("h\u{e9}llo");
         fixture.host.clipboard_text().as_deref() == Some("h\u{e9}llo")
     });
+    // Let the server see (and not announce back) the change the viewer made.
+    thread::sleep(Duration::from_millis(900));
     fixture.host.copy("from the mac");
     let mut received = None;
     wait_for("the Mac's clipboard to reach the viewer", || {
