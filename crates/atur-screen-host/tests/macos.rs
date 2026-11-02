@@ -334,7 +334,12 @@ fn the_screen_is_shared_or_the_missing_permission_is_reported() {
                 assert!(Instant::now() < deadline, "no picture of the real screen");
                 thread::sleep(Duration::from_millis(50));
             }
-            let codec = screen.stats().codec;
+            // The codec is named once the first update has been counted.
+            let mut codec = screen.stats().codec;
+            while codec.is_empty() && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(50));
+                codec = screen.stats().codec;
+            }
             eprintln!("viewer codec {codec:?}");
             assert!(codec.starts_with("h264"));
             let ScreenState::Ready(info) = screen.state() else {
