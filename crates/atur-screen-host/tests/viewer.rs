@@ -316,7 +316,10 @@ fn the_clipboard_travels_both_ways() {
     fixture.host.copy("from the mac");
     let mut received = None;
     wait_for("the Mac's clipboard to reach the viewer", || {
-        received = received.take().or_else(|| screen.take_clipboard());
+        // Text the viewer itself sent may come back first; the newest is what counts.
+        if let Some(text) = screen.take_clipboard() {
+            received = Some(text);
+        }
         received.as_deref() == Some("from the mac")
     });
 }
